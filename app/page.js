@@ -7,16 +7,17 @@ import { supabase } from "@/lib/supabaseClient";
 export const revalidate = 0;
 
 async function getProductos() {
-  // Traemos un lote prudente de productos para cuidar la memoria y velocidad
   const { data, error } = await supabase
     .from("Productos")
-    .select("*")
-    .limit(50);
+    .select("*");
 
   if (error) {
     console.error("Error cargando productos:", error.message);
     return [];
   }
+
+  // Solo registramos la cantidad, nunca el objeto entero para cuidar la memoria
+  console.log("PRODUCTOS RECIBIDOS:", data?.length || 0);
 
   return data || [];
 }
@@ -32,7 +33,7 @@ export default async function HomePage() {
 
       <section className="mt-6 px-4">
         <h2 className="font-bold text-gray-800 mb-3">
-          Productos disponibles
+          Productos disponibles ({productos.length})
         </h2>
 
         {productos.length === 0 ? (
@@ -42,7 +43,10 @@ export default async function HomePage() {
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {productos.map((p) => (
-              <ProductCard key={p.id} producto={p} />
+              <ProductCard 
+                key={p.id} 
+                producto={p} 
+              />
             ))}
           </div>
         )}
