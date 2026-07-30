@@ -1,39 +1,52 @@
+import Header from "@/components/Header";
+import BannerOfertas from "@/components/BannerOfertas";
+import CategoryList from "@/components/CategoryList";
+import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
 
 export const revalidate = 0;
 
-export default async function HomePage() {
-  // Traemos solo una pequeña muestra y columnas básicas para no saturar memoria
+async function getProductos() {
+  // Traemos un lote prudente de productos para cuidar la memoria y velocidad
   const { data, error } = await supabase
     .from("Productos")
-    .select("id, nombre")
-    .limit(5);
+    .select("*")
+    .limit(50);
+
+  if (error) {
+    console.error("Error cargando productos:", error.message);
+    return [];
+  }
+
+  return data || [];
+}
+
+export default async function HomePage() {
+  const productos = await getProductos();
 
   return (
-    <main className="p-6">
-      <h1 className="text-xl font-bold mb-4">Prueba de Diagnóstico</h1>
+    <main className="pb-6">
+      <Header />
+      <BannerOfertas />
+      <CategoryList />
 
-      {error ? (
-        <div className="p-4 bg-red-100 text-red-700 rounded">
-          Error en Supabase: {error.message}
-        </div>
-      ) : (
-        <div>
-          <p className="text-green-600 font-semibold mb-2">
-            ¡Conexión exitosa! El servidor no se cayó.
-          </p>
-          <p className="text-gray-600 text-sm mb-4">
-            Productos encontrados (muestra de 5): {data?.length || 0}
-          </p>
-          <ul className="list-disc pl-5 space-y-1">
-            {data?.map((p) => (
-              <li key={p.id} className="text-gray-800">
-                {p.nombre || "Producto sin nombre"}
-              </li>
+      <section className="mt-6 px-4">
+        <h2 className="font-bold text-gray-800 mb-3">
+          Productos disponibles
+        </h2>
+
+        {productos.length === 0 ? (
+          <div className="card p-6 text-center text-gray-500 text-sm">
+            No hay productos cargados.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {productos.map((p) => (
+              <ProductCard key={p.id} producto={p} />
             ))}
-          </ul>
-        </div>
-      )}
+          </div>
+        )}
+      </section>
     </main>
   );
 }
