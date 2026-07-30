@@ -12,7 +12,7 @@ async function getProductos() {
     .select("*");
 
   if (error) {
-    console.error("Error cargando productos:", error.message);
+    console.error("Error:", error.message);
     return [];
   }
 
@@ -29,11 +29,9 @@ export default async function HomePage() {
       <CategoryList />
 
       <section className="mt-6 px-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-gray-800">
-            Productos disponibles
-          </h2>
-        </div>
+        <h2 className="font-bold text-gray-800 mb-3">
+          Productos disponibles
+        </h2>
 
         {productos.length === 0 ? (
           <div className="card p-6 text-center text-gray-500 text-sm">
