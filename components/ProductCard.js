@@ -7,6 +7,7 @@ import { formatPrice } from "@/lib/whatsapp";
 
 export default function ProductCard({ producto }) {
   const { addItem } = useCart();
+
   const tieneOferta =
     producto.precio_oferta && producto.precio_oferta < producto.precio;
 
@@ -14,6 +15,30 @@ export default function ProductCard({ producto }) {
     e.preventDefault();
     e.stopPropagation();
     addItem(producto, 1);
+  }
+
+  function handleWhatsApp(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const telefono = "5492944396888";
+
+    const precio = producto.precio_oferta || producto.precio;
+
+    const mensaje = encodeURIComponent(
+`Hola! 👋
+
+Quiero comprar este producto:
+
+🛒 ${producto.nombre}
+💰 Precio: $${formatPrice(precio)}
+
+¿Está disponible?`
+    );
+
+    const link = `https://wa.me/${telefono}?text=${mensaje}`;
+
+    window.open(link, "_blank");
   }
 
   return (
@@ -41,10 +66,12 @@ export default function ProductCard({ producto }) {
           </span>
         )}
       </div>
+
       <div className="p-3 flex flex-col gap-1 flex-1">
         <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 min-h-[2.5rem]">
           {producto.nombre}
         </h3>
+
         <div className="mt-1">
           {tieneOferta ? (
             <div className="flex items-center gap-2">
@@ -61,8 +88,19 @@ export default function ProductCard({ producto }) {
             </span>
           )}
         </div>
-        <button onClick={handleAdd} className="btn-primary text-sm mt-2 w-full">
+
+        <button
+          onClick={handleAdd}
+          className="btn-primary text-sm mt-2 w-full"
+        >
           Agregar al carrito
+        </button>
+
+        <button
+          onClick={handleWhatsApp}
+          className="mt-2 w-full bg-[#25D366] text-white text-sm font-semibold py-2 rounded-lg hover:scale-105 transition-transform"
+        >
+          Comprar por WhatsApp
         </button>
       </div>
     </Link>
