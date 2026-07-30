@@ -1,5 +1,6 @@
 "use client";
 
+import { FaWhatsapp } from "react-icons/fa";
 import { buildWhatsAppLink } from "@/lib/whatsapp";
 
 export default function WhatsAppFloatingButton() {
@@ -15,7 +16,7 @@ export default function WhatsAppFloatingButton() {
       className="fixed bottom-20 right-4 z-40 md:bottom-6 bg-[#25D366] text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl hover:scale-105 transition-transform"
       aria-label="Consultar por WhatsApp"
     >
-      💬
-    </a>
+<FaWhatsapp size={28} />
+</a>
   );
 }
