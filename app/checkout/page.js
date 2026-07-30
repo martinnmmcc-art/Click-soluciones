@@ -97,9 +97,9 @@ export default function CheckoutPage() {
       clearCart();
       router.push(`/confirmacion?numero=${numero_pedido}`);
     } catch (err) {
-      console.error(err);
+      console.error("Error completo de Supabase:", err);
       setError(
-        "No pudimos registrar tu pedido. Verificá tu conexión a Supabase e intentá de nuevo."
+        `Error: ${err.message || JSON.stringify(err)} | Details: ${err.details || "N/A"}`
       );
     } finally {
       setEnviando(false);
@@ -126,7 +126,7 @@ export default function CheckoutPage() {
         <h1 className="font-bold text-xl text-gray-800 mb-4">Checkout</h1>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 mb-4">
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 mb-4 break-words">
             {error}
           </div>
         )}
