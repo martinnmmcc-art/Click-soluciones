@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabaseClient";
 
 export const revalidate = 0;
 
-
 async function getProductos() {
   const { data, error } = await supabase
     .from("Productos")
@@ -16,6 +15,9 @@ async function getProductos() {
     console.error("Error cargando productos:", error.message);
     return [];
   }
+
+  // Registro seguro y liviano para verificar sin saturar la memoria de Vercel
+  console.log("Cantidad de productos cargados:", data?.length);
 
   return data || [];
 }
