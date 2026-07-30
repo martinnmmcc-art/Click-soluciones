@@ -1,56 +1,35 @@
-import Header from "@/components/Header";
-import BannerOfertas from "@/components/BannerOfertas";
-import CategoryList from "@/components/CategoryList";
-import ProductCard from "@/components/ProductCard";
-import { supabase } from "@/lib/supabaseClient";
+export default function ProductCard({ producto }) {
+  // Si por algún motivo el producto llega vacío, no mostramos nada para no romper el servidor
+  if (!producto) return null;
 
-export const revalidate = 0;
-
-async function getProductos() {
-  const { data, error } = await supabase
-    .from("Productos")
-    .select("*");
-
-  if (error) {
-    console.error("Error cargando productos:", error.message);
-    return [];
-  }
-
-  console.log("PRODUCTOS RECIBIDOS:", data?.length || 0);
-  console.log("LISTA PRODUCTOS:", data);
-
-  return data || [];
-}
-
-export default async function HomePage() {
-  const productos = await getProductos();
+  // Ajusta los nombres de las propiedades (nombre, precio, imagen) según cómo estén en tu Supabase
+  const nombre = producto.nombre || producto.title || producto.name || "Producto sin nombre";
+  const precio = producto.precio || producto.price || 0;
+  const imagenUrl = producto.imagen || producto.image_url || producto.url_imagen || "https://placehold.co/400x400?text=Sin+Foto";
 
   return (
-    <main className="pb-6">
-      <Header />
-      <BannerOfertas />
-      <CategoryList />
+    <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-3 flex flex-col justify-between hover:shadow-md transition-shadow">
+      <div className="w-full aspect-square bg-gray-50 rounded-md mb-3 overflow-hidden flex items-center justify-center">
+        {/* Usamos una etiqueta img estándar para evitar problemas iniciales con Next.js */}
+        <img
+          src={imagenUrl}
+          alt={nombre}
+          className="w-full h-full object-cover"
+        />
+      </div>
+      
+      <div>
+        <h3 className="font-semibold text-sm text-gray-800 line-clamp-2 mb-1">
+          {nombre}
+        </h3>
+        <p className="text-blue-600 font-bold text-lg">
+          ${precio}
+        </p>
+      </div>
 
-      <section className="mt-6 px-4">
-        <h2 className="font-bold text-gray-800 mb-3">
-          Productos disponibles ({productos.length})
-        </h2>
-
-        {productos.length === 0 ? (
-          <div className="card p-6 text-center text-gray-500 text-sm">
-            No hay productos cargados.
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {productos.map((p) => (
-              <ProductCard 
-                key={p.id} 
-                producto={p} 
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    </main>
+      <button className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-md text-sm font-medium transition-colors">
+        Agregar
+      </button>
+    </div>
   );
 }
