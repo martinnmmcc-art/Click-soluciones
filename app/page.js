@@ -6,13 +6,14 @@ import { supabase } from "@/lib/supabaseClient";
 
 export const revalidate = 0;
 
+
 async function getProductos() {
   const { data, error } = await supabase
     .from("Productos")
     .select("*");
 
   if (error) {
-    console.error("Error:", error.message);
+    console.error("Error cargando productos:", error.message);
     return [];
   }
 
