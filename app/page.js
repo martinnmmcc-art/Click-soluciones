@@ -8,12 +8,10 @@ export const revalidate = 0;
 
 async function getDestacados() {
   const { data, error } = await supabase
-    .from("Productos") // 👈 IMPORTANTE: con mayúscula
+    .from("Productos")
     .select("*")
     .eq("activo", true)
-    .eq("destacado", true)
-    .order("created_at", { ascending: false })
-    .limit(8);
+    .eq("destacado", true);
 
   if (error) {
     console.error("Error cargando destacados:", error.message);
@@ -23,13 +21,11 @@ async function getDestacados() {
   return data || [];
 }
 
-// 👇 traer todos los productos si no hay destacados
 async function getProductos() {
   const { data, error } = await supabase
-    .from("Productos") // 👈 ACÁ TAMBIÉN CORREGIDO
+    .from("Productos")
     .select("*")
-    .eq("activo", true)
-    .order("created_at", { ascending: false });
+    .eq("activo", true);
 
   if (error) {
     console.error("Error cargando productos:", error.message);
