@@ -1,0 +1,46 @@
+import "./globals.css";
+import { CartProvider } from "@/context/CartContext";
+import { AuthProvider } from "@/context/AuthContext";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import WhatsAppFloatingButton from "@/components/WhatsAppFloatingButton";
+import BottomNav from "@/components/BottomNav";
+
+export const metadata = {
+  title: "Clic Soluciones | Productos para el hogar",
+  description:
+    "Iluminación, cocina y organización para tu hogar. Comprá fácil y rápido en Clic Soluciones.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Clic Soluciones"
+  }
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#1560D4"
+};
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="es">
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="icon" href="/icons/icon-192.png" />
+      </head>
+      <body className="bg-brand-bg min-h-screen font-sans">
+        <AuthProvider>
+          <CartProvider>
+            <ServiceWorkerRegister />
+            <div className="container-app pb-24">{children}</div>
+            <WhatsAppFloatingButton />
+            <BottomNav />
+          </CartProvider>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}

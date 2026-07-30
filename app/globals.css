@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: #f7f9fc;
+  color: #1a1a1a;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.container-app {
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 768px) {
+  .container-app {
+    max-width: 1024px;
+  }
+}
+
+.btn-primary {
+  @apply bg-brand-blue hover:bg-brand-blueDark text-white font-semibold rounded-xl px-4 py-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-secondary {
+  @apply bg-white border-2 border-brand-blue text-brand-blue font-semibold rounded-xl px-4 py-3 transition-colors hover:bg-blue-50 disabled:opacity-50;
+}
+
+.btn-accent {
+  @apply bg-brand-orange hover:bg-brand-orangeDark text-white font-semibold rounded-xl px-4 py-3 transition-colors disabled:opacity-50;
+}
+
+.input-field {
+  @apply w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent;
+}
+
+.card {
+  @apply bg-white rounded-2xl shadow-sm border border-gray-100;
+}
+
+::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 999px;
+}
