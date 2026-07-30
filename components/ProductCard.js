@@ -1,16 +1,21 @@
+"use client";
+
+import { useCart } from "@/context/CartContext";
+
 export default function ProductCard({ producto }) {
-  // Si por algún motivo el producto llega vacío, no mostramos nada para no romper el servidor
+  // Importamos la función exacta tal como la nombraste en tu contexto
+  const { addItem } = useCart();
+
   if (!producto) return null;
 
-  // Ajusta los nombres de las propiedades (nombre, precio, imagen) según cómo estén en tu Supabase
-  const nombre = producto.nombre || producto.title || producto.name || "Producto sin nombre";
-  const precio = producto.precio || producto.price || 0;
-  const imagenUrl = producto.imagen || producto.image_url || producto.url_imagen || "https://placehold.co/400x400?text=Sin+Foto";
+  // Ajustamos los nombres para que coincidan con lo que espera tu base de datos y tu carrito
+  const nombre = producto.nombre || "Producto sin nombre";
+  const precio = producto.precio_oferta || producto.precio || 0;
+  const imagenUrl = producto.imagen_url || "https://placehold.co/400x400?text=Sin+Foto";
 
   return (
     <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-3 flex flex-col justify-between hover:shadow-md transition-shadow">
       <div className="w-full aspect-square bg-gray-50 rounded-md mb-3 overflow-hidden flex items-center justify-center">
-        {/* Usamos una etiqueta img estándar para evitar problemas iniciales con Next.js */}
         <img
           src={imagenUrl}
           alt={nombre}
@@ -27,7 +32,11 @@ export default function ProductCard({ producto }) {
         </p>
       </div>
 
-      <button className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-md text-sm font-medium transition-colors">
+      <button 
+        // Aquí disparamos tu función addItem pasándole el producto completo
+        onClick={() => addItem(producto)}
+        className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-md text-sm font-medium transition-colors active:scale-95"
+      >
         Agregar
       </button>
     </div>
