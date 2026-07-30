@@ -8,7 +8,7 @@ export const revalidate = 0;
 
 async function getDestacados() {
   const { data, error } = await supabase
-    .from("productos")
+    .from("Productos") // 👈 IMPORTANTE: con mayúscula
     .select("*")
     .eq("activo", true)
     .eq("destacado", true)
@@ -23,10 +23,10 @@ async function getDestacados() {
   return data || [];
 }
 
-// 👇 NUEVO: traer todos los productos si no hay destacados
+// 👇 traer todos los productos si no hay destacados
 async function getProductos() {
   const { data, error } = await supabase
-    .from("productos")
+    .from("Productos") // 👈 ACÁ TAMBIÉN CORREGIDO
     .select("*")
     .eq("activo", true)
     .order("created_at", { ascending: false });
@@ -43,7 +43,6 @@ export default async function HomePage() {
   const destacados = await getDestacados();
   const productos = await getProductos();
 
-  // 👇 si no hay destacados, usa productos normales
   const productosMostrar =
     destacados.length > 0 ? destacados : productos;
 
