@@ -13,7 +13,9 @@ export default function AuthGuard({ children }) {
     if (pathname.startsWith("/login")) return;
 
     // Verificación instantánea de sesión local (Cliente o Admin)
-    const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
+    const sesionCliente = typeof window !== "undefined"
+      ? (localStorage.getItem("clic_soluciones_user") || localStorage.getItem("cliente_sesion"))
+      : null;
     const hasSupabaseToken = typeof window !== "undefined" && Object.keys(localStorage).some(key => key.includes("auth-token"));
 
     if (sesionCliente || hasSupabaseToken) {
