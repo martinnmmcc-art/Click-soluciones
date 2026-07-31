@@ -8,6 +8,7 @@ export default function ProductCard({ producto }) {
 
   if (!producto) return null;
 
+  const idProducto = producto.id;
   const nombre = producto.nombre || "Producto sin nombre";
   const precio = producto.precio_oferta || producto.precio || 0;
   const imagenUrl = producto.imagen_url || "https://placehold.co/400x400?text=Sin+Foto";
@@ -15,8 +16,8 @@ export default function ProductCard({ producto }) {
   return (
     <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-3 flex flex-col justify-between hover:shadow-md transition-shadow">
       
-      {/* Zona clickeable para ir al detalle (Foto y Título) */}
-      <Link href={`/producto/${producto.id}`} className="block group">
+      {/* Enlace seguro usando el id exacto del producto */}
+      <Link href={`/producto/${idProducto}`} className="block group">
         <div className="w-full aspect-square bg-gray-50 rounded-md mb-3 overflow-hidden flex items-center justify-center">
           <img
             src={imagenUrl}
@@ -35,7 +36,6 @@ export default function ProductCard({ producto }) {
         </div>
       </Link>
 
-      {/* Botón de Agregar (fuera del Link para que no abra la página sin querer) */}
       <button 
         onClick={() => addItem(producto)}
         className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded-md text-sm font-medium transition-colors active:scale-95"
