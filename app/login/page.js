@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Header from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -13,12 +14,18 @@ export default function LoginPage() {
   // 'celular' para clientes, 'email' para el admin
   const [modo, setModo] = useState("celular");
 
-  // Estados para modo celular (con contraseña y modo registro manual)
+  // Estados para modo celular (login / registro inicial)
   const [telefono, setTelefono] = useState("");
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
   const [localidad, setLocalidad] = useState("");
   const [esRegistro, setEsRegistro] = useState(false);
+
+  // Estados para completar perfil opcional una vez dentro
+  const [emailPerfil, setEmailPerfil] = useState("");
+  const [direccionPerfil, setDireccionPerfil] = useState("");
+  const [editandoPerfil, setEditandoPerfil] = useState(false);
+  const [mensajePerfil, setMensajePerfil] = useState("");
 
   // Estados para modo email/admin
   const [emailAdmin, setEmailAdmin] = useState("");
@@ -26,6 +33,22 @@ export default function LoginPage() {
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Cargar datos actuales de perfil si hay sesión en localStorage
+  useEffect(() => {
+    const sesionStr = localStorage.getItem("cliente_sesion");
+    if (sesionStr) {
+      try {
+        const sesion = JSON.parse(sesionStr);
+        setEmailPerfil(sesion.email || "");
+        setDireccionPerfil(sesion.direccion || "");
+        setLocalidad(sesion.localidad || "");
+        setNombre(sesion.nombre || "");
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
 
   // Ingreso o Registro de Clientes con Celular y Contraseña
   async function handleCelularSubmit(e) {
@@ -42,45 +65,42 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // 1. Verificamos si el cliente ya existe en la base de datos
-      const { data: clienteExistente } = await supabase
+      const { data: clienteExistente, error: errBusqueda } = await supabase
         .from("clientes")
         .select("*")
         .eq("telefono", telLimpio)
         .maybeSingle();
 
       if (clienteExistente && !esRegistro) {
-        // CLIENTE EXISTENTE: Validamos su contraseña
         if (clienteExistente.password !== passLimpio) {
           setError("Contraseña incorrecta.");
           setLoading(false);
           return;
         }
 
-        // Guardamos la sesión de forma permanente en el dispositivo
         localStorage.setItem("cliente_sesion", JSON.stringify(clienteExistente));
-        window.location.href = "/";
+        router.push("/");
+        router.refresh();
       } else {
-        // MODO REGISTRO: Si eligió registrarse o el cliente no existe
         if (!nombre.trim()) {
           setError("Ingresá tu nombre y apellido para registrarte.");
           setLoading(false);
           return;
         }
 
-        // Validamos si ya existía para no duplicar
         if (clienteExistente) {
           setError("Este número ya está registrado. Iniciá sesión normalmente.");
           setLoading(false);
           return;
         }
 
-        // Creamos el nuevo cliente en la tabla
         const nuevoCliente = {
           telefono: telLimpio,
           password: passLimpio,
           nombre: nombre.trim(),
-          localidad: localidad.trim()
+          localidad: localidad.trim(),
+          email: "",
+          direccion: ""
         };
 
         const { error: insertError } = await supabase
@@ -88,18 +108,65 @@ export default function LoginPage() {
           .insert([nuevoCliente]);
 
         if (insertError) {
-          setError("No se pudo completar el registro. Intentá nuevamente.");
+          console.error("Detalle del error de Supabase:", insertError);
+          setError(`Error al registrar: ${insertError.message}`);
           setLoading(false);
           return;
         }
 
         localStorage.setItem("cliente_sesion", JSON.stringify(nuevoCliente));
-        window.location.href = "/";
+        router.push("/");
+        router.refresh();
       }
     } catch (err) {
-      setError("Ocurrió un error inesperado.");
+      console.error("Excepción en login:", err);
+      setError(`Ocurrió un error: ${err.message || "Desconocido"}`);
       setLoading(false);
     }
+  }
+
+  // Guardar datos opcionales del perfil
+  async function handleGuardarPerfil(e) {
+    e.preventDefault();
+    setMensajePerfil("");
+    setLoading(true);
+
+    const sesionStr = localStorage.getItem("cliente_sesion");
+    if (!sesionStr) {
+      setLoading(false);
+      return;
+    }
+
+    const sesion = JSON.parse(sesionStr);
+
+    const datosActualizados = {
+      ...sesion,
+      email: emailPerfil.trim(),
+      direccion: direccionPerfil.trim(),
+      localidad: localidad.trim()
+    };
+
+    // Actualizamos en la base de datos de Supabase
+    const { error: updateError } = await supabase
+      .from("clientes")
+      .update({
+        email: emailPerfil.trim(),
+        direccion: direccionPerfil.trim(),
+        localidad: localidad.trim()
+      })
+      .eq("telefono", sesion.telefono);
+
+    if (updateError) {
+      setMensajePerfil("❌ Error al actualizar el perfil.");
+      setLoading(false);
+      return;
+    }
+
+    // Actualizamos la sesión local
+    localStorage.setItem("cliente_sesion", JSON.stringify(datosActualizados));
+    setMensajePerfil("✅ ¡Perfil actualizado con éxito!");
+    setEditandoPerfil(false);
+    setLoading(false);
   }
 
   // Ingreso como Administrador con Correo
@@ -126,37 +193,117 @@ export default function LoginPage() {
     }
   }
 
+  // Si ya hay sesión iniciada, mostramos el panel de cuenta y opción de completar perfil opcional
   if (user || (typeof window !== "undefined" && localStorage.getItem("cliente_sesion"))) {
     const sesionCliente = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("cliente_sesion") || "{}") : {};
     return (
-      <main className="pb-6">
+      <main className="pb-20">
         <Header showSearch={false} />
-        <div className="px-4 mt-6">
-          <div className="card p-6 text-center max-w-md mx-auto">
-            <p className="text-3xl mb-2">👋</p>
+        <div className="px-4 mt-6 max-w-md mx-auto">
+          <div className="card p-6 text-center space-y-3 mb-4">
+            <p className="text-3xl mb-1">👋</p>
             <h1 className="font-bold text-lg text-gray-800">
               Hola, {user?.nombre || sesionCliente.nombre || user?.email}
             </h1>
-            <p className="text-sm text-gray-500 mt-1">{user?.telefono || sesionCliente.telefono || user?.email}</p>
-            <button
-              onClick={() => {
-                localStorage.removeItem("cliente_sesion");
-                logout();
-                supabase.auth.signOut();
-                router.push("/login");
-              }}
-              className="btn-secondary w-full mt-5"
-            >
-              Cerrar sesión
-            </button>
+            <p className="text-sm text-gray-500 font-medium">📱 {user?.telefono || sesionCliente.telefono || user?.email}</p>
+            
+            {sesionCliente.localidad && (
+              <p className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full inline-block">
+                📍 {sesionCliente.localidad}
+              </p>
+            )}
+            {sesionCliente.direccion && (
+              <p className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full inline-block ml-1">
+                🏠 {sesionCliente.direccion}
+              </p>
+            )}
+            {sesionCliente.email && (
+              <p className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full block">
+                ✉️ {sesionCliente.email}
+              </p>
+            )}
+
+            <div className="pt-2 space-y-2">
+              <Link href="/" className="btn-primary block w-full text-center py-2.5">
+                Ir a Ver el Catálogo 🛒
+              </Link>
+              
+              <button
+                onClick={() => setEditandoPerfil(!editandoPerfil)}
+                className="btn-secondary w-full text-xs"
+              >
+                {editandoPerfil ? "Cancelar edición" : "⚙️ Completar / Editar mis datos opcionales"}
+              </button>
+            </div>
           </div>
+
+          {/* Formulario para completar datos opcionales del perfil */}
+          {editandoPerfil && (
+            <div className="card p-5 mb-4 bg-blue-50/50 border border-blue-200">
+              <h2 className="font-bold text-sm text-gray-800 mb-3 text-center">Tus datos adicionales (Opcional)</h2>
+              
+              {mensajePerfil && (
+                <div className="text-xs text-center p-2 mb-3 rounded-lg bg-white border font-medium">
+                  {mensajePerfil}
+                </div>
+              )}
+
+              <form onSubmit={handleGuardarPerfil} className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Correo electrónico</label>
+                  <input
+                    type="email"
+                    value={emailPerfil}
+                    onChange={(e) => setEmailPerfil(e.target.value)}
+                    className="input-field bg-white"
+                    placeholder="tucorreo@gmail.com"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Dirección de entrega</label>
+                  <input
+                    value={direccionPerfil}
+                    onChange={(e) => setDireccionPerfil(e.target.value)}
+                    className="input-field bg-white"
+                    placeholder="Ej: Av. San Martín 450"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
+                  <input
+                    value={localidad}
+                    onChange={(e) => setLocalidad(e.target.value)}
+                    className="input-field bg-white"
+                    placeholder="Ej: El Bolsón"
+                  />
+                </div>
+
+                <button disabled={loading} className="btn-primary w-full text-xs py-2 mt-2">
+                  {loading ? "Guardando..." : "Guardar mis datos"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          <button
+            onClick={() => {
+              localStorage.removeItem("cliente_sesion");
+              logout();
+              supabase.auth.signOut();
+              router.push("/login");
+              router.refresh();
+            }}
+            className="text-xs text-red-500 font-medium w-full text-center py-2 hover:underline"
+          >
+            Cerrar sesión
+          </button>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="pb-6">
+    <main className="pb-20">
       <Header showSearch={false} />
       <div className="px-4 mt-6 max-w-md mx-auto">
         <h1 className="font-bold text-xl text-gray-800 mb-1 text-center">
@@ -164,8 +311,8 @@ export default function LoginPage() {
         </h1>
         <p className="text-sm text-gray-500 mb-5 text-center">
           {esRegistro 
-            ? "Completá tus datos para registrarte por primera vez." 
-            : "Iniciá sesión con tu celular o correo para ver el catálogo y hacer pedidos."}
+            ? "Completá tus datos básicos para registrarte." 
+            : "Iniciá sesión con tu celular para ver el catálogo y hacer pedidos."}
         </p>
 
         {/* Selector de modo */}
@@ -196,7 +343,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* FORMULARIO DE CLIENTES (CELULAR Y CONTRASEÑA) */}
+        {/* FORMULARIO DE CLIENTES */}
         {modo === "celular" && (
           <form onSubmit={handleCelularSubmit} className="flex flex-col gap-3">
             <div>
@@ -228,11 +375,10 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* Campos de registro que se despliegan si el usuario elige registrarse */}
             {esRegistro && (
               <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl space-y-3 mt-1">
                 <p className="text-xs text-blue-800 font-medium text-center">
-                  Completá tus datos para dar de alta tu cuenta:
+                  Completá tus datos básicos:
                 </p>
                 <div>
                   <label className="text-xs font-bold text-gray-700 block mb-1">Nombre y apellido</label>
@@ -250,7 +396,7 @@ export default function LoginPage() {
                     value={localidad}
                     onChange={(e) => setLocalidad(e.target.value)}
                     className="input-field bg-white"
-                    placeholder="Ej: El Bolsón, Río Negro"
+                    placeholder="Ej: El Bolsón"
                   />
                 </div>
               </div>
@@ -264,7 +410,6 @@ export default function LoginPage() {
                 : "Iniciar Sesión"}
             </button>
 
-            {/* Botón para alternar entre Iniciar Sesión y Registrarse */}
             <div className="text-center mt-3">
               <button
                 type="button"
@@ -282,7 +427,7 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* FORMULARIO DE ADMINISTRADOR (CORREO) */}
+        {/* FORMULARIO DE ADMINISTRADOR */}
         {modo === "email" && (
           <form onSubmit={handleLoginEmail} className="flex flex-col gap-3">
             <div>
