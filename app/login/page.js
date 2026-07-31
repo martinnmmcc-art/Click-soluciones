@@ -10,44 +10,26 @@ export default function LoginPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  // 'celular' para clientes, 'email' para el admin
-  const [modo, setModo] = useState("celular");
+  // Si ya hay sesión iniciada, redirigir automáticamente al catálogo y no trabar la pantalla
+  useEffect(() => {
+    const sesionStr = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
+    if (user || sesionStr) {
+      window.location.href = "/";
+    }
+  }, [user]);
 
-  // Estados para modo celular (login / registro inicial)
+  const [modo, setModo] = useState("celular");
   const [telefono, setTelefono] = useState("");
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
   const [localidad, setLocalidad] = useState("");
   const [esRegistro, setEsRegistro] = useState(false);
 
-  // Estados para completar perfil opcional una vez dentro
-  const [emailPerfil, setEmailPerfil] = useState("");
-  const [direccionPerfil, setDireccionPerfil] = useState("");
-  const [editandoPerfil, setEditandoPerfil] = useState(false);
-  const [mensajePerfil, setMensajePerfil] = useState("");
-
-  // Estados para modo email/admin
   const [emailAdmin, setEmailAdmin] = useState("");
   const [passAdmin, setPassAdmin] = useState("");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // Cargar datos actuales de perfil si hay sesión en localStorage
-  useEffect(() => {
-    const sesionStr = localStorage.getItem("cliente_sesion");
-    if (sesionStr) {
-      try {
-        const sesion = JSON.parse(sesionStr);
-        setEmailPerfil(sesion.email || "");
-        setDireccionPerfil(sesion.direccion || "");
-        setLocalidad(sesion.localidad || "");
-        setNombre(sesion.nombre || "");
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
 
   // Ingreso o Registro de Clientes con Celular y Contraseña
   async function handleCelularSubmit(e) {
@@ -122,48 +104,6 @@ export default function LoginPage() {
     }
   }
 
-  // Guardar datos opcionales del perfil
-  async function handleGuardarPerfil(e) {
-    e.preventDefault();
-    setMensajePerfil("");
-    setLoading(true);
-
-    const sesionStr = localStorage.getItem("cliente_sesion");
-    if (!sesionStr) {
-      setLoading(false);
-      return;
-    }
-
-    const sesion = JSON.parse(sesionStr);
-
-    const datosActualizados = {
-      ...sesion,
-      email: emailPerfil.trim(),
-      direccion: direccionPerfil.trim(),
-      localidad: localidad.trim()
-    };
-
-    const { error: updateError } = await supabase
-      .from("clientes")
-      .update({
-        email: emailPerfil.trim(),
-        direccion: direccionPerfil.trim(),
-        localidad: localidad.trim()
-      })
-      .eq("telefono", sesion.telefono);
-
-    if (updateError) {
-      setMensajePerfil("❌ Error al actualizar el perfil.");
-      setLoading(false);
-      return;
-    }
-
-    localStorage.setItem("cliente_sesion", JSON.stringify(datosActualizados));
-    setMensajePerfil("✅ ¡Perfil actualizado con éxito!");
-    setEditandoPerfil(false);
-    setLoading(false);
-  }
-
   // Ingreso como Administrador con Correo
   async function handleLoginEmail(e) {
     e.preventDefault();
@@ -185,128 +125,6 @@ export default function LoginPage() {
         window.location.href = "/";
       }
     }
-  }
-
-  // Si ya hay sesión iniciada, mostramos el panel de cuenta
-  if (user || (typeof window !== "undefined" && localStorage.getItem("cliente_sesion"))) {
-    const sesionCliente = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("cliente_sesion") || "{}") : {};
-    return (
-      <main className="pb-28">
-        <Header showSearch={false} />
-        <div className="px-4 mt-6 max-w-md mx-auto">
-          {/* Botones de salida usando window.location para forzar la navegación */}
-          <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => { window.location.href = "/"; }}
-              className="flex-1 bg-brand-blue text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-sm"
-            >
-              🛒 Ir al Catálogo
-            </button>
-            <button
-              onClick={() => { window.location.href = "/carrito"; }}
-              className="flex-1 bg-gray-100 text-gray-700 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm"
-            >
-              🛍️ Ver Carrito
-            </button>
-          </div>
-
-          <div className="card p-6 text-center space-y-3 mb-4">
-            <p className="text-3xl mb-1">👋</p>
-            <h1 className="font-bold text-lg text-gray-800">
-              Hola, {user?.nombre || sesionCliente.nombre || user?.email}
-            </h1>
-            <p className="text-sm text-gray-500 font-medium">📱 {user?.telefono || sesionCliente.telefono || user?.email}</p>
-            
-            <div className="flex flex-wrap justify-center gap-1 pt-1">
-              {sesionCliente.localidad && (
-                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full">
-                  📍 {sesionCliente.localidad}
-                </span>
-              )}
-              {sesionCliente.direccion && (
-                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full">
-                  🏠 {sesionCliente.direccion}
-                </span>
-              )}
-              {sesionCliente.email && (
-                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full w-full">
-                  ✉️ {sesionCliente.email}
-                </span>
-              )}
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={() => setEditandoPerfil(!editandoPerfil)}
-                className="btn-secondary w-full text-xs"
-              >
-                {editandoPerfil ? "Cancelar edición" : "⚙️ Completar / Editar mis datos opcionales"}
-              </button>
-            </div>
-          </div>
-
-          {/* Formulario para completar datos opcionales del perfil */}
-          {editandoPerfil && (
-            <div className="card p-5 mb-4 bg-blue-50/50 border border-blue-200">
-              <h2 className="font-bold text-sm text-gray-800 mb-3 text-center">Tus datos adicionales (Opcional)</h2>
-              
-              {mensajePerfil && (
-                <div className="text-xs text-center p-2 mb-3 rounded-lg bg-white border font-medium">
-                  {mensajePerfil}
-                </div>
-              )}
-
-              <form onSubmit={handleGuardarPerfil} className="space-y-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Correo electrónico</label>
-                  <input
-                    type="email"
-                    value={emailPerfil}
-                    onChange={(e) => setEmailPerfil(e.target.value)}
-                    className="input-field bg-white"
-                    placeholder="tucorreo@gmail.com"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Dirección de entrega</label>
-                  <input
-                    value={direccionPerfil}
-                    onChange={(e) => setDireccionPerfil(e.target.value)}
-                    className="input-field bg-white"
-                    placeholder="Ej: Av. San Martín 450"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
-                  <input
-                    value={localidad}
-                    onChange={(e) => setLocalidad(e.target.value)}
-                    className="input-field bg-white"
-                    placeholder="Ej: El Bolsón"
-                  />
-                </div>
-
-                <button disabled={loading} className="btn-primary w-full text-xs py-2 mt-2">
-                  {loading ? "Guardando..." : "Guardar mis datos"}
-                </button>
-              </form>
-            </div>
-          )}
-
-          <button
-            onClick={() => {
-              localStorage.removeItem("cliente_sesion");
-              logout();
-              supabase.auth.signOut();
-              window.location.href = "/login";
-            }}
-            className="text-xs text-red-500 font-medium w-full text-center py-2 hover:underline"
-          >
-            Cerrar sesión
-          </button>
-        </div>
-      </main>
-    );
   }
 
   return (
