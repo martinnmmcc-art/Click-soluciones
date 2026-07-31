@@ -3,467 +3,237 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import BottomNav from "@/components/BottomNav";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function LoginPage() {
-  const { user, logout } = useAuth();
+export default function HomePage() {
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
 
-  const [modo, setModo] = useState("celular");
-  const [telefono, setTelefono] = useState("");
-  const [password, setPassword] = useState("");
-  const [nombre, setNombre] = useState("");
-  const [localidad, setLocalidad] = useState("");
-  const [esRegistro, setEsRegistro] = useState(false);
+  const [autorizado, setAutorizado] = useState(false);
+  const [productos, setProductos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
+  const [busqueda, setBusqueda] = useState("");
+  const [loadingData, setLoadingData] = useState(true);
+  const [mensajeCarrito, setMensajeCarrito] = useState("");
 
-  const [emailPerfil, setEmailPerfil] = useState("");
-  const [direccionPerfil, setDireccionPerfil] = useState("");
-  const [editandoPerfil, setEditandoPerfil] = useState(false);
-  const [mensajePerfil, setMensajePerfil] = useState("");
-
-  const [emailAdmin, setEmailAdmin] = useState("");
-  const [passAdmin, setPassAdmin] = useState("");
-
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [sesionActiva, setSesionActiva] = useState(null);
-
-  // Verificar sesión local al cargar el componente de forma segura
+  // 1. Verificación estricta de seguridad: permite acceso solo si hay sesión (celular o admin)
   useEffect(() => {
-    const sesionStr = localStorage.getItem("cliente_sesion");
-    if (sesionStr) {
+    const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
+
+    if (!authLoading) {
+      if (!user && !sesionCliente) {
+        window.location.href = "/login";
+      } else {
+        setAutorizado(true);
+      }
+    }
+  }, [user, authLoading]);
+
+  // 2. Cargar productos y categorías desde Supabase una vez verificado el acceso
+  useEffect(() => {
+    if (!autorizado) return;
+
+    async function cargarDatos() {
+      setLoadingData(true);
       try {
-        const sesion = JSON.parse(sesionStr);
-        setSesionActiva(sesion);
-        setEmailPerfil(sesion.email || "");
-        setDireccionPerfil(sesion.direccion || "");
-        setLocalidad(sesion.localidad || "");
-        setNombre(sesion.nombre || "");
-      } catch (e) {
-        console.error(e);
+        // Cargar catálogo de productos
+        const { data: prodData, error: prodError } = await supabase
+          .from("productos")
+          .select("*")
+          .order("id", { ascending: true });
+
+        if (!prodError && prodData) {
+          setProductos(prodData);
+        }
+
+        // Cargar categorías disponibles
+        const { data: catData, error: catError } = await supabase
+          .from("categorias")
+          .select("*")
+          .order("nombre", { ascending: true });
+
+        if (!catError && catData) {
+          setCategorias(catData);
+        }
+      } catch (err) {
+        console.error("Error cargando el catálogo:", err);
+      } finally {
+        setLoadingData(false);
       }
     }
-  }, []);
 
-  // Ingreso o Registro de Clientes con Celular y Contraseña
-  async function handleCelularSubmit(e) {
-    e.preventDefault();
-    setError("");
+    cargarDatos();
+  }, [autorizado]);
 
-    const telLimpio = telefono.trim();
-    const passLimpio = password.trim();
-
-    if (!telLimpio || !passLimpio) {
-      setError("Completá tu número de celular y tu contraseña.");
-      return;
-    }
-
-    setLoading(true);
+  // Función para agregar productos al carrito local
+  function agregarAlCarrito(producto) {
     try {
-      const { data: clienteExistente, error: errBusqueda } = await supabase
-        .from("clientes")
-        .select("*")
-        .eq("telefono", telLimpio)
-        .maybeSingle();
+      const carritoActual = JSON.parse(localStorage.getItem("carrito") || "[]");
+      const index = carritoActual.findIndex((item) => item.id === producto.id);
 
-      if (clienteExistente && !esRegistro) {
-        if (clienteExistente.password !== passLimpio) {
-          setError("Contraseña incorrecta.");
-          setLoading(false);
-          return;
-        }
-
-        localStorage.setItem("cliente_sesion", JSON.stringify(clienteExistente));
-        setSesionActiva(clienteExistente);
-        setLoading(false);
+      if (index >= 0) {
+        carritoActual[index].cantidad = (carritoActual[index].cantidad || 1) + 1;
       } else {
-        if (!nombre.trim()) {
-          setError("Ingresá tu nombre y apellido para registrarte.");
-          setLoading(false);
-          return;
-        }
-
-        if (clienteExistente) {
-          setError("Este número ya está registrado. Iniciá sesión normalmente.");
-          setLoading(false);
-          return;
-        }
-
-        const nuevoCliente = {
-          telefono: telLimpio,
-          password: passLimpio,
-          nombre: nombre.trim(),
-          localidad: localidad.trim(),
-          email: "",
-          direccion: ""
-        };
-
-        const { error: insertError } = await supabase
-          .from("clientes")
-          .insert([nuevoCliente]);
-
-        if (insertError) {
-          console.error("Detalle del error de Supabase:", insertError);
-          setError(`Error al registrar: ${insertError.message}`);
-          setLoading(false);
-          return;
-        }
-
-        localStorage.setItem("cliente_sesion", JSON.stringify(nuevoCliente));
-        setSesionActiva(nuevoCliente);
-        setLoading(false);
+        carritoActual.push({ ...producto, cantidad: 1 });
       }
-    } catch (err) {
-      console.error("Excepción en login:", err);
-      setError(`Ocurrió un error: ${err.message || "Desconocido"}`);
-      setLoading(false);
+
+      localStorage.setItem("carrito", JSON.stringify(carritoActual));
+
+      setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
+      setTimeout(() => setMensajeCarrito(""), 2500);
+    } catch (e) {
+      console.error("Error al guardar en el carrito:", e);
     }
   }
 
-  // Guardar datos opcionales del perfil
-  async function handleGuardarPerfil(e) {
-    e.preventDefault();
-    setMensajePerfil("");
-    setLoading(true);
+  // Filtrar productos según búsqueda y categoría seleccionada
+  const productosFiltrados = productos.filter((prod) => {
+    const coincideCategoria =
+      categoriaSeleccionada === "todas" ||
+      prod.categoria_id === categoriaSeleccionada ||
+      prod.categoria === categoriaSeleccionada;
 
-    if (!sesionActiva) {
-      setLoading(false);
-      return;
-    }
+    const coincideBusqueda =
+      !busqueda.trim() ||
+      prod.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      prod.descripcion?.toLowerCase().includes(busqueda.toLowerCase());
 
-    const datosActualizados = {
-      ...sesionActiva,
-      email: emailPerfil.trim(),
-      direccion: direccionPerfil.trim(),
-      localidad: localidad.trim()
-    };
+    return coincideCategoria && coincideBusqueda;
+  });
 
-    const { error: updateError } = await supabase
-      .from("clientes")
-      .update({
-        email: emailPerfil.trim(),
-        direccion: direccionPerfil.trim(),
-        localidad: localidad.trim()
-      })
-      .eq("telefono", sesionActiva.telefono);
-
-    if (updateError) {
-      setMensajePerfil("❌ Error al actualizar el perfil.");
-      setLoading(false);
-      return;
-    }
-
-    localStorage.setItem("cliente_sesion", JSON.stringify(datosActualizados));
-    setSesionActiva(datosActualizados);
-    setMensajePerfil("✅ ¡Perfil actualizado con éxito!");
-    setEditandoPerfil(false);
-    setLoading(false);
-  }
-
-  // Ingreso como Administrador con Correo
-  async function handleLoginEmail(e) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: emailAdmin,
-      password: passAdmin,
-    });
-
-    if (error) {
-      setError("Correo o contraseña incorrectos.");
-      setLoading(false);
-    } else {
-      if (emailAdmin === "maricelcanumir@gmail.com") {
-        window.location.href = "/admin/pedidos";
-      } else {
-        window.location.href = "/";
-      }
-    }
-  }
-
-  // Si ya hay sesión iniciada (o usuario autenticado), mostramos el panel y habilitamos la navegación
-  if (user || sesionActiva) {
+  // Pantalla de carga mentre se comprueba el acceso
+  if (!autorizado) {
     return (
-      <main className="pb-28">
-        <Header showSearch={false} />
-        <div className="px-4 mt-6 max-w-md mx-auto">
-          <div className="flex gap-2 mb-4">
-            <button
-              type="button"
-              onClick={() => { window.location.href = "/"; }}
-              className="flex-1 bg-brand-blue text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-sm"
-            >
-              🛒 Ir al Catálogo
-            </button>
-            <button
-              type="button"
-              onClick={() => { window.location.href = "/carrito"; }}
-              className="flex-1 bg-gray-100 text-gray-700 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm"
-            >
-              🛍️ Ver Carrito
-            </button>
-          </div>
-
-          <div className="card p-6 text-center space-y-3 mb-4">
-            <p className="text-3xl mb-1">👋</p>
-            <h1 className="font-bold text-lg text-gray-800">
-              Hola, {user?.nombre || sesionActiva?.nombre || user?.email || "Cliente"}
-            </h1>
-            <p className="text-sm text-gray-500 font-medium">📱 {user?.telefono || sesionActiva?.telefono || "Registrado"}</p>
-            
-            <div className="flex flex-wrap justify-center gap-1 pt-1">
-              {sesionActiva?.localidad && (
-                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full">
-                  📍 {sesionActiva.localidad}
-                </span>
-              )}
-              {sesionActiva?.direccion && (
-                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full">
-                  🏠 {sesionActiva.direccion}
-                </span>
-              )}
-              {sesionActiva?.email && (
-                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full w-full">
-                  ✉️ {sesionActiva.email}
-                </span>
-              )}
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => setEditandoPerfil(!editandoPerfil)}
-                className="btn-secondary w-full text-xs"
-              >
-                {editandoPerfil ? "Cancelar edición" : "⚙️ Completar / Editar mis datos opcionales"}
-              </button>
-            </div>
-          </div>
-
-          {editandoPerfil && (
-            <div className="card p-5 mb-4 bg-blue-50/50 border border-blue-200">
-              <h2 className="font-bold text-sm text-gray-800 mb-3 text-center">Tus datos adicionales (Opcional)</h2>
-              
-              {mensajePerfil && (
-                <div className="text-xs text-center p-2 mb-3 rounded-lg bg-white border font-medium">
-                  {mensajePerfil}
-                </div>
-              )}
-
-              <form onSubmit={handleGuardarPerfil} className="space-y-3">
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Correo electrónico</label>
-                  <input
-                    type="email"
-                    value={emailPerfil}
-                    onChange={(e) => setEmailPerfil(e.target.value)}
-                    className="input-field bg-white"
-                    placeholder="tucorreo@gmail.com"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Dirección de entrega</label>
-                  <input
-                    value={direccionPerfil}
-                    onChange={(e) => setDireccionPerfil(e.target.value)}
-                    className="input-field bg-white"
-                    placeholder="Ej: Av. San Martín 450"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
-                  <input
-                    value={localidad}
-                    onChange={(e) => setLocalidad(e.target.value)}
-                    className="input-field bg-white"
-                    placeholder="Ej: El Bolsón"
-                  />
-                </div>
-
-                <button disabled={loading} className="btn-primary w-full text-xs py-2 mt-2">
-                  {loading ? "Guardando..." : "Guardar mis datos"}
-                </button>
-              </form>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              localStorage.removeItem("cliente_sesion");
-              setSesionActiva(null);
-              logout();
-              supabase.auth.signOut();
-              window.location.reload();
-            }}
-            className="text-xs text-red-500 font-medium w-full text-center py-2 hover:underline"
-          >
-            Cerrar sesión
-          </button>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center space-y-2">
+          <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-sm font-medium text-gray-600">Verificando acceso...</p>
         </div>
-      </main>
+      </div>
     );
   }
 
-  // Si NO hay sesión, se muestra el formulario de acceso de forma estática y segura (sin bucles)
   return (
-    <main className="pb-28">
-      <Header showSearch={false} />
-      <div className="px-4 mt-6 max-w-md mx-auto">
-        <h1 className="font-bold text-xl text-gray-800 mb-1 text-center">
-          {esRegistro ? "Crear una cuenta nueva" : "Bienvenido a Clic Soluciones"}
-        </h1>
-        <p className="text-sm text-gray-500 mb-5 text-center">
-          {esRegistro 
-            ? "Completá tus datos básicos para registrarte." 
-            : "Iniciá sesión con tu celular para ver el catálogo y hacer pedidos."}
-        </p>
+    <main className="min-h-screen bg-gray-50 pb-28">
+      {/* Encabezado con buscador */}
+      <Header
+        busqueda={busqueda}
+        setBusqueda={setBusqueda}
+        showSearch={true}
+      />
 
-        <div className="flex bg-gray-100 p-1 rounded-xl mb-5">
-          <button
-            type="button"
-            onClick={() => { setModo("celular"); setError(""); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              modo === "celular" ? "bg-white text-brand-blue shadow-sm" : "text-gray-500"
-            }`}
-          >
-            📱 Ingreso con Celular
-          </button>
-          <button
-            type="button"
-            onClick={() => { setModo("email"); setError(""); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${
-              modo === "email" ? "bg-white text-brand-blue shadow-sm" : "text-gray-500"
-            }`}
-          >
-            ✉️ Admin (Correo)
-          </button>
+      {/* Cartel flotante de confirmación de agregado */}
+      {mensajeCarrito && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transition animate-bounce">
+          {mensajeCarrito}
         </div>
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 mb-4 text-center">
-            {error}
+      <div className="max-w-md mx-auto px-4 mt-4">
+        {/* Selector horizontal de Categorías */}
+        {categorias.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
+            <button
+              onClick={() => setCategoriaSeleccionada("todas")}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                categoriaSeleccionada === "todas"
+                  ? "bg-brand-blue text-white shadow-sm"
+                  : "bg-white text-gray-600 border border-gray-200"
+              }`}
+            >
+              Todas
+            </button>
+            {categorias.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setCategoriaSeleccionada(cat.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                  categoriaSeleccionada === cat.id
+                    ? "bg-brand-blue text-white shadow-sm"
+                    : "bg-white text-gray-600 border border-gray-200"
+                }`}
+              >
+                {cat.nombre}
+              </button>
+            ))}
           </div>
         )}
 
-        {modo === "celular" && (
-          <form onSubmit={handleCelularSubmit} className="flex flex-col gap-3">
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">
-                Número de celular
-              </label>
-              <input
-                value={telefono}
-                onChange={(e) => setTelefono(e.target.value)}
-                className="input-field"
-                placeholder="Ej: 2944123456"
-                inputMode="tel"
-                autoComplete="username"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">
-                Contraseña
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="input-field"
-                placeholder="Tu contraseña secreta"
-                autoComplete="current-password"
-                required
-              />
-            </div>
-
-            {esRegistro && (
-              <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl space-y-3 mt-1">
-                <p className="text-xs text-blue-800 font-medium text-center">
-                  Completá tus datos básicos:
-                </p>
+        {/* Grilla o estados del catálogo */}
+        {loadingData ? (
+          <div className="text-center py-12">
+            <p className="text-sm text-gray-500 font-medium">Cargando productos...</p>
+          </div>
+        ) : productosFiltrados.length === 0 ? (
+          <div className="text-center py-12 card p-6">
+            <p className="text-2xl mb-2">🔍</p>
+            <p className="text-sm font-bold text-gray-700">No hay productos disponibles</p>
+            <p className="text-xs text-gray-500 mt-1">Probá seleccionando otra categoría o limpiando la búsqueda.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            {productosFiltrados.map((prod) => (
+              <div
+                key={prod.id}
+                className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between"
+              >
                 <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Nombre y apellido</label>
-                  <input
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    className="input-field bg-white"
-                    placeholder="Ej: Martín Cáceres"
-                    required={esRegistro}
-                  />
+                  {prod.imagen_url ? (
+                    <img
+                      src={prod.imagen_url}
+                      alt={prod.nombre}
+                      className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
+                    />
+                  ) : (
+                    <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">
+                      📦
+                    </div>
+                  )}
+                  <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
+                    {prod.nombre}
+                  </h3>
+                  {prod.descripcion && (
+                    <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">
+                      {prod.descripcion}
+                    </p>
+                  )}
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
-                  <input
-                    value={localidad}
-                    onChange={(e) => setLocalidad(e.target.value)}
-                    className="input-field bg-white"
-                    placeholder="Ej: El Bolsón"
-                  />
+
+                <div className="mt-3 pt-2 border-t border-gray-50 flex flex-col gap-1.5">
+                  <span className="font-black text-sm text-brand-blue">
+                    ${Number(prod.precio || 0).toLocaleString("es-AR")}
+                  </span>
+                  <button
+                    onClick={() => agregarAlCarrito(prod)}
+                    className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition"
+                  >
+                    + Agregar
+                  </button>
                 </div>
               </div>
-            )}
-
-            <button disabled={loading} className="btn-primary mt-2">
-              {loading
-                ? "Procesando..."
-                : esRegistro
-                ? "Completar Registro"
-                : "Iniciar Sesión"}
-            </button>
-
-            <div className="text-center mt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setEsRegistro(!esRegistro);
-                  setError("");
-                }}
-                className="text-xs font-medium text-brand-blue hover:underline"
-              >
-                {esRegistro 
-                  ? "¿Ya tenés cuenta? Iniciá sesión" 
-                  : "¿No tenés cuenta? Registrate acá"}
-              </button>
-            </div>
-          </form>
-        )}
-
-        {modo === "email" && (
-          <form onSubmit={handleLoginEmail} className="flex flex-col gap-3">
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Correo electrónico</label>
-              <input
-                type="email"
-                value={emailAdmin}
-                onChange={(e) => setEmailAdmin(e.target.value)}
-                className="input-field"
-                placeholder="tucorreo@gmail.com"
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Contraseña</label>
-              <input
-                type="password"
-                value={passAdmin}
-                onChange={(e) => setPassAdmin(e.target.value)}
-                className="input-field"
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-              />
-            </div>
-            <button disabled={loading} className="btn-primary mt-2">
-              {loading ? "Entrando..." : "Entrar como Administrador"}
-            </button>
-          </form>
+            ))}
+          </div>
         )}
       </div>
+
+      {/* Botón Flotante directo a WhatsApp */}
+      <a
+        href="https://wa.me/5492944906160"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-20 right-4 z-40 bg-green-500 text-white p-3.5 rounded-full shadow-lg hover:scale-105 active:scale-95 transition flex items-center justify-center"
+        aria-label="Contacto por WhatsApp"
+      >
+        <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" />
+        </svg>
+      </a>
+
+      {/* Menú inferior */}
+      <BottomNav />
     </main>
   );
 }
