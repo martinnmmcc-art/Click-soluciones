@@ -146,7 +146,6 @@ export default function LoginPage() {
       localidad: localidad.trim()
     };
 
-    // Actualizamos en la base de datos de Supabase
     const { error: updateError } = await supabase
       .from("clientes")
       .update({
@@ -162,7 +161,6 @@ export default function LoginPage() {
       return;
     }
 
-    // Actualizamos la sesión local
     localStorage.setItem("cliente_sesion", JSON.stringify(datosActualizados));
     setMensajePerfil("✅ ¡Perfil actualizado con éxito!");
     setEditandoPerfil(false);
@@ -193,13 +191,23 @@ export default function LoginPage() {
     }
   }
 
-  // Si ya hay sesión iniciada, mostramos el panel de cuenta y opción de completar perfil opcional
+  // Si ya hay sesión iniciada, mostramos el panel de cuenta
   if (user || (typeof window !== "undefined" && localStorage.getItem("cliente_sesion"))) {
     const sesionCliente = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("cliente_sesion") || "{}") : {};
     return (
-      <main className="pb-20">
+      <main className="pb-28">
         <Header showSearch={false} />
         <div className="px-4 mt-6 max-w-md mx-auto">
+          {/* Barra superior de navegación rápida */}
+          <div className="flex gap-2 mb-4">
+            <Link href="/" className="flex-1 bg-brand-blue text-white text-center py-2 rounded-xl text-xs font-bold shadow-sm">
+              🛒 Ir al Catálogo
+            </Link>
+            <Link href="/carrito" className="flex-1 bg-gray-100 text-gray-700 text-center py-2 rounded-xl text-xs font-bold shadow-sm">
+              🛍️ Ver Carrito
+            </Link>
+          </div>
+
           <div className="card p-6 text-center space-y-3 mb-4">
             <p className="text-3xl mb-1">👋</p>
             <h1 className="font-bold text-lg text-gray-800">
@@ -207,27 +215,25 @@ export default function LoginPage() {
             </h1>
             <p className="text-sm text-gray-500 font-medium">📱 {user?.telefono || sesionCliente.telefono || user?.email}</p>
             
-            {sesionCliente.localidad && (
-              <p className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full inline-block">
-                📍 {sesionCliente.localidad}
-              </p>
-            )}
-            {sesionCliente.direccion && (
-              <p className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full inline-block ml-1">
-                🏠 {sesionCliente.direccion}
-              </p>
-            )}
-            {sesionCliente.email && (
-              <p className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full block">
-                ✉️ {sesionCliente.email}
-              </p>
-            )}
+            <div className="flex flex-wrap justify-center gap-1 pt-1">
+              {sesionCliente.localidad && (
+                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full">
+                  📍 {sesionCliente.localidad}
+                </span>
+              )}
+              {sesionCliente.direccion && (
+                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full">
+                  🏠 {sesionCliente.direccion}
+                </span>
+              )}
+              {sesionCliente.email && (
+                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full w-full">
+                  ✉️ {sesionCliente.email}
+                </span>
+              )}
+            </div>
 
-            <div className="pt-2 space-y-2">
-              <Link href="/" className="btn-primary block w-full text-center py-2.5">
-                Ir a Ver el Catálogo 🛒
-              </Link>
-              
+            <div className="pt-2">
               <button
                 onClick={() => setEditandoPerfil(!editandoPerfil)}
                 className="btn-secondary w-full text-xs"
@@ -303,7 +309,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="pb-20">
+    <main className="pb-28">
       <Header showSearch={false} />
       <div className="px-4 mt-6 max-w-md mx-auto">
         <h1 className="font-bold text-xl text-gray-800 mb-1 text-center">
@@ -394,7 +400,7 @@ export default function LoginPage() {
                   <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
                   <input
                     value={localidad}
-                    onChange={(e) => setLocalidad(e.target.value)}
+                    onChange={(e) => zLocalidad(e.target.value) || setLocalidad(e.target.value)}
                     className="input-field bg-white"
                     placeholder="Ej: El Bolsón"
                   />
