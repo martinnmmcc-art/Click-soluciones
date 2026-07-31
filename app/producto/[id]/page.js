@@ -18,6 +18,7 @@ export default function ProductoDetallePage() {
   const [loading, setLoading] = useState(true);
   const [cantidad, setCantidad] = useState(1);
   const [agregado, setAgregado] = useState(false);
+  const [imagenPrincipal, setImagenPrincipal] = useState("");
 
   useEffect(() => {
     async function fetchProducto() {
@@ -29,7 +30,11 @@ export default function ProductoDetallePage() {
         .maybeSingle();
 
       if (error) console.error(error.message);
-      setProducto(data);
+      
+      if (data) {
+        setProducto(data);
+        setImagenPrincipal(data.imagen_url || "");
+      }
       setLoading(false);
     }
     if (id) fetchProducto();
@@ -59,6 +64,13 @@ export default function ProductoDetallePage() {
     producto.precio_oferta && producto.precio_oferta < producto.precio;
   const precioFinal = tieneOferta ? producto.precio_oferta : producto.precio;
 
+  // Juntamos todas las fotos disponibles (imagen_url, imagen_url_2, imagen_url_3)
+  const listaImagenes = [
+    producto.imagen_url,
+    producto.imagen_url_2,
+    producto.imagen_url_3
+  ].filter(Boolean);
+
   function handleAgregar() {
     addItem(producto, cantidad);
     setAgregado(true);
@@ -71,32 +83,53 @@ export default function ProductoDetallePage() {
   }
 
   return (
-    <main className="pb-6">
+    <main className="pb-12">
       <Header showSearch={false} />
 
-      <div className="relative w-full aspect-square bg-gray-100">
-        {producto.imagen_url ? (
-          <Image
-            src={producto.imagen_url}
-            alt={producto.nombre}
-            fill
-            sizes="100vw"
-            className="object-cover"
-            priority
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-6xl">
-            📦
+      {/* GALERÍA DE IMÁGENES ESTILO MERCADO LIBRE */}
+      <div className="max-w-2xl mx-auto px-4 mt-4">
+        <div className="relative w-full aspect-square bg-gray-100 rounded-2xl overflow-hidden border border-gray-100">
+          {imagenPrincipal ? (
+            <Image
+              src={imagenPrincipal}
+              alt={producto.nombre}
+              fill
+              sizes="100vw"
+              className="object-cover"
+              priority
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-6xl">
+              📦
+            </div>
+          )}
+          {tieneOferta && (
+            <span className="absolute top-3 left-3 bg-brand-orange text-white text-xs font-bold px-3 py-1 rounded-full z-10">
+              OFERTA
+            </span>
+          )}
+        </div>
+
+        {/* Miniaturas de fotos extra */}
+        {listaImagenes.length > 1 && (
+          <div className="flex gap-3 mt-3 overflow-x-auto pb-2">
+            {listaImagenes.map((img, index) => (
+              <button
+                key={index}
+                onClick={() => setImagenPrincipal(img)}
+                className={`w-16 h-16 rounded-xl overflow-hidden border-2 bg-gray-50 flex-shrink-0 transition ${
+                  imagenPrincipal === img ? "border-brand-blue ring-2 ring-blue-100" : "border-gray-200"
+                }`}
+              >
+                <img src={img} className="w-full h-full object-cover" alt="miniatura" />
+              </button>
+            ))}
           </div>
-        )}
-        {tieneOferta && (
-          <span className="absolute top-3 left-3 bg-brand-orange text-white text-xs font-bold px-3 py-1 rounded-full">
-            OFERTA
-          </span>
         )}
       </div>
 
-      <div className="px-4 mt-4">
+      {/* INFORMACIÓN DEL PRODUCTO */}
+      <div className="max-w-2xl mx-auto px-4 mt-6">
         <p className="text-xs uppercase tracking-wide text-brand-blue font-semibold">
           {nombreCategoria(producto.categoria)}
         </p>
@@ -115,13 +148,8 @@ export default function ProductoDetallePage() {
           )}
         </div>
 
-        {producto.descripcion && (
-          <p className="text-gray-600 mt-4 leading-relaxed">
-            {producto.descripcion}
-          </p>
-        )}
-
-        <div className="flex items-center gap-4 mt-5">
+        {/* CANTIDAD Y BOTONES DE COMPRA */}
+        <div className="flex items-center gap-4 mt-6">
           <span className="text-sm font-medium text-gray-700">Cantidad:</span>
           <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden">
             <button
@@ -155,6 +183,36 @@ export default function ProductoDetallePage() {
           >
             💬 Consultar por WhatsApp
           </a>
+        </div>
+
+        {/* SECCIONES DETALLADAS: DESCRIPCIÓN, CARACTERÍSTICAS Y ACCESORIOS */}
+        <div className="mt-10 border-t border-gray-100 pt-8 space-y-6">
+          {producto.descripcion && (
+            <div className="bg-gray-50 p-5 rounded-2xl">
+              <h2 className="text-lg font-bold text-gray-900 mb-2">Descripción</h2>
+              <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                {producto.descripcion}
+              </p>
+            </div>
+          )}
+
+          {producto.caracteristicas && (
+            <div className="bg-gray-50 p-5 rounded-2xl">
+              <h2 className="text-lg font-bold text-gray-900 mb-2">Características principales</h2>
+              <p className="text-gray-700 whitespace-pre-line leading-relaxed">
+                {producto.caracteristicas}
+              </p>
+            </div>
+          )}
+
+          {producto.accesorios && (
+            <div className="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl">
+              <h2 className="text-lg font-bold text-blue-900 mb-2">¿Qué incluye la caja?</h2>
+              <p className="text-gray-800 whitespace-pre-line leading-relaxed">
+                {producto.accesorios}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </main>
