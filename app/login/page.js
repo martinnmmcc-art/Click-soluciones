@@ -13,7 +13,7 @@ export default function LoginPage() {
   // 'celular' para clientes, 'email' para el admin
   const [modo, setModo] = useState("celular");
 
-  // Estados para modo celular (con contraseña y recordar)
+  // Estados para modo celular (con contraseña y modo registro manual)
   const [telefono, setTelefono] = useState("");
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
@@ -49,7 +49,7 @@ export default function LoginPage() {
         .eq("telefono", telLimpio)
         .maybeSingle();
 
-      if (clienteExistente) {
+      if (clienteExistente && !esRegistro) {
         // CLIENTE EXISTENTE: Validamos su contraseña
         if (clienteExistente.password !== passLimpio) {
           setError("Contraseña incorrecta.");
@@ -61,15 +61,16 @@ export default function LoginPage() {
         localStorage.setItem("cliente_sesion", JSON.stringify(clienteExistente));
         window.location.href = "/";
       } else {
-        // CLIENTE NUEVO: Si no está registrado, le pedimos nombre y localidad para darlo de alta
-        if (!esRegistro) {
-          setEsRegistro(true);
+        // MODO REGISTRO: Si eligió registrarse o el cliente no existe
+        if (!nombre.trim()) {
+          setError("Ingresá tu nombre y apellido para registrarte.");
           setLoading(false);
           return;
         }
 
-        if (!nombre.trim()) {
-          setError("Ingresá tu nombre y apellido para registrarte.");
+        // Validamos si ya existía para no duplicar
+        if (clienteExistente) {
+          setError("Este número ya está registrado. Iniciá sesión normalmente.");
           setLoading(false);
           return;
         }
@@ -159,10 +160,12 @@ export default function LoginPage() {
       <Header showSearch={false} />
       <div className="px-4 mt-6 max-w-md mx-auto">
         <h1 className="font-bold text-xl text-gray-800 mb-1 text-center">
-          Bienvenido a Clic Soluciones
+          {esRegistro ? "Crear una cuenta nueva" : "Bienvenido a Clic Soluciones"}
         </h1>
         <p className="text-sm text-gray-500 mb-5 text-center">
-          Iniciá sesión con tu celular o correo para ver el catálogo y hacer pedidos.
+          {esRegistro 
+            ? "Completá tus datos para registrarte por primera vez." 
+            : "Iniciá sesión con tu celular o correo para ver el catálogo y hacer pedidos."}
         </p>
 
         {/* Selector de modo */}
@@ -225,17 +228,11 @@ export default function LoginPage() {
               />
             </div>
 
-            {/* Aviso visual para recordar datos */}
-            <div className="flex items-center gap-2 px-1 text-xs text-gray-500">
-              <span>🔒</span>
-              <span>Tus datos quedarán guardados en este dispositivo para futuras visitas.</span>
-            </div>
-
-            {/* Si el celular no está registrado, se despliegan estos campos adicionales */}
+            {/* Campos de registro que se despliegan si el usuario elige registrarse */}
             {esRegistro && (
               <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl space-y-3 mt-1">
                 <p className="text-xs text-blue-800 font-medium text-center">
-                  Es tu primera vez. Por favor completá tus datos para crear tu cuenta:
+                  Completá tus datos para dar de alta tu cuenta:
                 </p>
                 <div>
                   <label className="text-xs font-bold text-gray-700 block mb-1">Nombre y apellido</label>
@@ -244,6 +241,7 @@ export default function LoginPage() {
                     onChange={(e) => setNombre(e.target.value)}
                     className="input-field bg-white"
                     placeholder="Ej: Martín Cáceres"
+                    required={esRegistro}
                   />
                 </div>
                 <div>
@@ -260,11 +258,27 @@ export default function LoginPage() {
 
             <button disabled={loading} className="btn-primary mt-2">
               {loading
-                ? "Verificando..."
+                ? "Procesando..."
                 : esRegistro
-                ? "Registrarme y Entrar"
+                ? "Completar Registro"
                 : "Iniciar Sesión"}
             </button>
+
+            {/* Botón para alternar entre Iniciar Sesión y Registrarse */}
+            <div className="text-center mt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEsRegistro(!esRegistro);
+                  setError("");
+                }}
+                className="text-xs font-medium text-brand-blue hover:underline"
+              >
+                {esRegistro 
+                  ? "¿Ya tenés cuenta? Iniciá sesión" 
+                  : "¿No tenés cuenta? Registrate acá"}
+              </button>
+            </div>
           </form>
         )}
 
@@ -284,7 +298,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 block vm-1">Contraseña</label>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Contraseña</label>
               <input
                 type="password"
                 value={passAdmin}
