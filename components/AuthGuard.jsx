@@ -10,21 +10,22 @@ export default function AuthGuard({ children }) {
   const [autorizado, setAutorizado] = useState(false);
 
   useEffect(() => {
-    // 1. Si estamos en login, autorizamos de inmediato
+    // 1. Si estamos en login, pasamos de inmediato
     if (pathname.startsWith("/login")) {
       setAutorizado(true);
       return;
     }
 
-    // 2. Validación instantánea y síncrona de localStorage (Celular)
+    // 2. Verificación SÍNCRONA e instantánea en localStorage
     const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
-    
-    if (sesionCliente) {
+    const hasSupabaseToken = typeof window !== "undefined" && Object.keys(localStorage).some(key => key.includes("auth-token"));
+
+    if (sesionCliente || hasSupabaseToken) {
       setAutorizado(true);
       return;
     }
 
-    // 3. Si no hay sesión local, validamos Supabase de forma segura en segundo plano
+    // 3. Fallback a Supabase solo si no hay nada en local
     let activo = true;
     async function verificarAdmin() {
       try {
@@ -48,13 +49,13 @@ export default function AuthGuard({ children }) {
     };
   }, [pathname, router]);
 
-  // Si todavía no se autorizó, mostramos una carga liviana SOLO la primera vez
+  // Si no está autorizado, mostramos carga solo en el primer ingreso absoluto
   if (!autorizado) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-500 font-medium text-xs">Cargando...</p>
+          <p className="text-gray-500 font-medium text-xs">Cargando Clic Soluciones...</p>
         </div>
       </div>
     );
