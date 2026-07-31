@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
@@ -132,18 +133,28 @@ export default function HomePage() {
             {productosFiltrados.map((prod) => (
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>
-                  {prod.imagen_url ? (
-                    <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
-                  ) : (
-                    <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">📦</div>
+                  <Link href={`/producto/${prod.id}`} className="block">
+                    {prod.imagen_url ? (
+                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
+                    ) : (
+                      <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">📦</div>
+                    )}
+                  </Link>
+
+                  <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
+                    <Link href={`/producto/${prod.id}`} className="block">
+                      {prod.nombre}
+                    </Link>
+                  </h3>
+
+                  {prod.descripcion && (
+                    <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{prod.descripcion}</p>
                   )}
-                  <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</h3>
                 </div>
+
                 <div className="mt-3 pt-2 border-t border-gray-50 flex flex-col gap-1.5">
                   <span className="font-black text-sm text-brand-blue">${Number(prod.precio || 0).toLocaleString("es-AR")}</span>
-                  <button onClick={() => agregarAlCarrito(prod)} className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition">
-                    + Agregar
-                  </button>
+                  <button onClick={() => agregarAlCarrito(prod)} className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition">+ Agregar</button>
                 </div>
               </div>
             ))}
