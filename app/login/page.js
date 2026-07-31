@@ -7,17 +7,18 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function LoginPage() {
-  const { user, solicitarCodigo, verificarCodigo, logout } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
 
   // 'celular' para clientes, 'email' para el admin
   const [modo, setModo] = useState("celular");
 
-  // Estados para modo celular
-  const [paso, setPaso] = useState(1);
-  const [form, setForm] = useState({ nombre: "", telefono: "", localidad: "" });
-  const [codigo, setCodigo] = useState("");
-  const [codigoDemo, setCodigoDemo] = useState("");
+  // Estados para modo celular (con contraseña y recordar)
+  const [telefono, setTelefono] = useState("");
+  const [password, setPassword] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [localidad, setLocalidad] = useState("");
+  const [esRegistro, setEsRegistro] = useState(false);
 
   // Estados para modo email/admin
   const [emailAdmin, setEmailAdmin] = useState("");
@@ -26,55 +27,87 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Funciones para Celular
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  }
-
-  async function handleSolicitar(e) {
+  // Ingreso o Registro de Clientes con Celular y Contraseña
+  async function handleCelularSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!form.nombre.trim() || !form.telefono.trim()) {
-      setError("Completá tu nombre y tu número de celular.");
+
+    const telLimpio = telefono.trim();
+    const passLimpio = password.trim();
+
+    if (!telLimpio || !passLimpio) {
+      setError("Completá tu número de celular y tu contraseña.");
       return;
     }
+
     setLoading(true);
     try {
-      const codigoGenerado = await solicitarCodigo(form);
-      setCodigoDemo(codigoGenerado);
-      setPaso(2);
+      // 1. Verificamos si el cliente ya existe en la base de datos
+      const { data: clienteExistente } = await supabase
+        .from("clientes")
+        .select("*")
+        .eq("telefono", telLimpio)
+        .maybeSingle();
+
+      if (clienteExistente) {
+        // CLIENTE EXISTENTE: Validamos su contraseña
+        if (clienteExistente.password !== passLimpio) {
+          setError("Contraseña incorrecta.");
+          setLoading(false);
+          return;
+        }
+
+        // Guardamos la sesión de forma permanente en el dispositivo
+        localStorage.setItem("cliente_sesion", JSON.stringify(clienteExistente));
+        window.location.href = "/";
+      } else {
+        // CLIENTE NUEVO: Si no está registrado, le pedimos nombre y localidad para darlo de alta
+        if (!esRegistro) {
+          setEsRegistro(true);
+          setLoading(false);
+          return;
+        }
+
+        if (!nombre.trim()) {
+          setError("Ingresá tu nombre y apellido para registrarte.");
+          setLoading(false);
+          return;
+        }
+
+        // Creamos el nuevo cliente en la tabla
+        const nuevoCliente = {
+          telefono: telLimpio,
+          password: passLimpio,
+          nombre: nombre.trim(),
+          localidad: localidad.trim()
+        };
+
+        const { error: insertError } = await supabase
+          .from("clientes")
+          .insert([nuevoCliente]);
+
+        if (insertError) {
+          setError("No se pudo completar el registro. Intentá nuevamente.");
+          setLoading(false);
+          return;
+        }
+
+        localStorage.setItem("cliente_sesion", JSON.stringify(nuevoCliente));
+        window.location.href = "/";
+      }
     } catch (err) {
-      setError(err.message || "No pudimos procesar tu solicitud.");
-    } finally {
+      setError("Ocurrió un error inesperado.");
       setLoading(false);
     }
   }
 
-  async function handleVerificar(e) {
-    e.preventDefault();
-    setError("");
-    if (!codigo.trim()) {
-      setError("Ingresá el código que te enviamos.");
-      return;
-    }
-    setLoading(true);
-    try {
-      await verificarCodigo({ telefono: form.telefono, codigo: codigo.trim() });
-      router.push("/");
-    } catch (err) {
-      setError(err.message || "El código no es correcto.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // Función para Ingreso con Correo (Admin / Alternativo)
+  // Ingreso como Administrador con Correo
   async function handleLoginEmail(e) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: emailAdmin,
       password: passAdmin,
     });
@@ -83,7 +116,6 @@ export default function LoginPage() {
       setError("Correo o contraseña incorrectos.");
       setLoading(false);
     } else {
-      // Si sos vos, vas directo al panel de pedidos
       if (emailAdmin === "maricelcanumir@gmail.com") {
         router.push("/admin/pedidos");
       } else {
@@ -93,19 +125,21 @@ export default function LoginPage() {
     }
   }
 
-  if (user) {
+  if (user || (typeof window !== "undefined" && localStorage.getItem("cliente_sesion"))) {
+    const sesionCliente = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("cliente_sesion") || "{}") : {};
     return (
       <main className="pb-6">
         <Header showSearch={false} />
         <div className="px-4 mt-6">
-          <div className="card p-6 text-center">
+          <div className="card p-6 text-center max-w-md mx-auto">
             <p className="text-3xl mb-2">👋</p>
             <h1 className="font-bold text-lg text-gray-800">
-              Hola, {user.nombre || user.email}
+              Hola, {user?.nombre || sesionCliente.nombre || user?.email}
             </h1>
-            <p className="text-sm text-gray-500 mt-1">{user.telefono || user.email}</p>
+            <p className="text-sm text-gray-500 mt-1">{user?.telefono || sesionCliente.telefono || user?.email}</p>
             <button
               onClick={() => {
+                localStorage.removeItem("cliente_sesion");
                 logout();
                 supabase.auth.signOut();
                 router.push("/login");
@@ -128,7 +162,7 @@ export default function LoginPage() {
           Bienvenido a Clic Soluciones
         </h1>
         <p className="text-sm text-gray-500 mb-5 text-center">
-          Iniciá sesión para poder ver el catálogo y hacer pedidos.
+          Iniciá sesión con tu celular o correo para ver el catálogo y hacer pedidos.
         </p>
 
         {/* Selector de modo */}
@@ -140,7 +174,7 @@ export default function LoginPage() {
               modo === "celular" ? "bg-white text-brand-blue shadow-sm" : "text-gray-500"
             }`}
           >
-            📱 Con Celular
+            📱 Ingreso con Celular
           </button>
           <button
             type="button"
@@ -149,7 +183,7 @@ export default function LoginPage() {
               modo === "email" ? "bg-white text-brand-blue shadow-sm" : "text-gray-500"
             }`}
           >
-            ✉️ Con Correo (Admin)
+            ✉️ Admin (Correo)
           </button>
         </div>
 
@@ -159,83 +193,82 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* FORMULARIO DE CELULAR */}
+        {/* FORMULARIO DE CLIENTES (CELULAR Y CONTRASEÑA) */}
         {modo === "celular" && (
-          <>
-            {paso === 1 ? (
-              <form onSubmit={handleSolicitar} className="flex flex-col gap-3">
+          <form onSubmit={handleCelularSubmit} className="flex flex-col gap-3">
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">
+                Número de celular
+              </label>
+              <input
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                className="input-field"
+                placeholder="Ej: 2944123456"
+                inputMode="tel"
+                autoComplete="username"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">
+                Contraseña
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-field"
+                placeholder="Tu contraseña secreta"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+
+            {/* Aviso visual para recordar datos */}
+            <div className="flex items-center gap-2 px-1 text-xs text-gray-500">
+              <span>🔒</span>
+              <span>Tus datos quedarán guardados en este dispositivo para futuras visitas.</span>
+            </div>
+
+            {/* Si el celular no está registrado, se despliegan estos campos adicionales */}
+            {esRegistro && (
+              <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl space-y-3 mt-1">
+                <p className="text-xs text-blue-800 font-medium text-center">
+                  Es tu primera vez. Por favor completá tus datos para crear tu cuenta:
+                </p>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Nombre y apellido</label>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Nombre y apellido</label>
                   <input
-                    name="nombre"
-                    value={form.nombre}
-                    onChange={handleChange}
-                    className="input-field"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    className="input-field bg-white"
                     placeholder="Ej: Martín Cáceres"
-                    required
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Número de celular</label>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
                   <input
-                    name="telefono"
-                    value={form.telefono}
-                    onChange={handleChange}
-                    className="input-field"
-                    placeholder="Ej: 2944123456"
-                    inputMode="tel"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Localidad</label>
-                  <input
-                    name="localidad"
-                    value={form.localidad}
-                    onChange={handleChange}
-                    className="input-field"
+                    value={localidad}
+                    onChange={(e) => setLocalidad(e.target.value)}
+                    className="input-field bg-white"
                     placeholder="Ej: El Bolsón, Río Negro"
                   />
                 </div>
-                <button disabled={loading} className="btn-primary mt-2">
-                  {loading ? "Enviando..." : "Enviar código"}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleVerificar} className="flex flex-col gap-3">
-                {codigoDemo && (
-                  <div className="bg-blue-50 border border-blue-200 text-brand-blueDark text-sm rounded-xl p-3 text-center">
-                    Modo demo: tu código es <strong>{codigoDemo}</strong>
-                  </div>
-                )}
-                <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">Código de verificación</label>
-                  <input
-                    value={codigo}
-                    onChange={(e) => setCodigo(e.target.value)}
-                    className="input-field tracking-widest text-center text-lg"
-                    placeholder="0000"
-                    inputMode="numeric"
-                    maxLength={4}
-                    required
-                  />
-                </div>
-                <button disabled={loading} className="btn-primary mt-2">
-                  {loading ? "Verificando..." : "Confirmar"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaso(1)}
-                  className="text-sm text-gray-500 mt-1 text-center"
-                >
-                  ← Cambiar datos
-                </button>
-              </form>
+              </div>
             )}
-          </>
+
+            <button disabled={loading} className="btn-primary mt-2">
+              {loading
+                ? "Verificando..."
+                : esRegistro
+                ? "Registrarme y Entrar"
+                : "Iniciar Sesión"}
+            </button>
+          </form>
         )}
 
-        {/* FORMULARIO DE CORREO / ADMIN */}
+        {/* FORMULARIO DE ADMINISTRADOR (CORREO) */}
         {modo === "email" && (
           <form onSubmit={handleLoginEmail} className="flex flex-col gap-3">
             <div>
@@ -246,17 +279,19 @@ export default function LoginPage() {
                 onChange={(e) => setEmailAdmin(e.target.value)}
                 className="input-field"
                 placeholder="tucorreo@gmail.com"
+                autoComplete="email"
                 required
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-1">Contraseña</label>
+              <label className="text-sm font-medium text-gray-700 block vm-1">Contraseña</label>
               <input
                 type="password"
                 value={passAdmin}
                 onChange={(e) => setPassAdmin(e.target.value)}
                 className="input-field"
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
               />
             </div>
