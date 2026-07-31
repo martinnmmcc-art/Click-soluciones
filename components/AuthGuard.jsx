@@ -5,47 +5,60 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function AuthGuard({ children }) {
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const [autorizado, setAutorizado] = useState(false);
 
   useEffect(() => {
-    let montado = true;
+    // 1. Si estamos en login, autorizamos de inmediato
+    if (pathname.startsWith("/login")) {
+      setAutorizado(true);
+      return;
+    }
 
-    async function verificarSesion() {
-      // 1. Si estamos en login, pasa directo sin trabar
-      if (pathname.startsWith("/login")) {
-        if (montado) setLoading(false);
-        return;
-      }
+    // 2. Validación instantánea y síncrona de localStorage (Celular)
+    const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
+    
+    if (sesionCliente) {
+      setAutorizado(true);
+      return;
+    }
 
-      // 2. Revisión de sesión local (Celular) y Supabase de forma simultánea
-      const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
-      
-      if (sesionCliente) {
-        if (montado) setLoading(false);
-        return; 
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session && !sesionCliente) {
-        router.replace("/login");
-      } else {
-        if (montado) setLoading(false);
+    // 3. Si no hay sesión local, validamos Supabase de forma segura en segundo plano
+    let activo = true;
+    async function verificarAdmin() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (activo) {
+          if (session) {
+            setAutorizado(true);
+          } else {
+            router.replace("/login");
+          }
+        }
+      } catch (err) {
+        if (activo) router.replace("/login");
       }
     }
 
-    verificarSesion();
-    
+    verificarAdmin();
+
     return () => {
-      montado = false;
+      activo = false;
     };
   }, [pathname, router]);
 
-  // CORRECCIÓN SENIOR: Si ya pasó la validación inicial, 
-  // NUNCA volvemos a mostrar pantalla de carga al cambiar de solapa interna (Inicio, Catálogo, Carrito, Cuenta).
-  // Esto elimina el parpadeo y el bloqueo al navegar.
+  // Si todavía no se autorizó, mostramos una carga liviana SOLO la primera vez
+  if (!autorizado) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center space-y-3">
+          <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-gray-500 font-medium text-xs">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return <>{children}</>;
 }
