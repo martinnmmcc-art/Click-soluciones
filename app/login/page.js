@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import Header from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -79,8 +78,7 @@ export default function LoginPage() {
         }
 
         localStorage.setItem("cliente_sesion", JSON.stringify(clienteExistente));
-        router.push("/");
-        router.refresh();
+        window.location.href = "/";
       } else {
         if (!nombre.trim()) {
           setError("Ingresá tu nombre y apellido para registrarte.");
@@ -115,8 +113,7 @@ export default function LoginPage() {
         }
 
         localStorage.setItem("cliente_sesion", JSON.stringify(nuevoCliente));
-        router.push("/");
-        router.refresh();
+        window.location.href = "/";
       }
     } catch (err) {
       console.error("Excepción en login:", err);
@@ -183,11 +180,10 @@ export default function LoginPage() {
       setLoading(false);
     } else {
       if (emailAdmin === "maricelcanumir@gmail.com") {
-        router.push("/admin/pedidos");
+        window.location.href = "/admin/pedidos";
       } else {
-        router.push("/");
+        window.location.href = "/";
       }
-      router.refresh();
     }
   }
 
@@ -198,14 +194,20 @@ export default function LoginPage() {
       <main className="pb-28">
         <Header showSearch={false} />
         <div className="px-4 mt-6 max-w-md mx-auto">
-          {/* Barra superior de navegación rápida */}
+          {/* Botones de salida usando window.location para forzar la navegación */}
           <div className="flex gap-2 mb-4">
-            <Link href="/" className="flex-1 bg-brand-blue text-white text-center py-2 rounded-xl text-xs font-bold shadow-sm">
+            <button
+              onClick={() => { window.location.href = "/"; }}
+              className="flex-1 bg-brand-blue text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-sm"
+            >
               🛒 Ir al Catálogo
-            </Link>
-            <Link href="/carrito" className="flex-1 bg-gray-100 text-gray-700 text-center py-2 rounded-xl text-xs font-bold shadow-sm">
+            </button>
+            <button
+              onClick={() => { window.location.href = "/carrito"; }}
+              className="flex-1 bg-gray-100 text-gray-700 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm"
+            >
               🛍️ Ver Carrito
-            </Link>
+            </button>
           </div>
 
           <div className="card p-6 text-center space-y-3 mb-4">
@@ -296,8 +298,7 @@ export default function LoginPage() {
               localStorage.removeItem("cliente_sesion");
               logout();
               supabase.auth.signOut();
-              router.push("/login");
-              router.refresh();
+              window.location.href = "/login";
             }}
             className="text-xs text-red-500 font-medium w-full text-center py-2 hover:underline"
           >
@@ -400,7 +401,7 @@ export default function LoginPage() {
                   <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
                   <input
                     value={localidad}
-                    onChange={(e) => zLocalidad(e.target.value) || setLocalidad(e.target.value)}
+                    onChange={(e) => setLocalidad(e.target.value)}
                     className="input-field bg-white"
                     placeholder="Ej: El Bolsón"
                   />
