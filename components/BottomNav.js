@@ -8,7 +8,7 @@ const TABS = [
   { href: "/", icon: "🏠", label: "Inicio" },
   { href: "/catalogo", icon: "🗂️", label: "Catálogo" },
   { href: "/carrito", icon: "🛒", label: "Carrito" },
-  { href: "/login", icon: "👤", label: "Cuenta" }
+  { href: "/cuenta", icon: "👤", label: "Cuenta" } // updated to /cuenta
 ];
 
 export default function BottomNav() {
@@ -18,7 +18,8 @@ export default function BottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 flex justify-around py-2 md:hidden">
       {TABS.map((tab) => {
-        const active = pathname === tab.href;
+        // exact match for root, startsWith for nested routes
+        const active = tab.href === "/" ? pathname === "/" : pathname?.startsWith(tab.href);
         return (
           <Link
             key={tab.href}
