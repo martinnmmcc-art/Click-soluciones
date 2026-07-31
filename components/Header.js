@@ -19,6 +19,9 @@ export default function Header({ showSearch = true, initialQuery = "" }) {
     router.push(`/catalogo?${params.toString()}`);
   }
 
+  // Verificamos si el usuario actual es el administrador
+  const isAdmin = user?.email === "maricelcanumir@gmail.com";
+
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 px-4 pt-4 pb-3">
       <div className="flex items-center justify-between mb-3">
@@ -32,6 +35,16 @@ export default function Header({ showSearch = true, initialQuery = "" }) {
         </Link>
 
         <div className="flex items-center gap-3">
+          {/* BOTÓN SECRETO ADMIN: Solo aparece si sos vos */}
+          {isAdmin && (
+            <Link
+              href="/admin/pedidos"
+              className="bg-brand-blue text-white text-xs font-extrabold px-3 py-2 rounded-xl shadow-sm hover:bg-blue-700 transition flex items-center gap-1"
+            >
+              📊 Admin
+            </Link>
+          )}
+
           <Link href="/carrito" className="relative" aria-label="Carrito">
             <span className="text-2xl">🛒</span>
             {cantidadTotal > 0 && (
