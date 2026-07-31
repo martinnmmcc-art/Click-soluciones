@@ -11,7 +11,6 @@ import { nombreCategoria } from "@/lib/categorias";
 
 export default function ProductoDetallePage() {
   const params = useParams();
-  // Nos aseguramos de limpiar bien el id por si viene como texto o con espacios
   const id = params?.id ? decodeURIComponent(params.id) : null;
   
   const router = useRouter();
@@ -22,6 +21,9 @@ export default function ProductoDetallePage() {
   const [cantidad, setCantidad] = useState(1);
   const [agregado, setAgregado] = useState(false);
   const [imagenPrincipal, setImagenPrincipal] = useState("");
+  
+  // Agregamos esto para ver el error exacto en pantalla si falla
+  const [debugError, setDebugError] = useState(""); 
 
   useEffect(() => {
     async function fetchProducto() {
@@ -29,23 +31,23 @@ export default function ProductoDetallePage() {
       setLoading(true);
       
       try {
-        // Traemos todos los productos y filtramos en JavaScript para evitar problemas de tipos (texto vs número)
+        // CAMBIO CLAVE: "Productos" con P mayúscula tal cual está en tu BD
         const { data, error } = await supabase
-          .from("productos")
-          .select("*");
+          .from("Productos")
+          .select("*")
+          .eq("id", id)
+          .maybeSingle();
 
         if (error) {
-          console.error("Error al consultar Supabase:", error.message);
+          setDebugError(error.message);
         } else if (data) {
-          // Buscamos el producto que coincida con el ID (comparando como texto para que no falle)
-          const encontrado = data.find((p) => String(p.id) === String(id));
-          if (encontrado) {
-            setProducto(encontrado);
-            setImagenPrincipal(encontrado.imagen_url || "");
-          }
+          setProducto(data);
+          setImagenPrincipal(data.imagen_url || "");
+        } else {
+          setDebugError("El producto no existe en la base de datos con ese ID.");
         }
       } catch (err) {
-        console.error("Error inesperado:", err);
+        setDebugError(err.message);
       } finally {
         setLoading(false);
       }
@@ -68,14 +70,20 @@ export default function ProductoDetallePage() {
       <main>
         <Header showSearch={false} />
         <div className="text-center text-gray-500 py-16 px-4">
-          No encontramos este producto. Puede que ya no esté disponible.
+          <p className="text-lg font-semibold text-gray-800">No encontramos este producto.</p>
+          
+          {/* CAJA DE DEBUG: Te mostrará qué está fallando realmente */}
+          <div className="mt-6 p-4 bg-red-50 rounded-lg border border-red-200 text-left">
+            <p className="text-xs text-red-600 font-bold mb-1">Info técnica para Martín:</p>
+            <p className="text-xs text-red-600">ID buscado: {id}</p>
+            <p className="text-xs text-red-600">Error devuelto: {debugError || "Ninguno"}</p>
+          </div>
         </div>
       </main>
     );
   }
 
-  const tieneOferta =
-    producto.precio_oferta && producto.precio_oferta < producto.precio;
+  const tieneOferta = producto.precio_oferta && producto.precio_oferta < producto.precio;
   const precioFinal = tieneOferta ? producto.precio_oferta : producto.precio;
 
   const listaImagenes = [
