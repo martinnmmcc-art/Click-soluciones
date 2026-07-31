@@ -10,30 +10,38 @@ export default function AuthGuard({ children }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    let montado = true;
+
     async function verificarSesion() {
-      // 1. Si ya estamos en el login, dejamos pasar sin trabar
+      // 1. Si estamos en login, pasa directo
       if (pathname.startsWith("/login")) {
-        setLoading(false);
+        if (montado) setLoading(false);
         return;
       }
 
-      // 2. Buscamos sesión oficial en Supabase (Administrador)
+      // 2. Revisión SÍNCRONA e inmediata de sesión de celular
+      const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
+      
+      if (sesionCliente) {
+        if (montado) setLoading(false);
+        return; // Salimos rápido, no contactamos a Supabase
+      }
+
+      // 3. Revisión ASÍNCRONA de Supabase (Admin)
       const { data: { session } } = await supabase.auth.getSession();
 
-      // 3. Buscamos sesión de celular en el dispositivo (Cliente)
-      const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
-
-      // 4. Si NO hay ninguna de las dos, lo mandamos al login
       if (!session && !sesionCliente) {
-        // Usamos replace para no generar historial de navegación infinito
-        router.replace("/login"); 
+        router.replace("/login");
       } else {
-        // Si tiene CUALQUIERA de las dos, le damos luz verde
-        setLoading(false);
+        if (montado) setLoading(false);
       }
     }
 
     verificarSesion();
+    
+    return () => {
+      montado = false; // Evita fugas de memoria si el componente se desmonta
+    };
   }, [pathname, router]);
 
   if (loading) {
