@@ -19,12 +19,20 @@ export default function HomePage() {
   const [loadingData, setLoadingData] = useState(true);
   const [mensajeCarrito, setMensajeCarrito] = useState("");
 
-  // 1. Verificación estricta de seguridad: permite acceso solo si hay sesión (celular o admin)
+  // 1. Verificación unificada y robusta de sesión (Celular o Admin)
   useEffect(() => {
-    const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
+    const sesionCliente = typeof window !== "undefined" 
+      ? (localStorage.getItem("cliente_sesion") || localStorage.getItem("clic_soluciones_user") || localStorage.getItem("usuario"))
+      : null;
+
+    // Si hay sesión local de celular, autorizamos al instante sin esperar a Supabase
+    if (sesionCliente) {
+      setAutorizado(true);
+      return;
+    }
 
     if (!authLoading) {
-      if (!user && !sesionCliente) {
+      if (!user) {
         window.location.href = "/login";
       } else {
         setAutorizado(true);
@@ -39,9 +47,8 @@ export default function HomePage() {
     async function cargarDatos() {
       setLoadingData(true);
       try {
-        // Cargar catálogo de productos
         const { data: prodData, error: prodError } = await supabase
-          .from("productos")
+          .from("Productos") // Tabla con mayúscula como definimos antes
           .select("*")
           .order("id", { ascending: true });
 
@@ -49,9 +56,8 @@ export default function HomePage() {
           setProductos(prodData);
         }
 
-        // Cargar categorías disponibles
         const { data: catData, error: catError } = await supabase
-          .from("categorias")
+          .from("Categorias") // Tabla con mayúscula como definimos antes
           .select("*")
           .order("nombre", { ascending: true });
 
@@ -104,7 +110,7 @@ export default function HomePage() {
     return coincideCategoria && coincideBusqueda;
   });
 
-  // Pantalla de carga mentre se comprueba el acceso
+  // Pantalla de carga mientras se comprueba el acceso (solo si realmente es necesario)
   if (!autorizado) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -118,14 +124,12 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
-      {/* Encabezado con buscador */}
       <Header
         busqueda={busqueda}
         setBusqueda={setBusqueda}
         showSearch={true}
       />
 
-      {/* Cartel flotante de confirmación de agregado */}
       {mensajeCarrito && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transition animate-bounce">
           {mensajeCarrito}
@@ -133,7 +137,6 @@ export default function HomePage() {
       )}
 
       <div className="max-w-md mx-auto px-4 mt-4">
-        {/* Selector horizontal de Categorías */}
         {categorias.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
             <button
@@ -162,13 +165,12 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Grilla o estados del catálogo */}
         {loadingData ? (
           <div className="text-center py-12">
             <p className="text-sm text-gray-500 font-medium">Cargando productos...</p>
           </div>
         ) : productosFiltrados.length === 0 ? (
-          <div className="text-center py-12 card p-6">
+          <div className="text-center py-12 card p-6 bg-white rounded-2xl shadow-sm">
             <p className="text-2xl mb-2">🔍</p>
             <p className="text-sm font-bold text-gray-700">No hay productos disponibles</p>
             <p className="text-xs text-gray-500 mt-1">Probá seleccionando otra categoría o limpiando la búsqueda.</p>
@@ -219,7 +221,6 @@ export default function HomePage() {
         )}
       </div>
 
-      {/* Botón Flotante directo a WhatsApp */}
       <a
         href="https://wa.me/5492944906160"
         target="_blank"
@@ -232,7 +233,6 @@ export default function HomePage() {
         </svg>
       </a>
 
-      {/* Menú inferior */}
       <BottomNav />
     </main>
   );
