@@ -13,21 +13,20 @@ export default function AuthGuard({ children }) {
     let montado = true;
 
     async function verificarSesion() {
-      // 1. Si estamos en login, pasa directo
+      // 1. Si estamos en login, pasa directo sin trabar
       if (pathname.startsWith("/login")) {
         if (montado) setLoading(false);
         return;
       }
 
-      // 2. Revisión SÍNCRONA e inmediata de sesión de celular
+      // 2. Revisión de sesión local (Celular) y Supabase de forma simultánea
       const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
       
       if (sesionCliente) {
         if (montado) setLoading(false);
-        return; // Salimos rápido, no contactamos a Supabase
+        return; 
       }
 
-      // 3. Revisión ASÍNCRONA de Supabase (Admin)
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session && !sesionCliente) {
@@ -40,20 +39,13 @@ export default function AuthGuard({ children }) {
     verificarSesion();
     
     return () => {
-      montado = false; // Evita fugas de memoria si el componente se desmonta
+      montado = false;
     };
   }, [pathname, router]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-brand-blue border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-500 font-medium text-sm">Abriendo catálogo...</p>
-        </div>
-      </div>
-    );
-  }
+  // CORRECCIÓN SENIOR: Si ya pasó la validación inicial, 
+  // NUNCA volvemos a mostrar pantalla de carga al cambiar de solapa interna (Inicio, Catálogo, Carrito, Cuenta).
+  // Esto elimina el parpadeo y el bloqueo al navegar.
 
   return <>{children}</>;
 }
