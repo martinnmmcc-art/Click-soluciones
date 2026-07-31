@@ -13,26 +13,35 @@ export default function HomePage() {
   const [loadingData, setLoadingData] = useState(true);
   const [mensajeCarrito, setMensajeCarrito] = useState("");
 
-  // Sin lógica de autenticación acá. Solo cargamos datos.
   useEffect(() => {
     async function cargarDatos() {
       setLoadingData(true);
       try {
+        // CORRECCIÓN: Apuntamos a "Productos" con P mayúscula
         const { data: prodData, error: prodError } = await supabase
-          .from("productos")
+          .from("Productos")
           .select("*")
           .order("id", { ascending: true });
 
-        if (!prodError && prodData) setProductos(prodData);
+        if (prodError) {
+          console.error("Error en Productos:", prodError.message);
+        } else if (prodData) {
+          setProductos(prodData);
+        }
 
+        // Si tu tabla de categorías también tiene mayúscula, ajustala acá (ej: "Categorias")
         const { data: catData, error: catError } = await supabase
-          .from("categorias")
+          .from("Categorias")
           .select("*")
           .order("nombre", { ascending: true });
 
-        if (!catError && catData) setCategorias(catData);
+        if (catError) {
+          console.error("Error en Categorias:", catError.message);
+        } else if (catData) {
+          setCategorias(catData);
+        }
       } catch (err) {
-        console.error("Error cargando catálogo:", err);
+        console.error("Error general de red:", err);
       } finally {
         setLoadingData(false);
       }
@@ -53,7 +62,6 @@ export default function HomePage() {
       }
 
       localStorage.setItem("carrito", JSON.stringify(carritoActual));
-
       setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
       setTimeout(() => setMensajeCarrito(""), 2500);
     } catch (e) {
@@ -115,7 +123,7 @@ export default function HomePage() {
             <p className="text-sm text-gray-500 font-medium">Cargando catálogo...</p>
           </div>
         ) : productosFiltrados.length === 0 ? (
-          <div className="text-center py-12 card p-6">
+          <div className="text-center py-12 card p-6 bg-white rounded-2xl shadow-sm">
             <p className="text-2xl mb-2">🔍</p>
             <p className="text-sm font-bold text-gray-700">No hay productos disponibles</p>
           </div>
