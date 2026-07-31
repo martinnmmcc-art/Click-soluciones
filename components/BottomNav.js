@@ -8,7 +8,7 @@ const TABS = [
   { href: "/", icon: "🏠", label: "Inicio" },
   { href: "/catalogo", icon: "🗂️", label: "Catálogo" },
   { href: "/carrito", icon: "🛒", label: "Carrito" },
-  { href: "/login", icon: "👤", label: "Cuenta" }
+  { href: "/cuenta", icon: "👤", label: "Cuenta" } // <- usar /cuenta
 ];
 
 export default function BottomNav() {
@@ -18,14 +18,14 @@ export default function BottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 flex justify-around py-2 md:hidden">
       {TABS.map((tab) => {
-        const active = pathname === tab.href;
+        // exacto para "/" y startsWith para el resto (soporta rutas anidadas)
+        const active = tab.href === "/" ? pathname === "/" : pathname?.startsWith(tab.href);
+
         return (
           <Link
             key={tab.href}
             href={tab.href}
-            className={`relative flex flex-col items-center px-3 py-1 text-xs font-medium ${
-              active ? "text-brand-blue" : "text-gray-400"
-            }`}
+            className={`relative flex flex-col items-center px-3 py-1 text-xs font-medium ${active ? "text-brand-blue" : "text-gray-400"}`}
           >
             <span className="text-lg">{tab.icon}</span>
             {tab.href === "/carrito" && cantidadTotal > 0 && (
