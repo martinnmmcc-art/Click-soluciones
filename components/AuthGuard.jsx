@@ -12,15 +12,15 @@ export default function AuthGuard({ children }) {
     // Si estamos en el login, no validamos nada
     if (pathname.startsWith("/login")) return;
 
-    // 1. Verificación síncrona e instantánea en localStorage
+    // Verificación instantánea de sesión local (Cliente o Admin)
     const sesionCliente = typeof window !== "undefined" ? localStorage.getItem("cliente_sesion") : null;
     const hasSupabaseToken = typeof window !== "undefined" && Object.keys(localStorage).some(key => key.includes("auth-token"));
 
     if (sesionCliente || hasSupabaseToken) {
-      return; // Hay sesión local, pasamos libremente
+      return; // Hay sesión local válida, pasamos libremente
     }
 
-    // 2. Verificación de respaldo en segundo plano (No bloquea la UI)
+    // Validación de respaldo en segundo plano (sin bloquear la interfaz)
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
         if (!session) {
@@ -28,10 +28,10 @@ export default function AuthGuard({ children }) {
         }
       })
       .catch(() => {
-        // Si hay error de red, evitamos congelar la app
+        // Ante cualquier error de red, evitamos bloquear la app
       });
   }, [pathname, router]);
 
-  // RENDERIZADO INSTANTÁNEO: Cero bloqueos, cero pantallas de carga eternas.
+  // Renderizado inmediato para eliminar cualquier pantalla de carga bloqueante ("Verificando acceso...")
   return <>{children}</>;
 }
