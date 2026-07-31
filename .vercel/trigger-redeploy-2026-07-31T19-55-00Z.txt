@@ -1,0 +1,3 @@
+Redeploy triggered by Copilot on 2026-07-31T19:55:00Z
+
+This empty file is used only to force a new commit on main and trigger Vercel to redeploy the latest code.
