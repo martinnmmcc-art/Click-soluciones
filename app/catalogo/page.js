@@ -1,115 +1,153 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
-import ProductCard from "@/components/ProductCard";
-import { CATEGORIAS } from "@/lib/categorias";
+import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
 
-function CatalogoContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const categoriaActiva = searchParams.get("categoria") || "";
-  const query = searchParams.get("q") || "";
-
+export default function CatalogoPage() {
   const [productos, setProductos] = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
+  const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
+  const [mensajeCarrito, setMensajeCarrito] = useState("");
 
   useEffect(() => {
-    async function fetchProductos() {
+    async function cargarCatalogo() {
       setLoading(true);
-      let req = supabase.from("productos").select("*").eq("activo", true);
+      try {
+        // CORRECCIÓN: Apuntamos a "Productos" con P mayúscula
+        const { data: prodData, error: prodError } = await supabase
+          .from("Productos")
+          .select("*")
+          .order("id", { ascending: true });
 
-      if (categoriaActiva === "ofertas") {
-        req = req.not("precio_oferta", "is", null);
-      } else if (categoriaActiva) {
-        req = req.eq("categoria", categoriaActiva);
+        if (prodError) console.error("Error en Productos:", prodError.message);
+        if (prodData) setProductos(prodData);
+
+        // CORRECCIÓN: Apuntamos a "Categorias" con C mayúscula
+        const { data: catData, error: catError } = await supabase
+          .from("Categorias")
+          .select("*")
+          .order("nombre", { ascending: true });
+
+        if (catError) console.error("Error en Categorias:", catError.message);
+        if (catData) setCategorias(catData);
+      } catch (err) {
+        console.error("Error de red en catálogo:", err);
+      } finally {
+        setLoading(false);
       }
-
-      if (query) {
-        req = req.ilike("nombre", `%${query}%`);
-      }
-
-      const { data, error } = await req.order("created_at", {
-        ascending: false
-      });
-
-      if (error) {
-        console.error("Error cargando catálogo:", error.message);
-        setProductos([]);
-      } else {
-        setProductos(data || []);
-      }
-      setLoading(false);
     }
-    fetchProductos();
-  }, [categoriaActiva, query]);
 
-  function setCategoria(slug) {
-    const params = new URLSearchParams(searchParams.toString());
-    if (slug) params.set("categoria", slug);
-    else params.delete("categoria");
-    router.push(`/catalogo?${params.toString()}`);
+    cargarCatalogo();
+  }, []);
+
+  function agregarAlCarrito(producto) {
+    try {
+      const carritoActual = JSON.parse(localStorage.getItem("carrito") || "[]");
+      const index = carritoActual.findIndex((item) => item.id === producto.id);
+
+      if (index >= 0) {
+        carritoActual[index].cantidad = (carritoActual[index].cantidad || 1) + 1;
+      } else {
+        carritoActual.push({ ...producto, cantidad: 1 });
+      }
+
+      localStorage.setItem("carrito", JSON.stringify(carritoActual));
+      setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
+      setTimeout(() => setMensajeCarrito(""), 2500);
+    } catch (e) {
+      console.error("Error al guardar en carrito:", e);
+    }
   }
 
+  const productosFiltrados = productos.filter((prod) => {
+    const coincideCategoria =
+      categoriaSeleccionada === "todas" ||
+      prod.categoria_id === categoriaSeleccionada ||
+      prod.categoria === categoriaSeleccionada;
+
+    const coincideBusqueda =
+      !busqueda.trim() ||
+      prod.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      prod.descripcion?.toLowerCase().includes(busqueda.toLowerCase());
+
+    return coincideCategoria && coincideBusqueda;
+  });
+
   return (
-    <main className="pb-6">
-      <Header initialQuery={query} />
+    <main className="min-h-screen bg-gray-50 pb-28">
+      <Header busqueda={busqueda} setBusqueda={setBusqueda} showSearch={true} />
 
-      <div className="px-4 mt-4">
-        <h1 className="font-bold text-xl text-gray-800 mb-3">
-          {query ? `Resultados para "${query}"` : "Catálogo"}
-        </h1>
+      {mensajeCarrito && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transition animate-bounce">
+          {mensajeCarrito}
+        </div>
+      )}
 
-        <div className="flex gap-2 overflow-x-auto pb-3">
-          <button
-            onClick={() => setCategoria("")}
-            className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border ${
-              !categoriaActiva
-                ? "bg-brand-blue text-white border-brand-blue"
-                : "bg-white text-gray-600 border-gray-200"
-            }`}
-          >
-            Todas
-          </button>
-          {CATEGORIAS.map((cat) => (
+      <div className="max-w-md mx-auto px-4 mt-4">
+        <h1 className="font-black text-gray-800 text-base mb-3">Catálogo Completo</h1>
+
+        {categorias.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
             <button
-              key={cat.slug}
-              onClick={() => setCategoria(cat.slug)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap border ${
-                categoriaActiva === cat.slug
-                  ? "bg-brand-blue text-white border-brand-blue"
-                  : "bg-white text-gray-600 border-gray-200"
+              onClick={() => setCategoriaSeleccionada("todas")}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                categoriaSeleccionada === "todas" ? "bg-brand-blue text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200"
               }`}
             >
-              {cat.emoji} {cat.nombre}
+              Todas
             </button>
-          ))}
-        </div>
+            {categorias.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setCategoriaSeleccionada(cat.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                  categoriaSeleccionada === cat.id ? "bg-brand-blue text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200"
+                }`}
+              >
+                {cat.nombre}
+              </button>
+            ))}
+          </div>
+        )}
 
         {loading ? (
-          <div className="text-center text-gray-400 py-10">Cargando productos...</div>
-        ) : productos.length === 0 ? (
-          <div className="card p-6 text-center text-gray-500 text-sm mt-4">
-            No encontramos productos con esos filtros.
+          <div className="text-center py-12">
+            <p className="text-sm text-gray-500 font-medium">Cargando productos...</p>
+          </div>
+        ) : productosFiltrados.length === 0 ? (
+          <div className="text-center py-12 card p-6 bg-white rounded-2xl shadow-sm">
+            <p className="text-2xl mb-2">🔍</p>
+            <p className="text-sm font-bold text-gray-700">No encontramos productos con esos filtros</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-            {productos.map((p) => (
-              <ProductCard key={p.id} producto={p} />
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            {productosFiltrados.map((prod) => (
+              <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
+                <div>
+                  {prod.imagen_url ? (
+                    <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
+                  ) : (
+                    <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">📦</div>
+                  )}
+                  <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</h3>
+                </div>
+                <div className="mt-3 pt-2 border-t border-gray-50 flex flex-col gap-1.5">
+                  <span className="font-black text-sm text-brand-blue">${Number(prod.precio || 0).toLocaleString("es-AR")}</span>
+                  <button onClick={() => agregarAlCarrito(prod)} className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition">
+                    + Agregar
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}
       </div>
-    </main>
-  );
-}
 
-export default function CatalogoPage() {
-  return (
-    <Suspense fallback={<div className="p-6 text-center text-gray-400">Cargando...</div>}>
-      <CatalogoContent />
-    </Suspense>
+      <BottomNav />
+    </main>
   );
 }
