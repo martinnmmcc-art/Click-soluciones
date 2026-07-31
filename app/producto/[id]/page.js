@@ -10,7 +10,10 @@ import { formatPrice, buildWhatsAppLink, whatsappProductMessage } from "@/lib/wh
 import { nombreCategoria } from "@/lib/categorias";
 
 export default function ProductoDetallePage() {
-  const { id } = useParams();
+  const params = useParams();
+  // Nos aseguramos de limpiar bien el id por si viene como texto o con espacios
+  const id = params?.id ? decodeURIComponent(params.id) : null;
+  
   const router = useRouter();
   const { addItem } = useCart();
 
@@ -22,22 +25,33 @@ export default function ProductoDetallePage() {
 
   useEffect(() => {
     async function fetchProducto() {
+      if (!id) return;
       setLoading(true);
-      const { data, error } = await supabase
-        .from("productos")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (error) console.error(error.message);
       
-      if (data) {
-        setProducto(data);
-        setImagenPrincipal(data.imagen_url || "");
+      try {
+        // Traemos todos los productos y filtramos en JavaScript para evitar problemas de tipos (texto vs número)
+        const { data, error } = await supabase
+          .from("productos")
+          .select("*");
+
+        if (error) {
+          console.error("Error al consultar Supabase:", error.message);
+        } else if (data) {
+          // Buscamos el producto que coincida con el ID (comparando como texto para que no falle)
+          const encontrado = data.find((p) => String(p.id) === String(id));
+          if (encontrado) {
+            setProducto(encontrado);
+            setImagenPrincipal(encontrado.imagen_url || "");
+          }
+        }
+      } catch (err) {
+        console.error("Error inesperado:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
-    if (id) fetchProducto();
+
+    fetchProducto();
   }, [id]);
 
   if (loading) {
@@ -64,7 +78,6 @@ export default function ProductoDetallePage() {
     producto.precio_oferta && producto.precio_oferta < producto.precio;
   const precioFinal = tieneOferta ? producto.precio_oferta : producto.precio;
 
-  // Juntamos todas las fotos disponibles (imagen_url, imagen_url_2, imagen_url_3)
   const listaImagenes = [
     producto.imagen_url,
     producto.imagen_url_2,
@@ -86,22 +99,17 @@ export default function ProductoDetallePage() {
     <main className="pb-12">
       <Header showSearch={false} />
 
-      {/* GALERÍA DE IMÁGENES ESTILO MERCADO LIBRE */}
+      {/* GALERÍA DE IMÁGENES */}
       <div className="max-w-2xl mx-auto px-4 mt-4">
-        <div className="relative w-full aspect-square bg-gray-100 rounded-2xl overflow-hidden border border-gray-100">
+        <div className="relative w-full aspect-square bg-gray-100 rounded-2xl overflow-hidden border border-gray-100 flex items-center justify-center">
           {imagenPrincipal ? (
-            <Image
+            <img
               src={imagenPrincipal}
               alt={producto.nombre}
-              fill
-              sizes="100vw"
-              className="object-cover"
-              priority
+              className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-6xl">
-              📦
-            </div>
+            <div className="text-6xl">📦</div>
           )}
           {tieneOferta && (
             <span className="absolute top-3 left-3 bg-brand-orange text-white text-xs font-bold px-3 py-1 rounded-full z-10">
@@ -110,7 +118,6 @@ export default function ProductoDetallePage() {
           )}
         </div>
 
-        {/* Miniaturas de fotos extra */}
         {listaImagenes.length > 1 && (
           <div className="flex gap-3 mt-3 overflow-x-auto pb-2">
             {listaImagenes.map((img, index) => (
@@ -148,7 +155,7 @@ export default function ProductoDetallePage() {
           )}
         </div>
 
-        {/* CANTIDAD Y BOTONES DE COMPRA */}
+        {/* CANTIDAD Y BOTONES */}
         <div className="flex items-center gap-4 mt-6">
           <span className="text-sm font-medium text-gray-700">Cantidad:</span>
           <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden">
@@ -185,7 +192,7 @@ export default function ProductoDetallePage() {
           </a>
         </div>
 
-        {/* SECCIONES DETALLADAS: DESCRIPCIÓN, CARACTERÍSTICAS Y ACCESORIOS */}
+        {/* DESCRIPCIÓN, CARACTERÍSTICAS Y ACCESORIOS */}
         <div className="mt-10 border-t border-gray-100 pt-8 space-y-6">
           {producto.descripcion && (
             <div className="bg-gray-50 p-5 rounded-2xl">
