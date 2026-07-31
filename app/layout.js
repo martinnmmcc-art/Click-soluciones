@@ -1,4 +1,5 @@
 import "./globals.css";
+import AuthGuard from "@/components/AuthGuard";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
@@ -34,10 +35,12 @@ export default function RootLayout({ children }) {
       <body className="bg-brand-bg min-h-screen font-sans">
         <AuthProvider>
           <CartProvider>
-            <ServiceWorkerRegister />
-            <div className="container-app pb-24">{children}</div>
-            <WhatsAppFloatingButton />
-            <BottomNav />
+            <AuthGuard>
+              <ServiceWorkerRegister />
+              <div className="container-app pb-24">{children}</div>
+              <WhatsAppFloatingButton />
+              <BottomNav />
+            </AuthGuard>
           </CartProvider>
         </AuthProvider>
       </body>
