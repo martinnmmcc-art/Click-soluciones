@@ -1,83 +1,80 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function CuentaPage() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [datosCliente, setDatosCliente] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function checkUser() {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user || null);
+    try {
+      // 1. Buscamos la sesión del celular en el almacenamiento local
+      const sesionGuardada = localStorage.getItem("cliente_sesion");
+      if (sesionGuardada) {
+        setDatosCliente(JSON.parse(sesionGuardada));
+      }
+    } catch (e) {
+      console.error("Error al leer la sesión:", e);
+    } finally {
       setLoading(false);
     }
-    checkUser();
   }, []);
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    setUser(null);
-    router.refresh();
+  function cerrarSesion() {
+    try {
+      // Borramos las credenciales locales y de Supabase
+      localStorage.removeItem("cliente_sesion");
+      localStorage.removeItem("carrito");
+      supabase.auth.signOut();
+    } catch (e) {
+      console.error("Error al limpiar sesión:", e);
+    }
+    router.replace("/login");
   }
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 pb-20">
-        <Header showSearch={false} />
-        <div className="text-center py-20 text-gray-500">Cargando...</div>
-        <BottomNav />
-      </main>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-sm text-gray-500 font-medium">Cargando perfil...</p>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-20">
+    <main className="min-h-screen bg-gray-50 pb-28">
       <Header showSearch={false} />
 
       <div className="max-w-md mx-auto px-4 mt-6">
-        <h1 className="text-2xl font-extrabold text-gray-800 mb-6">Mi Cuenta</h1>
-
-        {user ? (
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
+          <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+            <div className="w-12 h-12 bg-brand-blue/10 rounded-full flex items-center justify-center text-brand-blue text-xl font-bold">
+              📱
+            </div>
             <div>
-              <span className="text-xs text-gray-400 block">Usuario conectado</span>
-              <p className="text-sm font-semibold text-gray-800">{user.email}</p>
+              <h2 className="font-bold text-gray-800 text-sm">Mi Cuenta</h2>
+              <p className="text-xs text-gray-500">Acceso por número de celular</p>
             </div>
-
-            {/* BOTÓN SECRETO / ADMIN: Solo aparece porque estás logueado */}
-            <div className="pt-2 border-t border-gray-100 space-y-2">
-              <a
-                href="/admin/pedidos"
-                className="w-full bg-blue-50 text-brand-blue hover:bg-blue-100 font-bold py-3 px-4 rounded-xl text-center block text-sm transition"
-              >
-                📊 Panel de Administración (Pedidos)
-              </a>
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="w-full bg-red-50 text-red-600 hover:bg-red-100 font-bold py-3 px-4 rounded-xl text-center block text-sm transition mt-4"
-            >
-              Cerrar Sesión
-            </button>
           </div>
-        ) : (
-          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center space-y-4">
-            <p className="text-sm text-gray-600">No hay ninguna sesión iniciada en este dispositivo.</p>
-            <a
-              href="/admin/login"
-              className="btn-primary inline-block w-full py-3 text-center"
-            >
-              Iniciar Sesión (Admin)
-            </a>
+
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500 font-medium">Teléfono registrado:</p>
+            <p className="text-sm font-bold text-gray-800 bg-gray-50 p-3 rounded-xl border border-gray-100">
+              {datosCliente?.telefono || datosCliente?.phone || "Sesión Activa"}
+            </p>
           </div>
-        )}
+
+          <button
+            onClick={cerrarSesion}
+            className="w-full bg-red-50 text-red-600 border border-red-100 text-xs font-bold py-3 rounded-xl hover:bg-red-100 active:scale-95 transition mt-4"
+          >
+            Cerrar Sesión
+          </button>
+        </div>
       </div>
 
       <BottomNav />
