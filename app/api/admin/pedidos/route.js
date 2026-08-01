@@ -21,7 +21,7 @@ export async function GET() {
 
 export async function PATCH(req) {
   const body = await req.json();
-  const { id, estado, estado_pago } = body;
+  const { id, estado, estado_pago, monto_pagado } = body;
 
   if (!id) {
     return Response.json({ error: "Falta el id del pedido" }, { status: 400 });
@@ -30,6 +30,7 @@ export async function PATCH(req) {
   const campos = {};
   if (estado !== undefined) campos.estado = estado;
   if (estado_pago !== undefined) campos.estado_pago = estado_pago;
+  if (monto_pagado !== undefined) campos.monto_pagado = monto_pagado;
 
   if (Object.keys(campos).length === 0) {
     return Response.json({ error: "No se envió ningún campo para actualizar" }, { status: 400 });
