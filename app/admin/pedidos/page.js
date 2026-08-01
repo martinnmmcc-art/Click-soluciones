@@ -1,42 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import Header from "@/components/Header";
+import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
 
-export default function AdminPedidosPage() {
+function PanelVentas() {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [errorAcceso, setErrorAcceso] = useState(false);
 
   useEffect(() => {
-    async function verificarYCargar() {
-      // 1. Verificamos si el usuario actual es administrador (está logueado)
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        setErrorAcceso(true);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Si está logueado, traemos los pedidos con sus items
-      const { data, error } = await supabase
-        .from("pedidos")
-        .select(`
-          *,
-          items_pedido (*)
-        `)
-        .order("created_at", { ascending: false });
-
-      if (!error && data) {
-        setPedidos(data);
+    async function cargarPedidos() {
+      try {
+        const res = await fetch("/api/admin/pedidos");
+        const result = await res.json();
+        if (res.ok) setPedidos(result.pedidos || []);
+      } catch (e) {
+        console.error(e.message);
       }
       setLoading(false);
     }
-
-    verificarYCargar();
+    cargarPedidos();
   }, []);
 
   if (loading) {
@@ -44,23 +28,6 @@ export default function AdminPedidosPage() {
       <main className="min-h-screen bg-gray-50">
         <Header showSearch={false} />
         <div className="text-center py-20 text-gray-500">Cargando panel de ventas...</div>
-      </main>
-    );
-  }
-
-  if (errorAcceso) {
-    return (
-      <main className="min-h-screen bg-gray-50">
-        <Header showSearch={false} />
-        <div className="max-w-md mx-auto px-4 py-20 text-center">
-          <div className="bg-red-50 border border-red-200 p-6 rounded-2xl">
-            <h1 className="text-xl font-bold text-red-700 mb-2">Acceso Restringido</h1>
-            <p className="text-sm text-red-600 mb-4">Tenés que iniciar sesión como administrador para ver esta sección.</p>
-            <a href="/admin/login" className="btn-primary inline-block text-center py-2 px-4">
-              Ir al Login de Admin
-            </a>
-          </div>
-        </div>
       </main>
     );
   }
@@ -86,7 +53,7 @@ export default function AdminPedidosPage() {
                       Pedido #{pedido.id}
                     </span>
                     <p className="text-sm font-semibold text-gray-800 mt-2">
-                      Cliente: {pedido.nombre_cliente || "Sin nombre"} ({pedido.telefono || "Sin teléfono"})
+                      Cliente: {pedido.nombre_cliente || "Sin nombre"} ({pedido.telefono_cliente || "Sin teléfono"})
                     </p>
                     <p className="text-xs text-gray-400">
                       Fecha: {new Date(pedido.created_at).toLocaleString()}
@@ -98,7 +65,6 @@ export default function AdminPedidosPage() {
                   </div>
                 </div>
 
-                {/* Lista de productos comprados */}
                 <div className="space-y-2">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Productos del carrito:</p>
                   {pedido.items_pedido && pedido.items_pedido.map((item, idx) => (
@@ -106,7 +72,7 @@ export default function AdminPedidosPage() {
                       <span className="text-gray-700 font-medium">
                         {item.cantidad}x {item.nombre_producto}
                       </span>
-                      <span className="text-gray-900 font-semibold">${formatPrice(item.precio * item.cantidad)}</span>
+                      <span className="text-gray-900 font-semibold">${formatPrice(item.precio_unitario * item.cantidad)}</span>
                     </div>
                   ))}
                 </div>
@@ -116,5 +82,13 @@ export default function AdminPedidosPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function AdminPedidosPage() {
+  return (
+    <AdminGuard>
+      <PanelVentas />
+    </AdminGuard>
   );
 }
