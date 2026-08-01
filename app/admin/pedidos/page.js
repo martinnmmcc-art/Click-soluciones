@@ -75,6 +75,25 @@ function PanelVentas() {
     setGuardandoId(null);
   }
 
+  // Agrupa los pedidos por teléfono de cliente y suma los saldos
+  function calcularResumenClientes(lista) {
+    const grupos = {};
+    lista.forEach((p) => {
+      const clave = p.telefono_cliente || "sin_telefono_" + p.id;
+      if (!grupos[clave]) {
+        grupos[clave] = {
+          telefono: p.telefono_cliente || "Sin teléfono",
+          nombre: p.nombre_cliente || "Sin nombre",
+          cantidadPedidos: 0,
+          saldoNeto: 0,
+        };
+      }
+      grupos[clave].cantidadPedidos += 1;
+      grupos[clave].saldoNeto += Number(p.total || 0) - Number(p.monto_pagado || 0);
+    });
+    return Object.values(grupos).sort((a, b) => b.saldoNeto - a.saldoNeto);
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50">
@@ -83,6 +102,8 @@ function PanelVentas() {
       </main>
     );
   }
+
+  const resumenClientes = calcularResumenClientes(pedidos);
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
@@ -95,6 +116,41 @@ function PanelVentas() {
             Tenés {pedidos.length} pedido{pedidos.length === 1 ? "" : "s"}
           </span>
         </div>
+
+        {resumenClientes.length > 0 && (
+          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
+              Resumen por cliente
+            </p>
+            <div className="space-y-2">
+              {resumenClientes.map((c) => (
+                <div key={c.telefono} className="flex justify-between items-center text-sm">
+                  <span className="text-gray-700 font-medium">
+                    {c.nombre} ({c.telefono}){" "}
+                    <span className="text-gray-400 font-normal">
+                      · {c.cantidadPedidos} pedido{c.cantidadPedidos === 1 ? "" : "s"}
+                    </span>
+                  </span>
+                  {c.saldoNeto > 0 && (
+                    <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg">
+                      Debe ${formatPrice(c.saldoNeto)}
+                    </span>
+                  )}
+                  {c.saldoNeto < 0 && (
+                    <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">
+                      A favor ${formatPrice(Math.abs(c.saldoNeto))}
+                    </span>
+                  )}
+                  {c.saldoNeto === 0 && (
+                    <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-lg">
+                      Saldado
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {pedidos.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
