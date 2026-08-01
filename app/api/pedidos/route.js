@@ -32,8 +32,7 @@ export async function POST(req) {
   }
 
   return Response.json({ pedido });
-}
-
+} 
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const numero = searchParams.get("numero");
