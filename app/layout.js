@@ -7,14 +7,14 @@ import WhatsAppFloatingButton from "@/components/WhatsAppFloatingButton";
 import BottomNav from "@/components/BottomNav";
 
 export const metadata = {
-  title: "Clic Soluciones | Productos para el hogar",
+  title: "Bolson Click | Productos para el hogar",
   description:
-    "Iluminación, cocina y organización para tu hogar. Comprá fácil y rápido en Clic Soluciones.",
+    "Iluminación, cocina y organización para tu hogar. Comprá fácil y rápido en Bolson Click.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Clic Soluciones"
+    title: "Bolson Click"
   }
 };
 
