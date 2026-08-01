@@ -157,6 +157,69 @@ function PanelVentas() {
     }
   }
 
+  async function modificarCantidadItem(pedidoId, itemId, cantidad) {
+    if (cantidad < 1) return;
+    try {
+      const res = await fetch("/api/admin/pedidos/items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: itemId, pedido_id: pedidoId, cantidad }),
+      });
+      const result = await res.json();
+
+      if (res.ok) {
+        setPedidos((prev) =>
+          prev.map((p) =>
+            p.id === pedidoId
+              ? {
+                  ...p,
+                  items_pedido: p.items_pedido.map((it) =>
+                    it.id === itemId ? result.item : it
+                  ),
+                  total: result.total,
+                }
+              : p
+          )
+        );
+      } else {
+        alert("No se pudo modificar la cantidad: " + result.error);
+      }
+    } catch (e) {
+      alert("Error de conexión al modificar la cantidad.");
+    }
+  }
+
+  async function eliminarItem(pedidoId, itemId) {
+    const confirmar = window.confirm("¿Eliminar este producto del pedido?");
+    if (!confirmar) return;
+
+    try {
+      const res = await fetch(
+        `/api/admin/pedidos/items?item_id=${itemId}&pedido_id=${pedidoId}`,
+        { method: "DELETE" }
+      );
+      const result = await res.json();
+
+      if (res.ok) {
+        setPedidos((prev) =>
+          prev.map((p) =>
+            p.id === pedidoId
+              ? {
+                  ...p,
+                  items_pedido: p.items_pedido.filter((it) => it.id !== itemId),
+                  total: result.total,
+                }
+              : p
+          )
+        );
+      } else {
+        alert("No se pudo eliminar el producto: " + result.error);
+      }
+    } catch (e) {
+      alert("Error de conexión al eliminar el producto.");
+    }
+  }
+
   function calcularResumenClientes(lista) {
     const grupos = {};
     lista.forEach((p) => {
@@ -380,12 +443,37 @@ function PanelVentas() {
 
                 <div className="space-y-2">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Productos del carrito:</p>
-                  {pedido.items_pedido && pedido.items_pedido.map((item, idx) => (
-                    <div key={idx} className="flex justify-between items-center text-sm bg-gray-50 p-2.5 rounded-xl">
-                      <span className="text-gray-700 font-medium">
-                        {item.cantidad}x {item.nombre_producto}
-                      </span>
-                      <span className="text-gray-900 font-semibold">${formatPrice(item.precio_unitario * item.cantidad)}</span>
+                  {pedido.items_pedido && pedido.items_pedido.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center text-sm bg-gray-50 p-2.5 rounded-xl gap-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => modificarCantidadItem(pedido.id, item.id, item.cantidad - 1)}
+                          disabled={item.cantidad <= 1}
+                          className="w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 font-bold disabled:opacity-30"
+                        >
+                          −
+                        </button>
+                        <span className="text-gray-700 font-medium min-w-[1.5rem] text-center">
+                          {item.cantidad}
+                        </span>
+                        <button
+                          onClick={() => modificarCantidadItem(pedido.id, item.id, item.cantidad + 1)}
+                          className="w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 font-bold"
+                        >
+                          +
+                        </button>
+                        <span className="text-gray-700 font-medium">{item.nombre_producto}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-900 font-semibold">${formatPrice(item.precio_unitario * item.cantidad)}</span>
+                        <button
+                          onClick={() => eliminarItem(pedido.id, item.id)}
+                          className="text-red-500 font-bold text-base leading-none px-1"
+                          title="Eliminar producto"
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
