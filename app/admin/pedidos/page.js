@@ -5,9 +5,38 @@ import Header from "@/components/Header";
 import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
 
+const OPCIONES_ENTREGA = [
+  { value: "pendiente", label: "Pendiente" },
+  { value: "entregado", label: "Entregado" },
+  { value: "demorado", label: "Demorado" },
+  { value: "rechazado", label: "Rechazado" },
+];
+
+const OPCIONES_PAGO = [
+  { value: "falta_pagar", label: "Falta pagar" },
+  { value: "pagado", label: "Pagado" },
+  { value: "deuda_parcial", label: "Deuda parcial" },
+  { value: "a_favor", label: "A favor" },
+];
+
+const COLOR_ENTREGA = {
+  pendiente: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  entregado: "bg-green-50 text-green-700 border-green-200",
+  demorado: "bg-orange-50 text-orange-700 border-orange-200",
+  rechazado: "bg-red-50 text-red-700 border-red-200",
+};
+
+const COLOR_PAGO = {
+  falta_pagar: "bg-red-50 text-red-700 border-red-200",
+  pagado: "bg-green-50 text-green-700 border-green-200",
+  deuda_parcial: "bg-orange-50 text-orange-700 border-orange-200",
+  a_favor: "bg-blue-50 text-blue-700 border-blue-200",
+};
+
 function PanelVentas() {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [guardandoId, setGuardandoId] = useState(null);
 
   useEffect(() => {
     async function cargarPedidos() {
@@ -23,6 +52,30 @@ function PanelVentas() {
     cargarPedidos();
   }, []);
 
+  async function actualizarEstado(pedidoId, campo, valor) {
+    // Actualización optimista: cambiamos en pantalla al toque
+    setPedidos((prev) =>
+      prev.map((p) => (p.id === pedidoId ? { ...p, [campo]: valor } : p))
+    );
+    setGuardandoId(pedidoId);
+
+    try {
+      const res = await fetch("/api/admin/pedidos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pedidoId, [campo]: valor }),
+      });
+      const result = await res.json();
+
+      if (!res.ok) {
+        alert("No se pudo guardar el cambio: " + result.error);
+      }
+    } catch (e) {
+      alert("Error de conexión al guardar el cambio.");
+    }
+    setGuardandoId(null);
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50">
@@ -37,7 +90,12 @@ function PanelVentas() {
       <Header showSearch={false} />
 
       <div className="max-w-4xl mx-auto px-4 mt-6">
-        <h1 className="text-2xl font-extrabold text-gray-800 mb-6">Panel de Ventas (Admin)</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-extrabold text-gray-800">Panel de Ventas (Admin)</h1>
+          <span className="text-sm font-bold text-brand-blue bg-blue-50 px-3 py-1.5 rounded-full">
+            Tenés {pedidos.length} pedido{pedidos.length === 1 ? "" : "s"}
+          </span>
+        </div>
 
         {pedidos.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
@@ -62,6 +120,45 @@ function PanelVentas() {
                   <div className="text-right">
                     <span className="text-xs text-gray-500 block">Total Venta</span>
                     <span className="text-lg font-extrabold text-gray-900">${formatPrice(pedido.total)}</span>
+                  </div>
+                </div>
+
+                {/* Selectores de estado */}
+                <div className="flex flex-wrap gap-3 mb-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">
+                      Entrega
+                    </label>
+                    <select
+                      value={pedido.estado || "pendiente"}
+                      onChange={(e) => actualizarEstado(pedido.id, "estado", e.target.value)}
+                      disabled={guardandoId === pedido.id}
+                      className={`text-xs font-semibold border rounded-lg px-2 py-1.5 ${COLOR_ENTREGA[pedido.estado] || "bg-gray-50 text-gray-700 border-gray-200"}`}
+                    >
+                      {OPCIONES_ENTREGA.map((op) => (
+                        <option key={op.value} value={op.value}>
+                          {op.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">
+                      Pago
+                    </label>
+                    <select
+                      value={pedido.estado_pago || "falta_pagar"}
+                      onChange={(e) => actualizarEstado(pedido.id, "estado_pago", e.target.value)}
+                      disabled={guardandoId === pedido.id}
+                      className={`text-xs font-semibold border rounded-lg px-2 py-1.5 ${COLOR_PAGO[pedido.estado_pago] || "bg-gray-50 text-gray-700 border-gray-200"}`}
+                    >
+                      {OPCIONES_PAGO.map((op) => (
+                        <option key={op.value} value={op.value}>
+                          {op.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
