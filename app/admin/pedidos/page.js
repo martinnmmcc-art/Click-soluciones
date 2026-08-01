@@ -10,6 +10,7 @@ const OPCIONES_ENTREGA = [
   { value: "entregado", label: "Entregado" },
   { value: "demorado", label: "Demorado" },
   { value: "rechazado", label: "Rechazado" },
+  { value: "esperando_stock", label: "Esperando stock" },
 ];
 
 const OPCIONES_PAGO = [
@@ -17,6 +18,7 @@ const OPCIONES_PAGO = [
   { value: "pagado", label: "Pagado" },
   { value: "deuda_parcial", label: "Deuda parcial" },
   { value: "a_favor", label: "A favor" },
+  { value: "señado", label: "Señado" },
 ];
 
 const COLOR_ENTREGA = {
@@ -24,6 +26,7 @@ const COLOR_ENTREGA = {
   entregado: "bg-green-50 text-green-700 border-green-200",
   demorado: "bg-orange-50 text-orange-700 border-orange-200",
   rechazado: "bg-red-50 text-red-700 border-red-200",
+  esperando_stock: "bg-purple-50 text-purple-700 border-purple-200",
 };
 
 const COLOR_PAGO = {
@@ -31,6 +34,7 @@ const COLOR_PAGO = {
   pagado: "bg-green-50 text-green-700 border-green-200",
   deuda_parcial: "bg-orange-50 text-orange-700 border-orange-200",
   a_favor: "bg-blue-50 text-blue-700 border-blue-200",
+  señado: "bg-purple-50 text-purple-700 border-purple-200",
 };
 
 function PanelVentas() {
@@ -76,7 +80,6 @@ function PanelVentas() {
     setGuardandoId(null);
   }
 
-  // Agrupa los pedidos por teléfono de cliente y suma los saldos
   function calcularResumenClientes(lista) {
     const grupos = {};
     lista.forEach((p) => {
@@ -208,7 +211,6 @@ function PanelVentas() {
                   </div>
                 </div>
 
-                {/* Selectores de estado */}
                 <div className="flex flex-wrap gap-3 mb-4">
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">
@@ -247,7 +249,6 @@ function PanelVentas() {
                   </div>
                 </div>
 
-                {/* Monto pagado y saldo */}
                 <div className="flex flex-wrap items-end gap-3 mb-4">
                   <div>
                     <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">
