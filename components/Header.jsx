@@ -66,13 +66,6 @@ export default function Header({ showSearch = true, initialQuery = "" }) {
               </span>
             )}
           </Link>
-          <Link
-            href={user ? "/perfil" : "/login"}
-            className="text-2xl p-1"
-            aria-label="Cuenta"
-          >
-            👤
-          </Link>
         </div>
       </div>
 
