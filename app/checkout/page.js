@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 
 function generarNumeroPedido() {
@@ -58,49 +57,42 @@ export default function CheckoutPage() {
     try {
       const numero_pedido = generarNumeroPedido();
 
-      const { data: pedido, error: errPedido } = await supabase
-        .from("pedidos")
-        .insert({
-          numero_pedido,
-          usuario_id: user?.id || null,
-          nombre_cliente: form.nombre_cliente,
-          telefono_cliente: form.telefono_cliente,
-          localidad: form.localidad,
-          metodo_entrega: form.metodo_entrega,
-          direccion_envio:
-            form.metodo_entrega === "envio" ? form.direccion_envio : null,
-          metodo_pago: form.metodo_pago,
-          nota_cliente: nota || null,
-          total,
-          estado: "pendiente"
+      const res = await fetch("/api/pedidos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pedido: {
+            numero_pedido,
+            usuario_id: user?.id || null,
+            nombre_cliente: form.nombre_cliente,
+            telefono_cliente: form.telefono_cliente,
+            localidad: form.localidad,
+            metodo_entrega: form.metodo_entrega,
+            direccion_envio:
+              form.metodo_entrega === "envio" ? form.direccion_envio : null,
+            metodo_pago: form.metodo_pago,
+            nota_cliente: nota || null,
+            total,
+            estado: "pendiente"
+          },
+          items: items.map((i) => ({
+            producto_id: i.id,
+            nombre_producto: i.nombre,
+            precio_unitario: i.precio,
+            cantidad: i.cantidad,
+            subtotal: i.precio * i.cantidad
+          }))
         })
-        .select()
-        .single();
+      });
 
-      if (errPedido) throw errPedido;
-
-      const itemsAInsertar = items.map((i) => ({
-        pedido_id: pedido.id,
-        producto_id: i.id,
-        nombre_producto: i.nombre,
-        precio_unitario: i.precio,
-        cantidad: i.cantidad,
-        subtotal: i.precio * i.cantidad
-      }));
-
-      const { error: errItems } = await supabase
-        .from("items_pedido")
-        .insert(itemsAInsertar);
-
-      if (errItems) throw errItems;
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Error al crear el pedido");
 
       clearCart();
       router.push(`/confirmacion?numero=${numero_pedido}`);
     } catch (err) {
-      console.error("Error completo de Supabase:", err);
-      setError(
-        `Error: ${err.message || JSON.stringify(err)} | Details: ${err.details || "N/A"}`
-      );
+      console.error("Error completo:", err);
+      setError(`Error: ${err.message || JSON.stringify(err)}`);
     } finally {
       setEnviando(false);
     }
