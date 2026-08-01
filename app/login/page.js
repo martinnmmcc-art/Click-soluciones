@@ -308,7 +308,7 @@ export default function LoginPage() {
       <Header showSearch={false} />
       <div className="px-4 mt-6 max-w-md mx-auto">
         <h1 className="font-bold text-xl text-gray-800 mb-1 text-center">
-          {esRegistro ? "Crear una cuenta nueva" : "Bienvenido a Clic Soluciones"}
+          {esRegistro ? "Crear una cuenta nueva" : "Bienvenido a Bolson Click"}
         </h1>
         <p className="text-sm text-gray-500 mb-5 text-center">
           {esRegistro 
