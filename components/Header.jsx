@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useCart } from "@/context/CartContext";
@@ -38,11 +39,11 @@ export default function Header({ showSearch = true, initialQuery = "" }) {
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 px-4 pt-4 pb-3">
       <div className="flex items-center justify-between mb-3">
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl bg-brand-blue flex items-center justify-center text-white font-bold text-sm">
-            CS
+          <div className="w-9 h-9 rounded-xl overflow-hidden relative">
+            <Image src="/logo.png" alt="Bolson Click" fill className="object-cover" />
           </div>
           <span className="text-lg font-extrabold text-brand-blueDark">
-            Clic <span className="text-brand-orange">Soluciones</span>
+            Bolson <span className="text-brand-orange">Click</span>
           </span>
         </Link>
 
