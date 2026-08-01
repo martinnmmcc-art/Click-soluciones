@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
-import { supabase } from "@/lib/supabaseClient";
 import {
   buildWhatsAppLink,
   whatsappOrderMessage,
@@ -24,14 +23,14 @@ function ConfirmacionContent() {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from("pedidos")
-        .select("*")
-        .eq("numero_pedido", numero)
-        .maybeSingle();
-
-      if (error) console.error(error.message);
-      setPedido(data);
+      try {
+        const res = await fetch(`/api/pedidos?numero=${encodeURIComponent(numero)}`);
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error);
+        setPedido(result.pedido);
+      } catch (e) {
+        console.error(e.message);
+      }
       setLoading(false);
     }
     fetchPedido();
