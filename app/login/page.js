@@ -5,6 +5,39 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabaseClient";
+import { formatPrice } from "@/lib/whatsapp";
+
+const OPCIONES_ENTREGA_LABEL = {
+  pendiente: "Pendiente",
+  entregado: "Entregado",
+  demorado: "Demorado",
+  rechazado: "Rechazado",
+  esperando_stock: "Esperando stock"
+};
+
+const OPCIONES_PAGO_LABEL = {
+  falta_pagar: "Falta pagar",
+  pagado: "Pagado",
+  deuda_parcial: "Deuda parcial",
+  a_favor: "A favor",
+  señado: "Señado"
+};
+
+const COLOR_ENTREGA = {
+  pendiente: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  entregado: "bg-green-50 text-green-700 border-green-200",
+  demorado: "bg-orange-50 text-orange-700 border-orange-200",
+  rechazado: "bg-red-50 text-red-700 border-red-200",
+  esperando_stock: "bg-purple-50 text-purple-700 border-purple-200"
+};
+
+const COLOR_PAGO = {
+  falta_pagar: "bg-red-50 text-red-700 border-red-200",
+  pagado: "bg-green-50 text-green-700 border-green-200",
+  deuda_parcial: "bg-orange-50 text-orange-700 border-orange-200",
+  a_favor: "bg-blue-50 text-blue-700 border-blue-200",
+  señado: "bg-purple-50 text-purple-700 border-purple-200"
+};
 
 export default function LoginPage() {
   const { user, logout } = useAuth();
@@ -29,6 +62,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [sesionActiva, setSesionActiva] = useState(null);
 
+  const [misPedidos, setMisPedidos] = useState([]);
+  const [pedidosLoading, setPedidosLoading] = useState(false);
+
   useEffect(() => {
     const sesionStr = localStorage.getItem("cliente_sesion");
     if (sesionStr) {
@@ -44,6 +80,24 @@ export default function LoginPage() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    const tel = user?.telefono || sesionActiva?.telefono;
+    if (!tel) return;
+
+    async function cargarPedidos() {
+      setPedidosLoading(true);
+      try {
+        const res = await fetch(`/api/mis-pedidos?telefono=${encodeURIComponent(tel)}`);
+        const result = await res.json();
+        if (res.ok) setMisPedidos(result.pedidos || []);
+      } catch (e) {
+        console.error(e);
+      }
+      setPedidosLoading(false);
+    }
+    cargarPedidos();
+  }, [user, sesionActiva]);
 
   async function handleCelularSubmit(e) {
     e.preventDefault();
@@ -284,6 +338,74 @@ export default function LoginPage() {
               </form>
             </div>
           )}
+
+          {/* MIS PEDIDOS */}
+          <div className="mb-4">
+            <h2 className="font-bold text-sm text-gray-800 mb-3">📦 Mis Pedidos</h2>
+
+            {pedidosLoading && (
+              <p className="text-xs text-gray-400 text-center py-4">Cargando tus pedidos...</p>
+            )}
+
+            {!pedidosLoading && misPedidos.length === 0 && (
+              <div className="card p-5 text-center text-gray-400 text-sm">
+                Todavía no hiciste ningún pedido.
+              </div>
+            )}
+
+            {!pedidosLoading && misPedidos.length > 0 && (
+              <div className="space-y-3">
+                {misPedidos.map((pedido) => {
+                  const saldo = Number(pedido.total || 0) - Number(pedido.monto_pagado || 0);
+                  return (
+                    <div key={pedido.id} className="card p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <span className="text-xs font-bold text-brand-blue bg-blue-50 px-2 py-1 rounded-md">
+                            Pedido #{pedido.id}
+                          </span>
+                          <p className="text-xs text-gray-400 mt-1.5">
+                            {new Date(pedido.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <span className="text-base font-extrabold text-gray-900">
+                          ${formatPrice(pedido.total)}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <span className={`text-[11px] font-semibold border rounded-lg px-2 py-1 ${COLOR_ENTREGA[pedido.estado] || "bg-gray-50 text-gray-700 border-gray-200"}`}>
+                          {OPCIONES_ENTREGA_LABEL[pedido.estado] || "Pendiente"}
+                        </span>
+                        <span className={`text-[11px] font-semibold border rounded-lg px-2 py-1 ${COLOR_PAGO[pedido.estado_pago] || "bg-gray-50 text-gray-700 border-gray-200"}`}>
+                          {OPCIONES_PAGO_LABEL[pedido.estado_pago] || "Falta pagar"}
+                        </span>
+                      </div>
+
+                      {saldo > 0 && (
+                        <p className="text-xs font-bold text-red-700 mb-2">Debés ${formatPrice(saldo)}</p>
+                      )}
+                      {saldo < 0 && (
+                        <p className="text-xs font-bold text-blue-700 mb-2">A favor ${formatPrice(Math.abs(saldo))}</p>
+                      )}
+                      {saldo === 0 && (
+                        <p className="text-xs font-bold text-green-700 mb-2">Saldado ✅</p>
+                      )}
+
+                      <div className="border-t border-gray-100 pt-2 mt-2 space-y-1">
+                        {pedido.items_pedido && pedido.items_pedido.map((item) => (
+                          <div key={item.id} className="flex justify-between text-xs text-gray-600">
+                            <span>{item.cantidad}x {item.nombre_producto}</span>
+                            <span className="font-medium">${formatPrice(item.precio_unitario * item.cantidad)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
