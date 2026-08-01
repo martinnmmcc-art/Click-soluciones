@@ -49,3 +49,32 @@ export async function PATCH(req) {
 
   return Response.json({ pedido: data });
 }
+
+export async function DELETE(req) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+
+  if (!id) {
+    return Response.json({ error: "Falta el id del pedido" }, { status: 400 });
+  }
+
+  const { error: errItems } = await supabaseAdmin
+    .from("items_pedido")
+    .delete()
+    .eq("pedido_id", id);
+
+  if (errItems) {
+    return Response.json({ error: errItems.message }, { status: 400 });
+  }
+
+  const { error: errPedido } = await supabaseAdmin
+    .from("pedidos")
+    .delete()
+    .eq("id", id);
+
+  if (errPedido) {
+    return Response.json({ error: errPedido.message }, { status: 400 });
+  }
+
+  return Response.json({ success: true });
+}
