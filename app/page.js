@@ -5,8 +5,10 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
+import { useCart } from "@/context/CartContext";
 
 export default function HomePage() {
+  const { addItem } = useCart();
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
@@ -18,7 +20,6 @@ export default function HomePage() {
     async function cargarDatos() {
       setLoadingData(true);
       try {
-        // CORRECCIÓN: Apuntamos a "Productos" con P mayúscula
         const { data: prodData, error: prodError } = await supabase
           .from("Productos")
           .select("*")
@@ -30,7 +31,6 @@ export default function HomePage() {
           setProductos(prodData);
         }
 
-        // Si tu tabla de categorías también tiene mayúscula, ajustala acá (ej: "Categorias")
         const { data: catData, error: catError } = await supabase
           .from("Categorias")
           .select("*")
@@ -52,22 +52,9 @@ export default function HomePage() {
   }, []);
 
   function agregarAlCarrito(producto) {
-    try {
-      const carritoActual = JSON.parse(localStorage.getItem("carrito") || "[]");
-      const index = carritoActual.findIndex((item) => item.id === producto.id);
-
-      if (index >= 0) {
-        carritoActual[index].cantidad = (carritoActual[index].cantidad || 1) + 1;
-      } else {
-        carritoActual.push({ ...producto, cantidad: 1 });
-      }
-
-      localStorage.setItem("carrito", JSON.stringify(carritoActual));
-      setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
-      setTimeout(() => setMensajeCarrito(""), 2500);
-    } catch (e) {
-      console.error("Error al guardar en carrito:", e);
-    }
+    addItem(producto, 1);
+    setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
+    setTimeout(() => setMensajeCarrito(""), 2500);
   }
 
   const productosFiltrados = productos.filter((prod) => {
