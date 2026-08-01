@@ -37,6 +37,7 @@ function PanelVentas() {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [guardandoId, setGuardandoId] = useState(null);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
 
   useEffect(() => {
     async function cargarPedidos() {
@@ -104,6 +105,9 @@ function PanelVentas() {
   }
 
   const resumenClientes = calcularResumenClientes(pedidos);
+  const pedidosMostrados = clienteSeleccionado
+    ? pedidos.filter((p) => (p.telefono_cliente || "Sin teléfono") === clienteSeleccionado)
+    : pedidos;
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
@@ -124,7 +128,17 @@ function PanelVentas() {
             </p>
             <div className="space-y-2">
               {resumenClientes.map((c) => (
-                <div key={c.telefono} className="flex justify-between items-center text-sm">
+                <button
+                  key={c.telefono}
+                  onClick={() =>
+                    setClienteSeleccionado(
+                      clienteSeleccionado === c.telefono ? null : c.telefono
+                    )
+                  }
+                  className={`w-full flex justify-between items-center text-sm text-left p-2 rounded-xl transition-colors ${
+                    clienteSeleccionado === c.telefono ? "bg-blue-50" : "hover:bg-gray-50"
+                  }`}
+                >
                   <span className="text-gray-700 font-medium">
                     {c.nombre} ({c.telefono}){" "}
                     <span className="text-gray-400 font-normal">
@@ -146,19 +160,35 @@ function PanelVentas() {
                       Saldado
                     </span>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           </div>
         )}
 
-        {pedidos.length === 0 ? (
+        {clienteSeleccionado && (
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-gray-500">
+              Mostrando pedidos de <span className="font-semibold text-gray-700">{clienteSeleccionado}</span>
+            </p>
+            <button
+              onClick={() => setClienteSeleccionado(null)}
+              className="text-xs font-bold text-brand-blue bg-blue-50 px-3 py-1.5 rounded-full"
+            >
+              Ver todos
+            </button>
+          </div>
+        )}
+
+        {pedidosMostrados.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
-            <p className="text-gray-500">Todavía no hay pedidos registrados.</p>
+            <p className="text-gray-500">
+              {clienteSeleccionado ? "Este cliente no tiene pedidos." : "Todavía no hay pedidos registrados."}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {pedidos.map((pedido) => (
+            {pedidosMostrados.map((pedido) => (
               <div key={pedido.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start border-b border-gray-100 pb-3 mb-3">
                   <div>
