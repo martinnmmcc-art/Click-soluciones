@@ -80,6 +80,30 @@ function PanelVentas() {
     setGuardandoId(null);
   }
 
+  async function eliminarPedido(pedidoId) {
+    const confirmar = window.confirm(
+      `¿Seguro que querés eliminar el pedido #${pedidoId}? Esta acción no se puede deshacer.`
+    );
+    if (!confirmar) return;
+
+    setGuardandoId(pedidoId);
+    try {
+      const res = await fetch(`/api/admin/pedidos?id=${pedidoId}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+
+      if (res.ok) {
+        setPedidos((prev) => prev.filter((p) => p.id !== pedidoId));
+      } else {
+        alert("No se pudo eliminar el pedido: " + result.error);
+      }
+    } catch (e) {
+      alert("Error de conexión al eliminar el pedido.");
+    }
+    setGuardandoId(null);
+  }
+
   function calcularResumenClientes(lista) {
     const grupos = {};
     lista.forEach((p) => {
@@ -208,6 +232,13 @@ function PanelVentas() {
                   <div className="text-right">
                     <span className="text-xs text-gray-500 block">Total Venta</span>
                     <span className="text-lg font-extrabold text-gray-900">${formatPrice(pedido.total)}</span>
+                    <button
+                      onClick={() => eliminarPedido(pedido.id)}
+                      disabled={guardandoId === pedido.id}
+                      className="text-xs font-semibold text-red-600 mt-1.5 block ml-auto hover:underline"
+                    >
+                      Eliminar
+                    </button>
                   </div>
                 </div>
 
