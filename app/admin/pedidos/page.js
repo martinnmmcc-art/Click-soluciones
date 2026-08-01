@@ -53,7 +53,6 @@ function PanelVentas() {
   }, []);
 
   async function actualizarEstado(pedidoId, campo, valor) {
-    // Actualización optimista: cambiamos en pantalla al toque
     setPedidos((prev) =>
       prev.map((p) => (p.id === pedidoId ? { ...p, [campo]: valor } : p))
     );
@@ -160,6 +159,52 @@ function PanelVentas() {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                {/* Monto pagado y saldo */}
+                <div className="flex flex-wrap items-end gap-3 mb-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">
+                      Monto pagado
+                    </label>
+                    <input
+                      key={pedido.id + "-" + pedido.monto_pagado}
+                      type="number"
+                      step="0.01"
+                      defaultValue={pedido.monto_pagado || 0}
+                      disabled={guardandoId === pedido.id}
+                      onBlur={(e) => {
+                        const valor = parseFloat(e.target.value) || 0;
+                        if (valor !== (pedido.monto_pagado || 0)) {
+                          actualizarEstado(pedido.id, "monto_pagado", valor);
+                        }
+                      }}
+                      className="text-sm font-semibold border border-gray-200 rounded-lg px-2 py-1.5 w-28"
+                    />
+                  </div>
+
+                  {(() => {
+                    const saldo = Number(pedido.total || 0) - Number(pedido.monto_pagado || 0);
+                    if (saldo > 0) {
+                      return (
+                        <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg">
+                          Debe ${formatPrice(saldo)}
+                        </span>
+                      );
+                    }
+                    if (saldo < 0) {
+                      return (
+                        <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg">
+                          A favor ${formatPrice(Math.abs(saldo))}
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
+                        Saldado
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 <div className="space-y-2">
