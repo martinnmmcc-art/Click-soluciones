@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
+import { supabase } from "@/lib/supabaseClient";
 
 const OPCIONES_ENTREGA = [
   { value: "pendiente", label: "Pendiente" },
@@ -42,6 +43,9 @@ function PanelVentas() {
   const [loading, setLoading] = useState(true);
   const [guardandoId, setGuardandoId] = useState(null);
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+  const [productos, setProductos] = useState([]);
+  const [agregandoProductoA, setAgregandoProductoA] = useState(null);
+  const [busquedaProducto, setBusquedaProducto] = useState("");
 
   useEffect(() => {
     async function cargarPedidos() {
@@ -55,6 +59,18 @@ function PanelVentas() {
       setLoading(false);
     }
     cargarPedidos();
+  }, []);
+
+  useEffect(() => {
+    async function cargarProductos() {
+      const { data, error } = await supabase
+        .from("Productos")
+        .select("*")
+        .order("nombre", { ascending: true });
+      if (error) console.error(error.message);
+      if (data) setProductos(data);
+    }
+    cargarProductos();
   }, []);
 
   async function actualizarEstado(pedidoId, campo, valor) {
@@ -102,6 +118,43 @@ function PanelVentas() {
       alert("Error de conexión al eliminar el pedido.");
     }
     setGuardandoId(null);
+  }
+
+  async function agregarProductoAPedido(pedidoId, producto) {
+    try {
+      const res = await fetch("/api/admin/pedidos/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pedido_id: pedidoId,
+          producto_id: producto.id,
+          nombre_producto: producto.nombre,
+          precio_unitario: producto.precio,
+          cantidad: 1,
+        }),
+      });
+      const result = await res.json();
+
+      if (res.ok) {
+        setPedidos((prev) =>
+          prev.map((p) =>
+            p.id === pedidoId
+              ? {
+                  ...p,
+                  items_pedido: [...(p.items_pedido || []), result.item],
+                  total: result.total,
+                }
+              : p
+          )
+        );
+        setAgregandoProductoA(null);
+        setBusquedaProducto("");
+      } else {
+        alert("No se pudo agregar el producto: " + result.error);
+      }
+    } catch (e) {
+      alert("Error de conexión al agregar el producto.");
+    }
   }
 
   function calcularResumenClientes(lista) {
@@ -335,6 +388,73 @@ function PanelVentas() {
                       <span className="text-gray-900 font-semibold">${formatPrice(item.precio_unitario * item.cantidad)}</span>
                     </div>
                   ))}
+                </div>
+
+                <div className="mt-3">
+                  {agregandoProductoA === pedido.id ? (
+                    <div className="border border-gray-200 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          type="text"
+                          autoFocus
+                          placeholder="Buscar producto por nombre..."
+                          value={busquedaProducto}
+                          onChange={(e) => setBusquedaProducto(e.target.value)}
+                          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5"
+                        />
+                        <button
+                          onClick={() => {
+                            setAgregandoProductoA(null);
+                            setBusquedaProducto("");
+                          }}
+                          className="text-xs font-semibold text-gray-500"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+
+                      {busquedaProducto.trim() && (
+                        <div className="max-h-48 overflow-y-auto space-y-1.5">
+                          {productos
+                            .filter((p) =>
+                              p.nombre?.toLowerCase().includes(busquedaProducto.toLowerCase())
+                            )
+                            .slice(0, 8)
+                            .map((p) => (
+                              <div
+                                key={p.id}
+                                className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded-lg"
+                              >
+                                <span className="text-gray-700">
+                                  {p.nombre}{" "}
+                                  <span className="text-gray-400">
+                                    (${formatPrice(p.precio || 0)})
+                                  </span>
+                                </span>
+                                <button
+                                  onClick={() => agregarProductoAPedido(pedido.id, p)}
+                                  className="text-xs font-bold text-white bg-brand-blue px-2.5 py-1 rounded-lg"
+                                >
+                                  + Agregar
+                                </button>
+                              </div>
+                            ))}
+                          {productos.filter((p) =>
+                            p.nombre?.toLowerCase().includes(busquedaProducto.toLowerCase())
+                          ).length === 0 && (
+                            <p className="text-xs text-gray-400 py-2">Sin resultados.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAgregandoProductoA(pedido.id)}
+                      className="text-xs font-bold text-brand-blue bg-blue-50 px-3 py-1.5 rounded-full"
+                    >
+                      + Agregar producto
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
