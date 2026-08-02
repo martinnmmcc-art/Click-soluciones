@@ -10,7 +10,7 @@ function NuevoProducto() {
   const router = useRouter();
 
   async function handleCreate(data) {
-    const { error } = await supabase.from("productos").insert(data);
+    const { error } = await supabase.from("Productos").insert(data);
     if (error) throw error;
     router.push("/admin/productos");
   }
