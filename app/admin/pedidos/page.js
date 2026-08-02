@@ -38,6 +38,15 @@ const COLOR_PAGO = {
   señado: "bg-purple-50 text-purple-700 border-purple-200",
 };
 
+function generarNumeroPedido() {
+  const fecha = new Date();
+  const yy = String(fecha.getFullYear()).slice(-2);
+  const mm = String(fecha.getMonth() + 1).padStart(2, "0");
+  const dd = String(fecha.getDate()).padStart(2, "0");
+  const random = Math.floor(1000 + Math.random() * 9000);
+  return `CS-${yy}${mm}${dd}-${random}`;
+}
+
 function PanelVentas() {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +55,26 @@ function PanelVentas() {
   const [productos, setProductos] = useState([]);
   const [agregandoProductoA, setAgregandoProductoA] = useState(null);
   const [busquedaProducto, setBusquedaProducto] = useState("");
+
+  // --- FILTRO DE FECHAS / BALANCE ---
+  const [fechaDesde, setFechaDesde] = useState("");
+  const [fechaHasta, setFechaHasta] = useState("");
+
+  // --- NUEVO PEDIDO DESDE ADMIN ---
+  const [mostrarFormNuevo, setMostrarFormNuevo] = useState(false);
+  const [nuevoForm, setNuevoForm] = useState({
+    nombre_cliente: "",
+    telefono_cliente: "",
+    localidad: "",
+    metodo_entrega: "retiro",
+    direccion_envio: "",
+    metodo_pago: "transferencia",
+    nota_cliente: "",
+  });
+  const [nuevoItems, setNuevoItems] = useState([]);
+  const [busquedaProductoNuevo, setBusquedaProductoNuevo] = useState("");
+  const [guardandoNuevo, setGuardandoNuevo] = useState(false);
+  const [errorNuevo, setErrorNuevo] = useState("");
 
   useEffect(() => {
     async function cargarPedidos() {
@@ -238,6 +267,158 @@ function PanelVentas() {
     return Object.values(grupos).sort((a, b) => b.saldoNeto - a.saldoNeto);
   }
 
+  // --- FILTRADO POR FECHA ---
+  function filtrarPorFecha(lista) {
+    if (!fechaDesde && !fechaHasta) return lista;
+    return lista.filter((p) => {
+      const fechaPedido = new Date(p.created_at);
+      if (fechaDesde) {
+        const desde = new Date(fechaDesde + "T00:00:00");
+        if (fechaPedido < desde) return false;
+      }
+      if (fechaHasta) {
+        const hasta = new Date(fechaHasta + "T23:59:59");
+        if (fechaPedido > hasta) return false;
+      }
+      return true;
+    });
+  }
+
+  function setRangoEsteMes() {
+    const hoy = new Date();
+    const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const ultimoDia = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+    setFechaDesde(primerDia.toISOString().slice(0, 10));
+    setFechaHasta(ultimoDia.toISOString().slice(0, 10));
+  }
+
+  function limpiarFiltroFecha() {
+    setFechaDesde("");
+    setFechaHasta("");
+  }
+
+  // --- NUEVO PEDIDO DESDE ADMIN ---
+  function handleChangeNuevoForm(e) {
+    setNuevoForm({ ...nuevoForm, [e.target.name]: e.target.value });
+  }
+
+  function agregarItemNuevo(producto) {
+    setNuevoItems((prev) => {
+      const existente = prev.find((i) => i.producto_id === producto.id);
+      if (existente) {
+        return prev.map((i) =>
+          i.producto_id === producto.id
+            ? { ...i, cantidad: i.cantidad + 1, subtotal: (i.cantidad + 1) * i.precio_unitario }
+            : i
+        );
+      }
+      return [
+        ...prev,
+        {
+          producto_id: producto.id,
+          nombre_producto: producto.nombre,
+          precio_unitario: producto.precio,
+          cantidad: 1,
+          subtotal: producto.precio,
+        },
+      ];
+    });
+    setBusquedaProductoNuevo("");
+  }
+
+  function cambiarCantidadItemNuevo(producto_id, cantidad) {
+    if (cantidad < 1) return;
+    setNuevoItems((prev) =>
+      prev.map((i) =>
+        i.producto_id === producto_id
+          ? { ...i, cantidad, subtotal: cantidad * i.precio_unitario }
+          : i
+      )
+    );
+  }
+
+  function eliminarItemNuevo(producto_id) {
+    setNuevoItems((prev) => prev.filter((i) => i.producto_id !== producto_id));
+  }
+
+  const totalNuevoPedido = nuevoItems.reduce((acc, i) => acc + i.subtotal, 0);
+
+  function resetFormNuevo() {
+    setNuevoForm({
+      nombre_cliente: "",
+      telefono_cliente: "",
+      localidad: "",
+      metodo_entrega: "retiro",
+      direccion_envio: "",
+      metodo_pago: "transferencia",
+      nota_cliente: "",
+    });
+    setNuevoItems([]);
+    setBusquedaProductoNuevo("");
+    setErrorNuevo("");
+  }
+
+  async function handleGuardarNuevoPedido() {
+    setErrorNuevo("");
+
+    if (!nuevoForm.nombre_cliente.trim() || !nuevoForm.telefono_cliente.trim()) {
+      setErrorNuevo("Completá nombre y celular del cliente.");
+      return;
+    }
+    if (nuevoItems.length === 0) {
+      setErrorNuevo("Agregá al menos un producto.");
+      return;
+    }
+
+    setGuardandoNuevo(true);
+    try {
+      const numero_pedido = generarNumeroPedido();
+
+      const res = await fetch("/api/pedidos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pedido: {
+            numero_pedido,
+            usuario_id: null,
+            nombre_cliente: nuevoForm.nombre_cliente,
+            telefono_cliente: nuevoForm.telefono_cliente,
+            localidad: nuevoForm.localidad,
+            metodo_entrega: nuevoForm.metodo_entrega,
+            direccion_envio:
+              nuevoForm.metodo_entrega === "envio" ? nuevoForm.direccion_envio : null,
+            metodo_pago: nuevoForm.metodo_pago,
+            nota_cliente: nuevoForm.nota_cliente || null,
+            total: totalNuevoPedido,
+            estado: "pendiente",
+          },
+          items: nuevoItems.map((i) => ({
+            producto_id: i.producto_id,
+            nombre_producto: i.nombre_producto,
+            precio_unitario: i.precio_unitario,
+            cantidad: i.cantidad,
+            subtotal: i.subtotal,
+          })),
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Error al crear el pedido");
+
+      // recargamos la lista de pedidos para traer el nuevo con su relación items_pedido
+      const resPedidos = await fetch("/api/admin/pedidos");
+      const resultPedidos = await resPedidos.json();
+      if (resPedidos.ok) setPedidos(resultPedidos.pedidos || []);
+
+      resetFormNuevo();
+      setMostrarFormNuevo(false);
+    } catch (err) {
+      setErrorNuevo(`Error: ${err.message || "Desconocido"}`);
+    } finally {
+      setGuardandoNuevo(false);
+    }
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-gray-50">
@@ -247,21 +428,319 @@ function PanelVentas() {
     );
   }
 
-  const resumenClientes = calcularResumenClientes(pedidos);
-  const pedidosMostrados = clienteSeleccionado
+  const pedidosPorCliente = clienteSeleccionado
     ? pedidos.filter((p) => (p.telefono_cliente || "Sin teléfono") === clienteSeleccionado)
     : pedidos;
+
+  const pedidosFiltrados = filtrarPorFecha(pedidosPorCliente);
+  const resumenClientes = calcularResumenClientes(pedidos);
+
+  // balance del período filtrado
+  const balancePeriodo = pedidosFiltrados.reduce(
+    (acc, p) => {
+      acc.totalVendido += Number(p.total || 0);
+      acc.totalCobrado += Number(p.monto_pagado || 0);
+      return acc;
+    },
+    { totalVendido: 0, totalCobrado: 0 }
+  );
+  balancePeriodo.totalPendiente = balancePeriodo.totalVendido - balancePeriodo.totalCobrado;
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <Header showSearch={false} />
 
       <div className="max-w-4xl mx-auto px-4 mt-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
           <h1 className="text-2xl font-extrabold text-gray-800">Panel de Ventas (Admin)</h1>
-          <span className="text-sm font-bold text-brand-blue bg-blue-50 px-3 py-1.5 rounded-full">
-            Tenés {pedidos.length} pedido{pedidos.length === 1 ? "" : "s"}
-          </span>
+          <button
+            onClick={() => setMostrarFormNuevo(!mostrarFormNuevo)}
+            className="text-sm font-bold text-white bg-brand-blue px-4 py-2 rounded-xl shadow-sm"
+          >
+            {mostrarFormNuevo ? "Cancelar" : "+ Nuevo pedido"}
+          </button>
+        </div>
+
+        {/* ===== FORMULARIO NUEVO PEDIDO ===== */}
+        {mostrarFormNuevo && (
+          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">
+            <h2 className="font-bold text-gray-800 mb-4">Crear pedido / presupuesto</h2>
+
+            {errorNuevo && (
+              <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 mb-4">
+                {errorNuevo}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                  Nombre del cliente
+                </label>
+                <input
+                  name="nombre_cliente"
+                  value={nuevoForm.nombre_cliente}
+                  onChange={handleChangeNuevoForm}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                  placeholder="Ej: Martín Cáceres"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                  Celular
+                </label>
+                <input
+                  name="telefono_cliente"
+                  value={nuevoForm.telefono_cliente}
+                  onChange={handleChangeNuevoForm}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                  placeholder="Ej: 2944123456"
+                  inputMode="tel"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                  Localidad
+                </label>
+                <input
+                  name="localidad"
+                  value={nuevoForm.localidad}
+                  onChange={handleChangeNuevoForm}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                  placeholder="Ej: El Bolsón"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                  Método de pago
+                </label>
+                <select
+                  name="metodo_pago"
+                  value={nuevoForm.metodo_pago}
+                  onChange={handleChangeNuevoForm}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                >
+                  <option value="transferencia">Transferencia</option>
+                  <option value="efectivo">Efectivo</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                  Entrega
+                </label>
+                <select
+                  name="metodo_entrega"
+                  value={nuevoForm.metodo_entrega}
+                  onChange={handleChangeNuevoForm}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                >
+                  <option value="retiro">Retiro en showroom</option>
+                  <option value="envio">Envío a domicilio</option>
+                </select>
+              </div>
+              {nuevoForm.metodo_entrega === "envio" && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                    Dirección de envío
+                  </label>
+                  <input
+                    name="direccion_envio"
+                    value={nuevoForm.direccion_envio}
+                    onChange={handleChangeNuevoForm}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                    placeholder="Calle, número, barrio"
+                  />
+                </div>
+              )}
+              <div className="sm:col-span-2">
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
+                  Nota (opcional)
+                </label>
+                <input
+                  name="nota_cliente"
+                  value={nuevoForm.nota_cliente}
+                  onChange={handleChangeNuevoForm}
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
+                  placeholder="Ej: llamar antes de entregar"
+                />
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 pt-4">
+              <p className="text-xs font-bold text-gray-500 uppercase mb-2">Productos</p>
+
+              <input
+                type="text"
+                placeholder="Buscar producto por nombre..."
+                value={busquedaProductoNuevo}
+                onChange={(e) => setBusquedaProductoNuevo(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2"
+              />
+
+              {busquedaProductoNuevo.trim() && (
+                <div className="max-h-48 overflow-y-auto space-y-1.5 mb-3">
+                  {productos
+                    .filter((p) =>
+                      p.nombre?.toLowerCase().includes(busquedaProductoNuevo.toLowerCase())
+                    )
+                    .slice(0, 8)
+                    .map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded-lg"
+                      >
+                        <span className="text-gray-700">
+                          {p.nombre}{" "}
+                          <span className="text-gray-400">(${formatPrice(p.precio || 0)})</span>
+                        </span>
+                        <button
+                          onClick={() => agregarItemNuevo(p)}
+                          className="text-xs font-bold text-white bg-brand-blue px-2.5 py-1 rounded-lg"
+                        >
+                          + Agregar
+                        </button>
+                      </div>
+                    ))}
+                  {productos.filter((p) =>
+                    p.nombre?.toLowerCase().includes(busquedaProductoNuevo.toLowerCase())
+                  ).length === 0 && (
+                    <p className="text-xs text-gray-400 py-2">Sin resultados.</p>
+                  )}
+                </div>
+              )}
+
+              {nuevoItems.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {nuevoItems.map((item) => (
+                    <div
+                      key={item.producto_id}
+                      className="flex justify-between items-center text-sm bg-gray-50 p-2.5 rounded-xl gap-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() =>
+                            cambiarCantidadItemNuevo(item.producto_id, item.cantidad - 1)
+                          }
+                          disabled={item.cantidad <= 1}
+                          className="w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 font-bold disabled:opacity-30"
+                        >
+                          −
+                        </button>
+                        <span className="text-gray-700 font-medium min-w-[1.5rem] text-center">
+                          {item.cantidad}
+                        </span>
+                        <button
+                          onClick={() =>
+                            cambiarCantidadItemNuevo(item.producto_id, item.cantidad + 1)
+                          }
+                          className="w-6 h-6 flex items-center justify-center rounded-full bg-white border border-gray-200 text-gray-600 font-bold"
+                        >
+                          +
+                        </button>
+                        <span className="text-gray-700 font-medium">{item.nombre_producto}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-900 font-semibold">
+                          ${formatPrice(item.subtotal)}
+                        </span>
+                        <button
+                          onClick={() => eliminarItemNuevo(item.producto_id)}
+                          className="text-red-500 font-bold text-base leading-none px-1"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                <span className="font-semibold text-gray-700">Total</span>
+                <span className="text-lg font-extrabold text-brand-blueDark">
+                  ${formatPrice(totalNuevoPedido)}
+                </span>
+              </div>
+
+              <button
+                onClick={handleGuardarNuevoPedido}
+                disabled={guardandoNuevo}
+                className="w-full mt-4 text-sm font-bold text-white bg-brand-blue py-2.5 rounded-xl shadow-sm disabled:opacity-50"
+              >
+                {guardandoNuevo ? "Guardando..." : "Guardar pedido"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== FILTRO DE FECHAS + BALANCE ===== */}
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
+            Balance por período
+          </p>
+          <div className="flex flex-wrap gap-2 items-end mb-4">
+            <div>
+              <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">
+                Desde
+              </label>
+              <input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1.5"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">
+                Hasta
+              </label>
+              <input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                className="text-sm border border-gray-200 rounded-lg px-2 py-1.5"
+              />
+            </div>
+            <button
+              onClick={setRangoEsteMes}
+              className="text-xs font-bold text-brand-blue bg-blue-50 px-3 py-2 rounded-lg"
+            >
+              Este mes
+            </button>
+            {(fechaDesde || fechaHasta) && (
+              <button
+                onClick={limpiarFiltroFecha}
+                className="text-xs font-semibold text-gray-500 px-3 py-2"
+              >
+                Ver todo
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[11px] text-gray-500 font-semibold uppercase">Pedidos</p>
+              <p className="text-lg font-extrabold text-gray-800">{pedidosFiltrados.length}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <p className="text-[11px] text-gray-500 font-semibold uppercase">Total vendido</p>
+              <p className="text-lg font-extrabold text-gray-800">
+                ${formatPrice(balancePeriodo.totalVendido)}
+              </p>
+            </div>
+            <div className="bg-green-50 rounded-xl p-3">
+              <p className="text-[11px] text-green-700 font-semibold uppercase">Cobrado</p>
+              <p className="text-lg font-extrabold text-green-700">
+                ${formatPrice(balancePeriodo.totalCobrado)}
+              </p>
+            </div>
+            <div className="bg-red-50 rounded-xl p-3">
+              <p className="text-[11px] text-red-700 font-semibold uppercase">Pendiente</p>
+              <p className="text-lg font-extrabold text-red-700">
+                ${formatPrice(balancePeriodo.totalPendiente)}
+              </p>
+            </div>
+          </div>
         </div>
 
         {resumenClientes.length > 0 && (
@@ -323,15 +802,17 @@ function PanelVentas() {
           </div>
         )}
 
-        {pedidosMostrados.length === 0 ? (
+        {pedidosFiltrados.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
             <p className="text-gray-500">
-              {clienteSeleccionado ? "Este cliente no tiene pedidos." : "Todavía no hay pedidos registrados."}
+              {clienteSeleccionado || fechaDesde || fechaHasta
+                ? "No hay pedidos para este filtro."
+                : "Todavía no hay pedidos registrados."}
             </p>
           </div>
         ) : (
           <div className="space-y-4">
-            {pedidosMostrados.map((pedido) => (
+            {pedidosFiltrados.map((pedido) => (
               <div key={pedido.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start border-b border-gray-100 pb-3 mb-3">
                   <div>
