@@ -16,7 +16,7 @@ function EditarProducto() {
   useEffect(() => {
     async function fetchProducto() {
       const { data, error } = await supabase
-        .from("productos")
+        .from("Productos")
         .select("*")
         .eq("id", id)
         .maybeSingle();
@@ -28,14 +28,14 @@ function EditarProducto() {
   }, [id]);
 
   async function handleUpdate(data) {
-    const { error } = await supabase.from("productos").update(data).eq("id", id);
+    const { error } = await supabase.from("Productos").update(data).eq("id", id);
     if (error) throw error;
     router.push("/admin/productos");
   }
 
   async function handleEliminar() {
     if (!confirm("¿Seguro que querés eliminar este producto?")) return;
-    const { error } = await supabase.from("productos").delete().eq("id", id);
+    const { error } = await supabase.from("Productos").delete().eq("id", id);
     if (error) {
       alert("No se pudo eliminar: " + error.message);
       return;
