@@ -14,7 +14,7 @@ function ListaProductos() {
   async function cargarProductos() {
     setLoading(true);
     const { data, error } = await supabase
-      .from("productos")
+      .from("Productos")
       .select("*")
       .order("created_at", { ascending: false });
 
@@ -29,7 +29,7 @@ function ListaProductos() {
 
   async function handleEliminar(id) {
     if (!confirm("¿Seguro que querés eliminar este producto?")) return;
-    const { error } = await supabase.from("productos").delete().eq("id", id);
+    const { error } = await supabase.from("Productos").delete().eq("id", id);
     if (error) {
       alert("No se pudo eliminar: " + error.message);
       return;
