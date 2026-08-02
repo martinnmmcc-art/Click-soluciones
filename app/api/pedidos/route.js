@@ -9,9 +9,14 @@ const supabaseAdmin = createClient(
 export async function POST(req) {
   const body = await req.json();
 
+  const pedidoAInsertar = {
+    ...body.pedido,
+    subtotal: body.pedido.subtotal ?? body.pedido.total,
+  };
+
   const { data: pedido, error: errPedido } = await supabaseAdmin
     .from("pedidos")
-    .insert(body.pedido)
+    .insert(pedidoAInsertar)
     .select()
     .single();
 
