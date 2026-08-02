@@ -21,7 +21,7 @@ export async function GET() {
 
 export async function PATCH(req) {
   const body = await req.json();
-  const { id, estado, estado_pago, monto_pagado } = body;
+  const { id, estado, estado_pago, monto_pagado, descuento_tipo, descuento_valor } = body;
 
   if (!id) {
     return Response.json({ error: "Falta el id del pedido" }, { status: 400 });
@@ -31,6 +31,44 @@ export async function PATCH(req) {
   if (estado !== undefined) campos.estado = estado;
   if (estado_pago !== undefined) campos.estado_pago = estado_pago;
   if (monto_pagado !== undefined) campos.monto_pagado = monto_pagado;
+
+  const tocaDescuento = descuento_tipo !== undefined || descuento_valor !== undefined;
+
+  if (tocaDescuento) {
+    // Traemos el pedido actual para saber el subtotal (total original sin descuento)
+    const { data: pedidoActual, error: errFetch } = await supabaseAdmin
+      .from("pedidos")
+      .select("subtotal, total")
+      .eq("id", id)
+      .single();
+
+    if (errFetch) {
+      return Response.json({ error: errFetch.message }, { status: 400 });
+    }
+
+    // Si todavía no tiene subtotal guardado (pedidos viejos), lo inicializamos
+    // con el total actual la primera vez que se aplica un descuento.
+    const subtotal =
+      pedidoActual.subtotal !== null && pedidoActual.subtotal !== undefined
+        ? Number(pedidoActual.subtotal)
+        : Number(pedidoActual.total);
+
+    const tipo = descuento_tipo !== undefined ? descuento_tipo : null;
+    const valor = descuento_valor !== undefined ? Number(descuento_valor) || 0 : 0;
+
+    let nuevoTotal = subtotal;
+    if (tipo === "porcentaje" && valor > 0) {
+      nuevoTotal = subtotal - subtotal * (valor / 100);
+    } else if (tipo === "monto" && valor > 0) {
+      nuevoTotal = subtotal - valor;
+    }
+    if (nuevoTotal < 0) nuevoTotal = 0;
+
+    campos.subtotal = subtotal;
+    campos.descuento_tipo = valor > 0 ? tipo : null;
+    campos.descuento_valor = valor > 0 ? valor : 0;
+    campos.total = nuevoTotal;
+  }
 
   if (Object.keys(campos).length === 0) {
     return Response.json({ error: "No se envió ningún campo para actualizar" }, { status: 400 });
