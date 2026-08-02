@@ -48,6 +48,15 @@ function generarNumeroPedido() {
   return `CS-${yy}${mm}${dd}-${random}`;
 }
 
+function calcularTotalConDescuento(subtotal, tipo, valor) {
+  const v = Number(valor) || 0;
+  if (!tipo || v <= 0) return subtotal;
+  let total = subtotal;
+  if (tipo === "porcentaje") total = subtotal - subtotal * (v / 100);
+  if (tipo === "monto") total = subtotal - v;
+  return total < 0 ? 0 : total;
+}
+
 function PanelVentas() {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +86,8 @@ function PanelVentas() {
   const [busquedaProductoNuevo, setBusquedaProductoNuevo] = useState("");
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
   const [errorNuevo, setErrorNuevo] = useState("");
+  const [nuevoDescuentoTipo, setNuevoDescuentoTipo] = useState("");
+  const [nuevoDescuentoValor, setNuevoDescuentoValor] = useState("");
 
   useEffect(() => {
     async function cargarPedidos() {
@@ -120,9 +131,41 @@ function PanelVentas() {
 
       if (!res.ok) {
         alert("No se pudo guardar el cambio: " + result.error);
+      } else if (result.pedido) {
+        // sincronizamos con lo que devolvió el server (por si recalculó el total)
+        setPedidos((prev) =>
+          prev.map((p) => (p.id === pedidoId ? { ...p, ...result.pedido } : p))
+        );
       }
     } catch (e) {
       alert("Error de conexión al guardar el cambio.");
+    }
+    setGuardandoId(null);
+  }
+
+  async function actualizarDescuento(pedidoId, tipo, valor) {
+    setGuardandoId(pedidoId);
+    try {
+      const res = await fetch("/api/admin/pedidos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: pedidoId,
+          descuento_tipo: tipo || null,
+          descuento_valor: valor,
+        }),
+      });
+      const result = await res.json();
+
+      if (res.ok && result.pedido) {
+        setPedidos((prev) =>
+          prev.map((p) => (p.id === pedidoId ? { ...p, ...result.pedido } : p))
+        );
+      } else {
+        alert("No se pudo guardar el descuento: " + result.error);
+      }
+    } catch (e) {
+      alert("Error de conexión al guardar el descuento.");
     }
     setGuardandoId(null);
   }
@@ -343,7 +386,13 @@ function PanelVentas() {
     setNuevoItems((prev) => prev.filter((i) => i.producto_id !== producto_id));
   }
 
-  const totalNuevoPedido = nuevoItems.reduce((acc, i) => acc + i.subtotal, 0);
+  const subtotalNuevoPedido = nuevoItems.reduce((acc, i) => acc + i.subtotal, 0);
+  const totalNuevoPedido = calcularTotalConDescuento(
+    subtotalNuevoPedido,
+    nuevoDescuentoTipo,
+    nuevoDescuentoValor
+  );
+  const montoDescuentoNuevo = subtotalNuevoPedido - totalNuevoPedido;
 
   function resetFormNuevo() {
     setNuevoForm({
@@ -358,6 +407,8 @@ function PanelVentas() {
     setNuevoItems([]);
     setBusquedaProductoNuevo("");
     setErrorNuevo("");
+    setNuevoDescuentoTipo("");
+    setNuevoDescuentoValor("");
   }
 
   async function handleGuardarNuevoPedido() {
@@ -391,6 +442,9 @@ function PanelVentas() {
               nuevoForm.metodo_entrega === "envio" ? nuevoForm.direccion_envio : null,
             metodo_pago: nuevoForm.metodo_pago,
             nota_cliente: nuevoForm.nota_cliente || null,
+            subtotal: subtotalNuevoPedido,
+            descuento_tipo: nuevoDescuentoTipo || null,
+            descuento_valor: Number(nuevoDescuentoValor) || 0,
             total: totalNuevoPedido,
             estado: "pendiente",
           },
@@ -661,11 +715,58 @@ function PanelVentas() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                <span className="font-semibold text-gray-700">Total</span>
-                <span className="text-lg font-extrabold text-brand-blueDark">
-                  ${formatPrice(totalNuevoPedido)}
-                </span>
+              {/* ===== DESCUENTO (nuevo pedido) ===== */}
+              <div className="border-t border-gray-100 pt-3 mb-3">
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">
+                  Descuento (opcional)
+                </label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={nuevoDescuentoTipo}
+                    onChange={(e) => setNuevoDescuentoTipo(e.target.value)}
+                    className="text-sm border border-gray-200 rounded-lg px-2 py-2"
+                  >
+                    <option value="">Sin descuento</option>
+                    <option value="porcentaje">%</option>
+                    <option value="monto">$</option>
+                  </select>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    disabled={!nuevoDescuentoTipo}
+                    value={nuevoDescuentoValor}
+                    onChange={(e) => setNuevoDescuentoValor(e.target.value)}
+                    placeholder="0"
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-400"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-3 space-y-1.5">
+                {montoDescuentoNuevo > 0 && (
+                  <>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">Subtotal</span>
+                      <span className="text-gray-600">${formatPrice(subtotalNuevoPedido)}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-red-600 font-medium">
+                        Descuento
+                        {nuevoDescuentoTipo === "porcentaje" ? ` (${nuevoDescuentoValor || 0}%)` : ""}
+                      </span>
+                      <span className="text-red-600 font-medium">
+                        -${formatPrice(montoDescuentoNuevo)}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="font-semibold text-gray-700">Total</span>
+                  <span className="text-lg font-extrabold text-brand-blueDark">
+                    ${formatPrice(totalNuevoPedido)}
+                  </span>
+                </div>
               </div>
 
               <button
@@ -818,7 +919,13 @@ function PanelVentas() {
           </div>
         ) : (
           <div className="space-y-4">
-            {pedidosFiltrados.map((pedido) => (
+            {pedidosFiltrados.map((pedido) => {
+              const tieneSubtotal =
+                pedido.subtotal !== null && pedido.subtotal !== undefined;
+              const subtotalPedido = tieneSubtotal ? Number(pedido.subtotal) : Number(pedido.total);
+              const tieneDescuento = pedido.descuento_tipo && Number(pedido.descuento_valor) > 0;
+
+              return (
               <div key={pedido.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start border-b border-gray-100 pb-3 mb-3">
                   <div>
@@ -833,6 +940,11 @@ function PanelVentas() {
                     </p>
                   </div>
                   <div className="text-right">
+                    {tieneDescuento && (
+                      <span className="text-xs text-gray-400 line-through block">
+                        ${formatPrice(subtotalPedido)}
+                      </span>
+                    )}
                     <span className="text-xs text-gray-500 block">Total Venta</span>
                     <span className="text-lg font-extrabold text-gray-900">${formatPrice(pedido.total)}</span>
                     <button
@@ -908,6 +1020,45 @@ function PanelVentas() {
                       }}
                       className="text-sm font-semibold border border-gray-200 rounded-lg px-2 py-1.5 w-28"
                     />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-400 uppercase block mb-1">
+                      Descuento
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        key={pedido.id + "-tipo-" + pedido.descuento_tipo}
+                        defaultValue={pedido.descuento_tipo || ""}
+                        disabled={guardandoId === pedido.id}
+                        onChange={(e) => {
+                          const inputValor = document.getElementById(`descuento-valor-${pedido.id}`);
+                          const valor = parseFloat(inputValor?.value) || 0;
+                          actualizarDescuento(pedido.id, e.target.value, valor);
+                        }}
+                        className="text-sm border border-gray-200 rounded-lg px-1.5 py-1.5"
+                      >
+                        <option value="">Sin desc.</option>
+                        <option value="porcentaje">%</option>
+                        <option value="monto">$</option>
+                      </select>
+                      <input
+                        id={`descuento-valor-${pedido.id}`}
+                        key={pedido.id + "-valor-" + pedido.descuento_valor}
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        defaultValue={pedido.descuento_valor || 0}
+                        disabled={guardandoId === pedido.id || !pedido.descuento_tipo}
+                        onBlur={(e) => {
+                          const valor = parseFloat(e.target.value) || 0;
+                          if (valor !== Number(pedido.descuento_valor || 0)) {
+                            actualizarDescuento(pedido.id, pedido.descuento_tipo, valor);
+                          }
+                        }}
+                        className="text-sm font-semibold border border-gray-200 rounded-lg px-2 py-1.5 w-20 disabled:bg-gray-50 disabled:text-gray-400"
+                      />
+                    </div>
                   </div>
 
                   {(() => {
@@ -1038,7 +1189,8 @@ function PanelVentas() {
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
