@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabaseClient";
+import ComprobantePedido from "@/components/ComprobantePedido";
 
 const OPCIONES_ENTREGA = [
   { value: "pendiente", label: "Pendiente" },
@@ -55,6 +56,7 @@ function PanelVentas() {
   const [productos, setProductos] = useState([]);
   const [agregandoProductoA, setAgregandoProductoA] = useState(null);
   const [busquedaProducto, setBusquedaProducto] = useState("");
+  const [comprobantePedido, setComprobantePedido] = useState(null);
 
   // --- FILTRO DE FECHAS / BALANCE ---
   const [fechaDesde, setFechaDesde] = useState("");
@@ -410,6 +412,10 @@ function PanelVentas() {
       const resultPedidos = await resPedidos.json();
       if (resPedidos.ok) setPedidos(resultPedidos.pedidos || []);
 
+      setComprobantePedido({
+        ...result.pedido,
+        items_pedido: nuevoItems,
+      });
       resetFormNuevo();
       setMostrarFormNuevo(false);
     } catch (err) {
@@ -830,6 +836,12 @@ function PanelVentas() {
                     <span className="text-xs text-gray-500 block">Total Venta</span>
                     <span className="text-lg font-extrabold text-gray-900">${formatPrice(pedido.total)}</span>
                     <button
+                      onClick={() => setComprobantePedido(pedido)}
+                      className="text-xs font-bold text-brand-blue block ml-auto hover:underline mb-1"
+                    >
+                      🧾 Comprobante
+                    </button>
+                    <button
                       onClick={() => eliminarPedido(pedido.id)}
                       disabled={guardandoId === pedido.id}
                       className="text-xs font-semibold text-red-600 mt-1.5 block ml-auto hover:underline"
@@ -1030,6 +1042,13 @@ function PanelVentas() {
           </div>
         )}
       </div>
+
+      {comprobantePedido && (
+        <ComprobantePedido
+          pedido={comprobantePedido}
+          onClose={() => setComprobantePedido(null)}
+        />
+      )}
     </main>
   );
 }
