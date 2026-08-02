@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
+import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function CatalogoPage() {
@@ -11,13 +12,11 @@ export default function CatalogoPage() {
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
-  const [mensajeCarrito, setMensajeCarrito] = useState("");
 
   useEffect(() => {
     async function cargarCatalogo() {
       setLoading(true);
       try {
-        // CORRECCIÓN: Apuntamos a "Productos" con P mayúscula
         const { data: prodData, error: prodError } = await supabase
           .from("Productos")
           .select("*")
@@ -26,7 +25,6 @@ export default function CatalogoPage() {
         if (prodError) console.error("Error en Productos:", prodError.message);
         if (prodData) setProductos(prodData);
 
-        // CORRECCIÓN: Apuntamos a "Categorias" con C mayúscula
         const { data: catData, error: catError } = await supabase
           .from("Categorias")
           .select("*")
@@ -43,25 +41,6 @@ export default function CatalogoPage() {
 
     cargarCatalogo();
   }, []);
-
-  function agregarAlCarrito(producto) {
-    try {
-      const carritoActual = JSON.parse(localStorage.getItem("carrito") || "[]");
-      const index = carritoActual.findIndex((item) => item.id === producto.id);
-
-      if (index >= 0) {
-        carritoActual[index].cantidad = (carritoActual[index].cantidad || 1) + 1;
-      } else {
-        carritoActual.push({ ...producto, cantidad: 1 });
-      }
-
-      localStorage.setItem("carrito", JSON.stringify(carritoActual));
-      setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
-      setTimeout(() => setMensajeCarrito(""), 2500);
-    } catch (e) {
-      console.error("Error al guardar en carrito:", e);
-    }
-  }
 
   const productosFiltrados = productos.filter((prod) => {
     const coincideCategoria =
@@ -80,12 +59,6 @@ export default function CatalogoPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
       <Header busqueda={busqueda} setBusqueda={setBusqueda} showSearch={true} />
-
-      {mensajeCarrito && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transition animate-bounce">
-          {mensajeCarrito}
-        </div>
-      )}
 
       <div className="max-w-md mx-auto px-4 mt-4">
         <h1 className="font-black text-gray-800 text-base mb-3">Catálogo Completo</h1>
@@ -126,22 +99,7 @@ export default function CatalogoPage() {
         ) : (
           <div className="grid grid-cols-2 gap-3 mt-2">
             {productosFiltrados.map((prod) => (
-              <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
-                <div>
-                  {prod.imagen_url ? (
-                    <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
-                  ) : (
-                    <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">📦</div>
-                  )}
-                  <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</h3>
-                </div>
-                <div className="mt-3 pt-2 border-t border-gray-50 flex flex-col gap-1.5">
-                  <span className="font-black text-sm text-brand-blue">${Number(prod.precio || 0).toLocaleString("es-AR")}</span>
-                  <button onClick={() => agregarAlCarrito(prod)} className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition">
-                    + Agregar
-                  </button>
-                </div>
-              </div>
+              <ProductCard key={prod.id} producto={prod} />
             ))}
           </div>
         )}
