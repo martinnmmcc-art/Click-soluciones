@@ -23,6 +23,7 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
     destacado: initialData?.destacado ?? false,
     activo: initialData?.activo ?? true,
     stock: initialData?.stock ?? 0,
+    stock_minimo: initialData?.stock_minimo ?? 3,
     costo: initialData?.costo ?? "",
     margen_porcentaje: initialData?.margen_porcentaje ?? "",
     costo_envio: initialData?.costo_envio ?? "",
@@ -75,6 +76,7 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         precio: Number(form.precio),
         precio_oferta: form.precio_oferta ? Number(form.precio_oferta) : null,
         stock: Number(form.stock) || 0,
+        stock_minimo: Number(form.stock_minimo) || 0,
         costo: form.costo !== "" ? Number(form.costo) : null,
         margen_porcentaje: form.margen_porcentaje !== "" ? Number(form.margen_porcentaje) : null,
         costo_envio: form.costo_envio !== "" ? Number(form.costo_envio) : 0,
@@ -246,6 +248,19 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
             className="input-field"
           />
         </div>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-gray-700 block mb-1">
+          Stock mínimo (para avisarte cuándo pedirle a tu proveedor)
+        </label>
+        <input
+          name="stock_minimo"
+          type="number"
+          value={form.stock_minimo}
+          onChange={handleChange}
+          className="input-field"
+        />
       </div>
 
       <div className="flex gap-6 mt-1">
