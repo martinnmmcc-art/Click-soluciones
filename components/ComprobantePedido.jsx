@@ -36,6 +36,12 @@ export default function ComprobantePedido({ pedido, onClose }) {
   const [generando, setGenerando] = useState(true);
 
   const items = pedido.items_pedido || pedido.items || [];
+  const tieneDescuento = pedido.descuento_tipo && Number(pedido.descuento_valor) > 0;
+  const subtotal =
+    pedido.subtotal !== null && pedido.subtotal !== undefined
+      ? Number(pedido.subtotal)
+      : Number(pedido.total);
+  const montoDescuento = tieneDescuento ? subtotal - Number(pedido.total) : 0;
 
   useEffect(() => {
     dibujarComprobante();
@@ -46,7 +52,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
     setGenerando(true);
     const width = 800;
 
-    // pre-calculamos alto según cantidad de líneas de productos
     const canvasMedidor = document.createElement("canvas");
     const ctxMedidor = canvasMedidor.getContext("2d");
     ctxMedidor.font = "600 20px Arial";
@@ -59,9 +64,8 @@ export default function ComprobantePedido({ pedido, onClose }) {
     const alturaHeader = 200;
     const alturaClienteInfo = 150;
     const alturaTablaHeader = 50;
-    const alturaPorLinea = 34;
     const alturaItems = Math.max(items.length * 46, lineasProductos * 30 + items.length * 16);
-    const alturaTotales = 110;
+    const alturaTotales = tieneDescuento ? 160 : 110;
     const alturaFooter = 100;
     const margenes = 100;
 
@@ -83,11 +87,9 @@ export default function ComprobantePedido({ pedido, onClose }) {
     const ctx = canvas.getContext("2d");
     ctx.scale(dpr, dpr);
 
-    // fondo general
     ctx.fillStyle = "#F1F5F9";
     ctx.fillRect(0, 0, width, height);
 
-    // tarjeta blanca
     const pad = 24;
     drawRoundedRect(ctx, pad, pad, width - pad * 2, height - pad * 2, 20);
     ctx.fillStyle = "#FFFFFF";
@@ -95,7 +97,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
 
     let y = pad;
 
-    // header navy
     ctx.save();
     drawRoundedRect(ctx, pad, pad, width - pad * 2, alturaHeader, 20);
     ctx.clip();
@@ -103,7 +104,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
     ctx.fillRect(pad, pad, width - pad * 2, alturaHeader);
     ctx.restore();
 
-    // logo
     try {
       const logo = await cargarImagen("/logo.png");
       const logoSize = 100;
@@ -123,7 +123,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
 
     y = pad + alturaHeader + 30;
 
-    // badge tipo/número
     ctx.textAlign = "left";
     ctx.fillStyle = "#1560D4";
     ctx.font = "700 15px Arial";
@@ -140,7 +139,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
 
     y += 55;
 
-    // datos cliente
     ctx.fillStyle = "#0F172A";
     ctx.font = "700 18px Arial";
     ctx.fillText(pedido.nombre_cliente || "Cliente", pad + 30, y);
@@ -170,7 +168,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
 
     y += 15;
 
-    // separador
     ctx.strokeStyle = "#E2E8F0";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -179,7 +176,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
     ctx.stroke();
     y += 30;
 
-    // encabezado tabla
     ctx.fillStyle = "#94A3B8";
     ctx.font = "700 13px Arial";
     ctx.fillText("PRODUCTO", pad + 30, y);
@@ -188,7 +184,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
     ctx.textAlign = "left";
     y += 24;
 
-    // items
     ctx.font = "600 16px Arial";
     items.forEach((item) => {
       ctx.fillStyle = "#1E293B";
@@ -213,7 +208,28 @@ export default function ComprobantePedido({ pedido, onClose }) {
 
     y += 10;
 
-    // total
+    // si hay descuento, mostramos subtotal + descuento antes del total
+    if (tieneDescuento) {
+      ctx.font = "600 15px Arial";
+      ctx.fillStyle = "#64748B";
+      ctx.fillText("Subtotal", pad + 30, y);
+      ctx.textAlign = "right";
+      ctx.fillText(`$${formatPrice(subtotal)}`, width - pad - 30, y);
+      ctx.textAlign = "left";
+      y += 24;
+
+      const etiquetaDescuento =
+        pedido.descuento_tipo === "porcentaje"
+          ? `Descuento (${pedido.descuento_valor}%)`
+          : "Descuento";
+      ctx.fillStyle = "#DC2626";
+      ctx.fillText(etiquetaDescuento, pad + 30, y);
+      ctx.textAlign = "right";
+      ctx.fillText(`-$${formatPrice(montoDescuento)}`, width - pad - 30, y);
+      ctx.textAlign = "left";
+      y += 30;
+    }
+
     drawRoundedRect(ctx, pad + 30, y, width - pad * 2 - 60, 70, 14);
     ctx.fillStyle = "#EFF6FF";
     ctx.fill();
@@ -230,7 +246,6 @@ export default function ComprobantePedido({ pedido, onClose }) {
 
     y += 100;
 
-    // footer
     ctx.fillStyle = "#94A3B8";
     ctx.font = "400 13px Arial";
     ctx.textAlign = "center";
@@ -278,7 +293,7 @@ export default function ComprobantePedido({ pedido, onClose }) {
             title: "Presupuesto Bolson Click",
           });
         } catch (e) {
-          // el usuario canceló, no hacemos nada
+          // el usuario canceló
         }
       } else {
         descargar();
