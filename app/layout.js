@@ -2,6 +2,7 @@ import "./globals.css";
 import AuthGuard from "@/components/AuthGuard";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { AdminProvider } from "@/context/AdminContext";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import WhatsAppFloatingButton from "@/components/WhatsAppFloatingButton";
 import BottomNav from "@/components/BottomNav";
@@ -33,16 +34,18 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/icons/icon-192.png" />
       </head>
       <body className="bg-brand-bg min-h-screen font-sans">
-        <AuthProvider>
-          <CartProvider>
-            <AuthGuard>
-              <ServiceWorkerRegister />
-              <div className="container-app pb-24">{children}</div>
-              <WhatsAppFloatingButton />
-              <BottomNav />
-            </AuthGuard>
-          </CartProvider>
-        </AuthProvider>
+        <AdminProvider>
+          <AuthProvider>
+            <CartProvider>
+              <AuthGuard>
+                <ServiceWorkerRegister />
+                <div className="container-app pb-24">{children}</div>
+                <WhatsAppFloatingButton />
+                <BottomNav />
+              </AuthGuard>
+            </CartProvider>
+          </AuthProvider>
+        </AdminProvider>
       </body>
     </html>
   );
