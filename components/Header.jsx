@@ -3,27 +3,15 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useCart } from "@/context/CartContext";
-import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabaseClient";
+import { useAdmin } from "@/context/AdminContext";
 
 export default function Header({ showSearch = true, initialQuery = "" }) {
   const [query, setQuery] = useState(initialQuery);
   const { cantidadTotal } = useCart();
-  const { user } = useAuth();
-  const [adminEmail, setAdminEmail] = useState(null);
+  const { isAdmin } = useAdmin();
   const router = useRouter();
-
-  useEffect(() => {
-    async function checkAdmin() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setAdminEmail(session.user.email);
-      }
-    }
-    checkAdmin();
-  }, []);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -31,9 +19,6 @@ export default function Header({ showSearch = true, initialQuery = "" }) {
     if (query.trim()) params.set("q", query.trim());
     router.push(`/catalogo?${params.toString()}`);
   }
-
-  // Verificamos si sos vos el admin
-  const isAdmin = adminEmail === "maricelcanumir@gmail.com" || user?.email === "maricelcanumir@gmail.com";
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 px-4 pt-4 pb-3">
@@ -48,7 +33,6 @@ export default function Header({ showSearch = true, initialQuery = "" }) {
         </Link>
 
         <div className="flex items-center gap-2">
-          {/* BOTONES DE ADMIN FIJOS: Si sos vos, aparecen arriba en todas partes */}
           {isAdmin && (
             <>
               <Link
