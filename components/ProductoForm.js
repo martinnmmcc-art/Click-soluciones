@@ -19,6 +19,8 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
     precio: initialData?.precio ?? "",
     precio_oferta: initialData?.precio_oferta ?? "",
     imagen_url: initialData?.imagen_url || "",
+    imagen_url_2: initialData?.imagen_url_2 || "",
+    imagen_url_3: initialData?.imagen_url_3 || "",
     categoria: initialData?.categoria || "hogar",
     destacado: initialData?.destacado ?? false,
     activo: initialData?.activo ?? true,
@@ -75,6 +77,8 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         ...form,
         precio: Number(form.precio),
         precio_oferta: form.precio_oferta ? Number(form.precio_oferta) : null,
+        imagen_url_2: form.imagen_url_2 || null,
+        imagen_url_3: form.imagen_url_3 || null,
         stock: Number(form.stock) || 0,
         stock_minimo: Number(form.stock_minimo) || 0,
         costo: form.costo !== "" ? Number(form.costo) : null,
@@ -205,17 +209,47 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         </div>
       </div>
 
-      <div>
-        <label className="text-sm font-medium text-gray-700 block mb-1">
-          URL de la imagen
-        </label>
-        <input
-          name="imagen_url"
-          value={form.imagen_url}
-          onChange={handleChange}
-          className="input-field"
-          placeholder="https://..."
-        />
+      {/* ===== IMÁGENES (hasta 3) ===== */}
+      <div className="border border-gray-100 bg-gray-50/50 rounded-xl p-3">
+        <p className="text-sm font-bold text-gray-700 mb-2">📷 Imágenes (hasta 3)</p>
+        <div className="flex flex-col gap-2">
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">
+              Imagen principal
+            </label>
+            <input
+              name="imagen_url"
+              value={form.imagen_url}
+              onChange={handleChange}
+              className="input-field"
+              placeholder="https://..."
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">
+              Imagen 2 (opcional)
+            </label>
+            <input
+              name="imagen_url_2"
+              value={form.imagen_url_2}
+              onChange={handleChange}
+              className="input-field"
+              placeholder="https://..."
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1">
+              Imagen 3 (opcional)
+            </label>
+            <input
+              name="imagen_url_3"
+              value={form.imagen_url_3}
+              onChange={handleChange}
+              className="input-field"
+              placeholder="https://..."
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
