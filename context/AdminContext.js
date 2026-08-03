@@ -1,37 +1,41 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 const AdminContext = createContext(null);
-const STORAGE_KEY = "clic_soluciones_admin";
+
+// Correos autorizados como administrador. Agregá más acá si hace falta.
+export const ADMIN_EMAILS = ["maricelcanumir@gmail.com"];
 
 export function AdminProvider({ children }) {
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const flag = localStorage.getItem(STORAGE_KEY);
-    setIsAdmin(flag === "true");
-    setLoading(false);
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
   }, []);
 
-  function login(password) {
-    const claveCorrecta = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "clicsoluciones2026";
-    if (password === claveCorrecta) {
-      localStorage.setItem(STORAGE_KEY, "true");
-      setIsAdmin(true);
-      return true;
-    }
-    return false;
-  }
+  const isAdmin = ADMIN_EMAILS.includes(session?.user?.email);
 
-  function logout() {
-    localStorage.removeItem(STORAGE_KEY);
-    setIsAdmin(false);
+  async function logout() {
+    await supabase.auth.signOut();
+    setSession(null);
   }
 
   return (
-    <AdminContext.Provider value={{ isAdmin, loading, login, logout }}>
+    <AdminContext.Provider value={{ isAdmin, loading, session, logout }}>
       {children}
     </AdminContext.Provider>
   );
