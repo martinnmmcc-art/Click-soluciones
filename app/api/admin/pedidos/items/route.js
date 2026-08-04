@@ -6,6 +6,30 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+async function ajustarStock(producto_id, delta) {
+  // delta negativo = restar stock (se vendió más), delta positivo = devolver stock
+  if (!producto_id) return;
+  const { data: prod } = await supabaseAdmin
+    .from("Productos")
+    .select("stock")
+    .eq("id", producto_id)
+    .single();
+
+  if (prod) {
+    const nuevoStock = Number(prod.stock || 0) + delta;
+    await supabaseAdmin.from("Productos").update({ stock: nuevoStock }).eq("id", producto_id);
+  }
+}
+
+async function pedidoTieneStockDescontado(pedido_id) {
+  const { data } = await supabaseAdmin
+    .from("pedidos")
+    .select("stock_descontado")
+    .eq("id", pedido_id)
+    .single();
+  return !!data?.stock_descontado;
+}
+
 export async function POST(req) {
   const body = await req.json();
   const { pedido_id, producto_id, nombre_producto, precio_unitario, cantidad } = body;
@@ -31,6 +55,12 @@ export async function POST(req) {
 
   if (errItem) {
     return Response.json({ error: errItem.message }, { status: 400 });
+  }
+
+  // Si el pedido ya es una venta confirmada, este producto nuevo también descuenta stock
+  const yaEsVenta = await pedidoTieneStockDescontado(pedido_id);
+  if (yaEsVenta) {
+    await ajustarStock(producto_id, -Number(cantidad));
   }
 
   const { data: items, error: errItems } = await supabaseAdmin
@@ -86,7 +116,7 @@ export async function PATCH(req) {
 
   const { data: itemActual, error: errGet } = await supabaseAdmin
     .from("items_pedido")
-    .select("precio_unitario")
+    .select("precio_unitario, cantidad, producto_id")
     .eq("id", item_id)
     .single();
 
@@ -107,6 +137,14 @@ export async function PATCH(req) {
     return Response.json({ error: errUpdate.message }, { status: 400 });
   }
 
+  // Si el pedido ya es una venta confirmada, ajustamos stock por la diferencia de cantidad
+  const yaEsVenta = await pedidoTieneStockDescontado(pedido_id);
+  if (yaEsVenta) {
+    const diferencia = Number(cantidad) - Number(itemActual.cantidad);
+    // si subió la cantidad, se descuenta más stock (delta negativo); si bajó, se devuelve
+    await ajustarStock(itemActual.producto_id, -diferencia);
+  }
+
   const resultado = await recalcularTotalPedido(pedido_id);
   if (resultado.error) {
     return Response.json({ error: resultado.error }, { status: 400 });
@@ -124,6 +162,13 @@ export async function DELETE(req) {
     return Response.json({ error: "Faltan datos para eliminar el item" }, { status: 400 });
   }
 
+  // Antes de borrar, guardamos qué producto y cantidad tenía, por si hay que devolver stock
+  const { data: itemAEliminar } = await supabaseAdmin
+    .from("items_pedido")
+    .select("producto_id, cantidad")
+    .eq("id", itemId)
+    .single();
+
   const { error: errDelete } = await supabaseAdmin
     .from("items_pedido")
     .delete()
@@ -133,10 +178,15 @@ export async function DELETE(req) {
     return Response.json({ error: errDelete.message }, { status: 400 });
   }
 
+  const yaEsVenta = await pedidoTieneStockDescontado(pedidoId);
+  if (yaEsVenta && itemAEliminar) {
+    await ajustarStock(itemAEliminar.producto_id, Number(itemAEliminar.cantidad));
+  }
+
   const resultado = await recalcularTotalPedido(pedidoId);
   if (resultado.error) {
     return Response.json({ error: resultado.error }, { status: 400 });
   }
 
   return Response.json({ success: true, total: resultado.total });
-}
+    }
