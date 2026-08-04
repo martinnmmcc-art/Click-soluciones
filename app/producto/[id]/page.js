@@ -89,7 +89,10 @@ export default function ProductoDetallePage() {
   const listaImagenes = [
     producto.imagen_url,
     producto.imagen_url_2,
-    producto.imagen_url_3
+    producto.imagen_url_3,
+    producto.imagen_url_4,
+    producto.imagen_url_5,
+    producto.imagen_url_6
   ].filter(Boolean);
 
   function handleAgregar() {
