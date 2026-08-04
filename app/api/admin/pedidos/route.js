@@ -21,10 +21,22 @@ export async function GET() {
 
 export async function PATCH(req) {
   const body = await req.json();
-  const { id, estado, estado_pago, monto_pagado, descuento_tipo, descuento_valor } = body;
+  const { id, estado, estado_pago, monto_pagado, descuento_tipo, descuento_valor, convertir_a_venta } = body;
 
   if (!id) {
     return Response.json({ error: "Falta el id del pedido" }, { status: 400 });
+  }
+
+  // Traemos el pedido actual completo (necesario para saber el estado final combinado
+  // y para no descontar el stock dos veces)
+  const { data: pedidoActual, error: errFetch } = await supabaseAdmin
+    .from("pedidos")
+    .select("subtotal, total, estado, estado_pago, stock_descontado, tipo_pedido")
+    .eq("id", id)
+    .single();
+
+  if (errFetch) {
+    return Response.json({ error: errFetch.message }, { status: 400 });
   }
 
   const campos = {};
@@ -35,19 +47,6 @@ export async function PATCH(req) {
   const tocaDescuento = descuento_tipo !== undefined || descuento_valor !== undefined;
 
   if (tocaDescuento) {
-    // Traemos el pedido actual para saber el subtotal (total original sin descuento)
-    const { data: pedidoActual, error: errFetch } = await supabaseAdmin
-      .from("pedidos")
-      .select("subtotal, total")
-      .eq("id", id)
-      .single();
-
-    if (errFetch) {
-      return Response.json({ error: errFetch.message }, { status: 400 });
-    }
-
-    // Si todavía no tiene subtotal guardado (pedidos viejos), lo inicializamos
-    // con el total actual la primera vez que se aplica un descuento.
     const subtotal =
       pedidoActual.subtotal !== null && pedidoActual.subtotal !== undefined
         ? Number(pedidoActual.subtotal)
@@ -68,6 +67,46 @@ export async function PATCH(req) {
     campos.descuento_tipo = valor > 0 ? tipo : null;
     campos.descuento_valor = valor > 0 ? valor : 0;
     campos.total = nuevoTotal;
+  }
+
+  // ===== LÓGICA DE CONVERSIÓN A VENTA Y DESCUENTO DE STOCK =====
+  const estadoFinal = estado !== undefined ? estado : pedidoActual.estado;
+  const estadoPagoFinal = estado_pago !== undefined ? estado_pago : pedidoActual.estado_pago;
+
+  const debeConvertirseAVenta =
+    !pedidoActual.stock_descontado &&
+    (convertir_a_venta === true ||
+      (estadoFinal === "entregado" && estadoPagoFinal === "pagado"));
+
+  if (debeConvertirseAVenta) {
+    const { data: items, error: errItems } = await supabaseAdmin
+      .from("items_pedido")
+      .select("producto_id, cantidad")
+      .eq("pedido_id", id);
+
+    if (errItems) {
+      return Response.json({ error: errItems.message }, { status: 400 });
+    }
+
+    for (const item of items || []) {
+      if (!item.producto_id) continue;
+      const { data: prod } = await supabaseAdmin
+        .from("Productos")
+        .select("stock")
+        .eq("id", item.producto_id)
+        .single();
+
+      if (prod) {
+        const nuevoStock = Number(prod.stock || 0) - Number(item.cantidad || 0);
+        await supabaseAdmin
+          .from("Productos")
+          .update({ stock: nuevoStock })
+          .eq("id", item.producto_id);
+      }
+    }
+
+    campos.stock_descontado = true;
+    campos.tipo_pedido = "venta";
   }
 
   if (Object.keys(campos).length === 0) {
@@ -94,6 +133,37 @@ export async function DELETE(req) {
 
   if (!id) {
     return Response.json({ error: "Falta el id del pedido" }, { status: 400 });
+  }
+
+  // Si el pedido ya había descontado stock (era una venta confirmada), lo devolvemos
+  // al eliminarlo, para no perder esas unidades del inventario.
+  const { data: pedidoActual } = await supabaseAdmin
+    .from("pedidos")
+    .select("stock_descontado")
+    .eq("id", id)
+    .single();
+
+  if (pedidoActual?.stock_descontado) {
+    const { data: items } = await supabaseAdmin
+      .from("items_pedido")
+      .select("producto_id, cantidad")
+      .eq("pedido_id", id);
+
+    for (const item of items || []) {
+      if (!item.producto_id) continue;
+      const { data: prod } = await supabaseAdmin
+        .from("Productos")
+        .select("stock")
+        .eq("id", item.producto_id)
+        .single();
+      if (prod) {
+        const nuevoStock = Number(prod.stock || 0) + Number(item.cantidad || 0);
+        await supabaseAdmin
+          .from("Productos")
+          .update({ stock: nuevoStock })
+          .eq("id", item.producto_id);
+      }
+    }
   }
 
   const { error: errItems } = await supabaseAdmin
