@@ -12,6 +12,8 @@ export async function POST(req) {
   const pedidoAInsertar = {
     ...body.pedido,
     subtotal: body.pedido.subtotal ?? body.pedido.total,
+    tipo_pedido: "presupuesto",
+    stock_descontado: false,
   };
 
   const { data: pedido, error: errPedido } = await supabaseAdmin
