@@ -132,7 +132,6 @@ function PanelVentas() {
       if (!res.ok) {
         alert("No se pudo guardar el cambio: " + result.error);
       } else if (result.pedido) {
-        // sincronizamos con lo que devolvió el server (por si recalculó el total)
         setPedidos((prev) =>
           prev.map((p) => (p.id === pedidoId ? { ...p, ...result.pedido } : p))
         );
@@ -166,6 +165,34 @@ function PanelVentas() {
       }
     } catch (e) {
       alert("Error de conexión al guardar el descuento.");
+    }
+    setGuardandoId(null);
+  }
+
+  async function convertirAVenta(pedidoId) {
+    const confirmar = window.confirm(
+      "Esto va a descontar el stock de los productos de este pedido y marcarlo como Venta confirmada. ¿Continuar?"
+    );
+    if (!confirmar) return;
+
+    setGuardandoId(pedidoId);
+    try {
+      const res = await fetch("/api/admin/pedidos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pedidoId, convertir_a_venta: true }),
+      });
+      const result = await res.json();
+
+      if (res.ok && result.pedido) {
+        setPedidos((prev) =>
+          prev.map((p) => (p.id === pedidoId ? { ...p, ...result.pedido } : p))
+        );
+      } else {
+        alert("No se pudo convertir a venta: " + result.error);
+      }
+    } catch (e) {
+      alert("Error de conexión al convertir a venta.");
     }
     setGuardandoId(null);
   }
@@ -312,7 +339,6 @@ function PanelVentas() {
     return Object.values(grupos).sort((a, b) => b.saldoNeto - a.saldoNeto);
   }
 
-  // --- FILTRADO POR FECHA ---
   function filtrarPorFecha(lista) {
     if (!fechaDesde && !fechaHasta) return lista;
     return lista.filter((p) => {
@@ -342,7 +368,6 @@ function PanelVentas() {
     setFechaHasta("");
   }
 
-  // --- NUEVO PEDIDO DESDE ADMIN ---
   function handleChangeNuevoForm(e) {
     setNuevoForm({ ...nuevoForm, [e.target.name]: e.target.value });
   }
@@ -461,7 +486,6 @@ function PanelVentas() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Error al crear el pedido");
 
-      // recargamos la lista de pedidos para traer el nuevo con su relación items_pedido
       const resPedidos = await fetch("/api/admin/pedidos");
       const resultPedidos = await resPedidos.json();
       if (resPedidos.ok) setPedidos(resultPedidos.pedidos || []);
@@ -495,7 +519,6 @@ function PanelVentas() {
   const pedidosFiltrados = filtrarPorFecha(pedidosPorCliente);
   const resumenClientes = calcularResumenClientes(pedidos);
 
-  // balance del período filtrado
   const balancePeriodo = pedidosFiltrados.reduce(
     (acc, p) => {
       acc.totalVendido += Number(p.total || 0);
@@ -521,7 +544,6 @@ function PanelVentas() {
           </button>
         </div>
 
-        {/* ===== FORMULARIO NUEVO PEDIDO ===== */}
         {mostrarFormNuevo && (
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">
             <h2 className="font-bold text-gray-800 mb-4">Crear pedido / presupuesto</h2>
@@ -715,7 +737,6 @@ function PanelVentas() {
                 </div>
               )}
 
-              {/* ===== DESCUENTO (nuevo pedido) ===== */}
               <div className="border-t border-gray-100 pt-3 mb-3">
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">
                   Descuento (opcional)
@@ -769,6 +790,11 @@ function PanelVentas() {
                 </div>
               </div>
 
+              <p className="text-[11px] text-gray-400 mt-2">
+                Este pedido se crea como Presupuesto. El stock recién se descuenta cuando lo
+                marques como Entregado + Pagado, o lo convertís a venta manualmente.
+              </p>
+
               <button
                 onClick={handleGuardarNuevoPedido}
                 disabled={guardandoNuevo}
@@ -780,7 +806,6 @@ function PanelVentas() {
           </div>
         )}
 
-        {/* ===== FILTRO DE FECHAS + BALANCE ===== */}
         <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
             Balance por período
@@ -924,14 +949,26 @@ function PanelVentas() {
                 pedido.subtotal !== null && pedido.subtotal !== undefined;
               const subtotalPedido = tieneSubtotal ? Number(pedido.subtotal) : Number(pedido.total);
               const tieneDescuento = pedido.descuento_tipo && Number(pedido.descuento_valor) > 0;
+              const esVenta = pedido.tipo_pedido === "venta";
 
               return (
               <div key={pedido.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start border-b border-gray-100 pb-3 mb-3">
                   <div>
-                    <span className="text-xs font-bold text-brand-blue bg-blue-50 px-2 py-1 rounded-md">
-                      Pedido #{pedido.id}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-bold text-brand-blue bg-blue-50 px-2 py-1 rounded-md">
+                        Pedido #{pedido.id}
+                      </span>
+                      {esVenta ? (
+                        <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-md">
+                          ✅ Venta
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-gray-500 bg-gray-100 border border-gray-200 px-2 py-1 rounded-md">
+                          📋 Presupuesto
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm font-semibold text-gray-800 mt-2">
                       Cliente: {pedido.nombre_cliente || "Sin nombre"} ({pedido.telefono_cliente || "Sin teléfono"})
                     </p>
@@ -962,6 +999,16 @@ function PanelVentas() {
                     </button>
                   </div>
                 </div>
+
+                {!esVenta && (
+                  <button
+                    onClick={() => convertirAVenta(pedido.id)}
+                    disabled={guardandoId === pedido.id}
+                    className="w-full mb-4 text-xs font-bold text-white bg-green-600 py-2 rounded-xl shadow-sm disabled:opacity-50"
+                  >
+                    ✅ Convertir a venta (descuenta stock ahora)
+                  </button>
+                )}
 
                 <div className="flex flex-wrap gap-3 mb-4">
                   <div>
