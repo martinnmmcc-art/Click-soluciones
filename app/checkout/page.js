@@ -227,6 +227,9 @@ export default function CheckoutPage() {
                   className="input-field"
                   placeholder="Calle, número, barrio"
                 />
+                <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-2.5 mt-2">
+                  🚚 Enviamos a El Bolsón, la Comarca y el lado de Chubut. Fuera del casco urbano puede tener recargo — coordinamos transporte local o punto de encuentro por WhatsApp.
+                </p>
               </div>
             )}
           </div>
