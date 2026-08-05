@@ -27,9 +27,14 @@ export default function Header({ showSearch = true, initialQuery = "" }) {
           <div className="w-9 h-9 rounded-xl overflow-hidden relative">
             <Image src="/logo.png" alt="Bolson Click" fill className="object-cover" />
           </div>
-          <span className="text-lg font-extrabold text-brand-blueDark">
-            Bolson <span className="text-brand-orange">Click</span>
-          </span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-lg font-extrabold text-brand-blueDark">
+              Bolson <span className="text-brand-orange">Click</span>
+            </span>
+            <span className="text-[10px] font-semibold text-gray-400 -mt-0.5">
+              Tu bazar online en El Bolsón
+            </span>
+          </div>
         </Link>
 
         <div className="flex items-center gap-2">
