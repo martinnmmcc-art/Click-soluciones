@@ -423,6 +423,16 @@ export default function LoginPage() {
         <h1 className="font-bold text-xl text-gray-800 mb-1 text-center">
           {esRegistro ? "Crear una cuenta nueva" : "Bienvenido a Bolson Click"}
         </h1>
+        {!esRegistro && (
+          <>
+            <p className="text-sm text-brand-orange font-bold mb-1 text-center">
+              Tu bazar online en El Bolsón y la Comarca
+            </p>
+            <p className="text-xs text-gray-400 mb-3 text-center px-2">
+              🚚 Envíos a El Bolsón, la Comarca y el lado de Chubut. Coordinamos por transporte local o punto de encuentro.
+            </p>
+          </>
+        )}
         <p className="text-sm text-gray-500 mb-5 text-center">
           Ingresá con tu celular (clientes) o tu correo (administrador).
         </p>
