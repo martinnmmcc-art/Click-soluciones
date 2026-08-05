@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
+import BannerOfertas from "@/components/BannerOfertas";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
 
@@ -80,6 +81,8 @@ export default function HomePage() {
           {mensajeCarrito}
         </div>
       )}
+
+      <BannerOfertas />
 
       <div className="max-w-md mx-auto px-4 mt-4">
         {categorias.length > 0 && (
