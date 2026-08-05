@@ -84,6 +84,12 @@ export default function HomePage() {
 
       <BannerOfertas />
 
+      <div className="max-w-md mx-auto px-4 mt-3">
+        <p className="text-[11px] text-gray-500 text-center bg-gray-100 rounded-full py-1.5 px-3">
+          🚚 Envíos a El Bolsón, la Comarca y Chubut — consultanos por transporte local o punto de encuentro
+        </p>
+      </div>
+
       <div className="max-w-md mx-auto px-4 mt-4">
         {categorias.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
