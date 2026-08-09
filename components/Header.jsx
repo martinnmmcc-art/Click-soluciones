@@ -32,7 +32,7 @@ export default function Header({ showSearch = true, initialQuery = "" }) {
               Bolson <span className="text-brand-orange">Click</span>
             </span>
             <span className="text-[10px] font-semibold text-gray-400 -mt-0.5">
-              Tu bazar online en El Bolsón
+              Productos importados en El Bolsón
             </span>
           </div>
         </Link>
