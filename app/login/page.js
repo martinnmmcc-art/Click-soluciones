@@ -426,15 +426,15 @@ export default function LoginPage() {
         {!esRegistro && (
           <>
             <p className="text-sm text-brand-orange font-bold mb-1 text-center">
-              Tu bazar online en El Bolsón y la Comarca
+              Productos importados en El Bolsón y la Comarca Andina
             </p>
             <p className="text-xs text-gray-400 mb-3 text-center px-2">
-              🚚 Envíos a El Bolsón, la Comarca y el lado de Chubut. Coordinamos por transporte local o punto de encuentro.
+              🚚 Envíos a El Bolsón y la Comarca Andina. Coordinamos por transporte local o punto de encuentro.
             </p>
           </>
         )}
         <p className="text-sm text-gray-500 mb-5 text-center">
-          Ingresá con tu celular (clientes) o tu correo (administrador).
+          Ingresá con tu celular.
         </p>
 
         {error && (
