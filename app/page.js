@@ -87,7 +87,7 @@ export default function HomePage() {
 
       <div className="max-w-md mx-auto px-4 mt-3">
         <p className="text-[11px] text-gray-500 text-center bg-gray-100 rounded-full py-1.5 px-3">
-          🚚 Envíos a El Bolsón, la Comarca y Chubut — consultanos por transporte local o punto de encuentro
+          🚚 Envíos a El Bolsón y la Comarca Andina — coordinamos transporte local o punto de encuentro
         </p>
       </div>
 
