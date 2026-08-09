@@ -6,7 +6,11 @@ import { supabase } from "@/lib/supabaseClient";
 const AdminContext = createContext(null);
 
 // Correos autorizados como administrador. Agregá más acá si hace falta.
-export const ADMIN_EMAILS = ["maricelcanumir@gmail.com"];
+export const ADMIN_EMAILS = [
+  "maricelcanumir@gmail.com",
+  "martinnm.mcc@gmail.com",
+  "patagoniavolt@gmail.com"
+];
 
 export function AdminProvider({ children }) {
   const [session, setSession] = useState(null);
