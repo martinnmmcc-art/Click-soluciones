@@ -8,7 +8,7 @@ export default function WhatsAppFloatingButton() {
   const mensaje = encodeURIComponent(
 `Hola! 👋
 
-Te escribo desde la app de *Clic Soluciones*.
+Te escribo desde la app de *Bolson Click*.
 
 Quisiera recibir información sobre sus productos.
 
