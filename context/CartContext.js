@@ -32,13 +32,21 @@ export function CartProvider({ children }) {
   }, [items, nota, loaded]);
 
   function addItem(producto, cantidad = 1) {
+    const stockDisponible =
+      producto.stock !== null && producto.stock !== undefined ? Number(producto.stock) : null;
+
     setItems((prev) => {
       const existe = prev.find((i) => i.id === producto.id);
       if (existe) {
+        const nuevaCantidad = existe.cantidad + cantidad;
+        const cantidadFinal =
+          stockDisponible !== null ? Math.min(nuevaCantidad, stockDisponible) : nuevaCantidad;
         return prev.map((i) =>
-          i.id === producto.id ? { ...i, cantidad: i.cantidad + cantidad } : i
+          i.id === producto.id ? { ...i, cantidad: cantidadFinal, stock: stockDisponible } : i
         );
       }
+      const cantidadInicial =
+        stockDisponible !== null ? Math.min(cantidad, stockDisponible) : cantidad;
       return [
         ...prev,
         {
@@ -46,7 +54,8 @@ export function CartProvider({ children }) {
           nombre: producto.nombre,
           precio: producto.precio_oferta || producto.precio,
           imagen_url: producto.imagen_url,
-          cantidad
+          stock: stockDisponible,
+          cantidad: cantidadInicial
         }
       ];
     });
@@ -57,7 +66,14 @@ export function CartProvider({ children }) {
       removeItem(id);
       return;
     }
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, cantidad } : i)));
+    setItems((prev) =>
+      prev.map((i) => {
+        if (i.id !== id) return i;
+        const cantidadFinal =
+          i.stock !== null && i.stock !== undefined ? Math.min(cantidad, Number(i.stock)) : cantidad;
+        return { ...i, cantidad: cantidadFinal };
+      })
+    );
   }
 
   function removeItem(id) {
