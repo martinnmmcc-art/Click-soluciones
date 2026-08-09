@@ -86,6 +86,10 @@ export default function ProductoDetallePage() {
   const tieneOferta = producto.precio_oferta && producto.precio_oferta < producto.precio;
   const precioFinal = tieneOferta ? producto.precio_oferta : producto.precio;
 
+  const stock = producto.stock !== null && producto.stock !== undefined ? Number(producto.stock) : null;
+  const sinStock = stock !== null && stock <= 0;
+  const ultimaUnidad = stock !== null && stock === 1;
+
   const listaImagenes = [
     producto.imagen_url,
     producto.imagen_url_2,
@@ -166,41 +170,68 @@ export default function ProductoDetallePage() {
           )}
         </div>
 
+        {sinStock && (
+          <span className="inline-block mt-2 bg-gray-700 text-white text-xs font-bold px-3 py-1 rounded-full">
+            Sin stock por el momento
+          </span>
+        )}
+        {!sinStock && ultimaUnidad && (
+          <span className="inline-block mt-2 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+            ¡Última unidad disponible!
+          </span>
+        )}
+
         {/* CANTIDAD Y BOTONES */}
-        <div className="flex items-center gap-4 mt-6">
-          <span className="text-sm font-medium text-gray-700">Cantidad:</span>
-          <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden">
-            <button
-              onClick={() => setCantidad((c) => Math.max(1, c - 1))}
-              className="px-3 py-2 text-lg text-gray-600 hover:bg-gray-50"
-            >
-              −
-            </button>
-            <span className="px-4 font-semibold">{cantidad}</span>
-            <button
-              onClick={() => setCantidad((c) => c + 1)}
-              className="px-3 py-2 text-lg text-gray-600 hover:bg-gray-50"
-            >
-              +
-            </button>
+        {!sinStock && (
+          <div className="flex items-center gap-4 mt-6">
+            <span className="text-sm font-medium text-gray-700">Cantidad:</span>
+            <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setCantidad((c) => Math.max(1, c - 1))}
+                className="px-3 py-2 text-lg text-gray-600 hover:bg-gray-50"
+              >
+                −
+              </button>
+              <span className="px-4 font-semibold">{cantidad}</span>
+              <button
+                onClick={() => setCantidad((c) => (stock !== null ? Math.min(stock, c + 1) : c + 1))}
+                disabled={stock !== null && cantidad >= stock}
+                className="px-3 py-2 text-lg text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                +
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="grid gap-3 mt-6">
-          <button onClick={handleAgregar} className="btn-secondary">
-            {agregado ? "✓ Agregado al carrito" : "Agregar al carrito"}
-          </button>
-          <button onClick={handleComprarAhora} className="btn-primary">
-            Comprar ahora
-          </button>
-          <a
-            href={buildWhatsAppLink(whatsappProductMessage(producto))}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-accent text-center"
-          >
-            💬 Consultar por WhatsApp
-          </a>
+          {sinStock ? (
+            <a
+              href={buildWhatsAppLink(whatsappProductMessage(producto))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary text-center"
+            >
+              💬 Consultar al vendedor
+            </a>
+          ) : (
+            <>
+              <button onClick={handleAgregar} className="btn-secondary">
+                {agregado ? "✓ Agregado al carrito" : "Agregar al carrito"}
+              </button>
+              <button onClick={handleComprarAhora} className="btn-primary">
+                Comprar ahora
+              </button>
+              <a
+                href={buildWhatsAppLink(whatsappProductMessage(producto))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-accent text-center"
+              >
+                💬 Consultar por WhatsApp
+              </a>
+            </>
+          )}
         </div>
 
         {/* DESCRIPCIÓN, CARACTERÍSTICAS Y ACCESORIOS */}
