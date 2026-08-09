@@ -7,6 +7,7 @@ import BottomNav from "@/components/BottomNav";
 import BannerOfertas from "@/components/BannerOfertas";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
+import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
 
 export default function HomePage() {
   const { addItem } = useCart();
@@ -129,11 +130,26 @@ export default function HomePage() {
             {productosFiltrados.map((prod) => (
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>
-                  <Link href={`/producto/${prod.id}`} className="block">
+                  <Link href={`/producto/${prod.id}`} className="block relative">
                     {prod.imagen_url ? (
                       <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
                     ) : (
                       <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">📦</div>
+                    )}
+                    {prod.precio_oferta && prod.precio_oferta < prod.precio && (
+                      <span className="absolute top-1.5 left-1.5 bg-brand-orange text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        OFERTA
+                      </span>
+                    )}
+                    {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) <= 0 && (
+                      <span className="absolute top-1.5 right-1.5 bg-gray-700 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        Sin stock
+                      </span>
+                    )}
+                    {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) === 1 && (
+                      <span className="absolute top-1.5 right-1.5 bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        ¡Última unidad!
+                      </span>
                     )}
                   </Link>
 
@@ -149,8 +165,28 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-gray-50 flex flex-col gap-1.5">
-                  <span className="font-black text-sm text-brand-blue">${Number(prod.precio || 0).toLocaleString("es-AR")}</span>
-                  <button onClick={() => agregarAlCarrito(prod)} className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition">+ Agregar</button>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm text-brand-blue">
+                      ${Number((prod.precio_oferta && prod.precio_oferta < prod.precio ? prod.precio_oferta : prod.precio) || 0).toLocaleString("es-AR")}
+                    </span>
+                    {prod.precio_oferta && prod.precio_oferta < prod.precio && (
+                      <span className="text-[10px] text-gray-400 line-through">
+                        ${Number(prod.precio || 0).toLocaleString("es-AR")}
+                      </span>
+                    )}
+                  </div>
+                  {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) <= 0 ? (
+                    <a
+                      href={buildWhatsAppLink(whatsappProductMessage(prod))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full bg-gray-600 text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition text-center"
+                    >
+                      Consultar al vendedor
+                    </a>
+                  ) : (
+                    <button onClick={() => agregarAlCarrito(prod)} className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition">+ Agregar</button>
+                  )}
                 </div>
               </div>
             ))}
