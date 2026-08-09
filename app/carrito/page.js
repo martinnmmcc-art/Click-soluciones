@@ -66,7 +66,8 @@ export default function CarritoPage() {
                         </span>
                         <button
                           onClick={() => updateQuantity(item.id, item.cantidad + 1)}
-                          className="px-2 py-1 text-gray-600 hover:bg-gray-50"
+                          disabled={item.stock !== null && item.stock !== undefined && item.cantidad >= Number(item.stock)}
+                          className="px-2 py-1 text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed"
                         >
                           +
                         </button>
@@ -78,6 +79,11 @@ export default function CarritoPage() {
                         Eliminar
                       </button>
                     </div>
+                    {item.stock !== null && item.stock !== undefined && item.cantidad >= Number(item.stock) && (
+                      <p className="text-[11px] text-orange-600 font-semibold mt-1">
+                        Llegaste al stock disponible ({item.stock})
+                      </p>
+                    )}
                   </div>
 
                   <div className="text-sm font-bold text-gray-700 whitespace-nowrap">
