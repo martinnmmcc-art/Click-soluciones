@@ -67,11 +67,17 @@ function envolverTexto(font, texto, size, maxWidth) {
   return lineas;
 }
 
+// La fuente estándar del PDF solo soporta caracteres Latin1 (incluye tildes y ñ).
+// Sacamos emojis y cualquier otro símbolo raro para que nunca rompa la generación.
+function limpiarTexto(texto) {
+  return (texto || "").replace(/[^\x00-\xFF]/g, "").replace(/\s+/g, " ").trim();
+}
+
 export async function GET(request) {
  try {
   const { searchParams } = new URL(request.url);
   const idsParam = searchParams.get("ids") || "";
-  const titulo = searchParams.get("titulo") || "Catálogo Bolson Click";
+  const titulo = limpiarTexto(searchParams.get("titulo")) || "Catalogo Bolson Click";
   const fotos = searchParams.get("fotos") || "principal";
   const mostrarPrecio = searchParams.get("precio") !== "0";
   const mostrarStock = searchParams.get("stock") !== "0";
@@ -194,15 +200,17 @@ export async function GET(request) {
     let textY = y - IMG_H - 15;
 
     // nombre (hasta 2 lineas)
-    const nombreLineas = envolverTexto(fontBold, prod.nombre || "", 9, CARD_W - 10).slice(0, 2);
+    const nombreLimpio = limpiarTexto(prod.nombre);
+    const nombreLineas = envolverTexto(fontBold, nombreLimpio, 9, CARD_W - 10).slice(0, 2);
     for (const l of nombreLineas) {
       page.drawText(l, { x: x + 5, y: textY, size: 9, font: fontBold, color: NEGRO });
       textY -= 11;
     }
 
     // descripcion (hasta 2 lineas)
-    if (mostrarDescripcion && prod.descripcion) {
-      const descLineas = envolverTexto(fontRegular, prod.descripcion, 7.5, CARD_W - 10).slice(0, 2);
+    const descLimpia = limpiarTexto(prod.descripcion);
+    if (mostrarDescripcion && descLimpia) {
+      const descLineas = envolverTexto(fontRegular, descLimpia, 7.5, CARD_W - 10).slice(0, 2);
       for (const l of descLineas) {
         page.drawText(l, { x: x + 5, y: textY, size: 7.5, font: fontRegular, color: GRIS });
         textY -= 9;
