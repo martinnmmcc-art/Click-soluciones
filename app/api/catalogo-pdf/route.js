@@ -3,6 +3,9 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import sharp from "sharp";
 import { createClient } from "@supabase/supabase-js";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -27,15 +30,19 @@ function money(n) {
   return "$" + Math.round(Number(n || 0)).toLocaleString("es-AR");
 }
 
-// Convierte cualquier imagen (webp/jpg/png) a PNG y la reduce, para poder incrustarla siempre igual
-async function bajarComoPng(url, maxWidth = 500) {
+// Convierte cualquier imagen (webp/jpg/png) a PNG y la reduce, para poder incrustarla siempre igual.
+// Tiene un límite de tiempo propio (6s) para que una sola foto lenta no cuelgue todo el PDF.
+async function bajarComoPng(url, maxWidth = 380) {
   try {
-    const res = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
     const png = await sharp(buffer)
       .resize({ width: maxWidth, withoutEnlargement: true })
-      .png()
+      .png({ compressionLevel: 8 })
       .toBuffer();
     return png;
   } catch (e) {
@@ -61,6 +68,7 @@ function envolverTexto(font, texto, size, maxWidth) {
 }
 
 export async function GET(request) {
+ try {
   const { searchParams } = new URL(request.url);
   const idsParam = searchParams.get("ids") || "";
   const titulo = searchParams.get("titulo") || "Catálogo Bolson Click";
@@ -86,6 +94,14 @@ export async function GET(request) {
   const productos = ids
     .map((id) => productosData.find((p) => String(p.id) === String(id)))
     .filter(Boolean);
+
+  // Bajamos y convertimos TODAS las fotos en simultáneo antes de armar el PDF (mucho más rápido)
+  const imagenesPng = await Promise.all(
+    productos.map((prod) => {
+      const imagenUrl = fotos === "todas" ? (prod.imagen_url || prod.imagen_url_2) : prod.imagen_url;
+      return imagenUrl ? bajarComoPng(imagenUrl) : Promise.resolve(null);
+    })
+  );
 
   const pdfDoc = await PDFDocument.create();
   const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -137,7 +153,10 @@ export async function GET(request) {
   let col = 0;
   let filaY = cursorY;
 
-  for (const prod of productos) {
+  for (let i = 0; i < productos.length; i++) {
+    const prod = productos[i];
+    const png = imagenesPng[i];
+
     if (col === 0) {
       if (filaY - CARD_H < MARGIN) {
         nuevaPagina();
@@ -154,25 +173,21 @@ export async function GET(request) {
       borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 1
     });
 
-    // imagen
-    const imagenUrl = fotos === "todas" ? (prod.imagen_url || prod.imagen_url_2) : prod.imagen_url;
-    if (imagenUrl) {
-      const png = await bajarComoPng(imagenUrl);
-      if (png) {
-        try {
-          const img = await pdfDoc.embedPng(png);
-          const escala = Math.min((CARD_W - 10) / img.width, (IMG_H - 10) / img.height);
-          const w = img.width * escala;
-          const h = img.height * escala;
-          page.drawImage(img, {
-            x: x + (CARD_W - w) / 2,
-            y: y - 5 - h,
-            width: w,
-            height: h
-          });
-        } catch (e) {
-          // si falla la imagen puntual, seguimos sin romper el resto del PDF
-        }
+    // imagen (ya descargada y convertida antes del loop)
+    if (png) {
+      try {
+        const img = await pdfDoc.embedPng(png);
+        const escala = Math.min((CARD_W - 10) / img.width, (IMG_H - 10) / img.height);
+        const w = img.width * escala;
+        const h = img.height * escala;
+        page.drawImage(img, {
+          x: x + (CARD_W - w) / 2,
+          y: y - 5 - h,
+          width: w,
+          height: h
+        });
+      } catch (e) {
+        // si falla la imagen puntual, seguimos sin romper el resto del PDF
       }
     }
 
@@ -239,4 +254,11 @@ export async function GET(request) {
       "Content-Disposition": `inline; filename="catalogo-bolson-click.pdf"`
     }
   });
+ } catch (err) {
+    console.error("Error generando PDF del catálogo:", err);
+    return NextResponse.json(
+      { error: "No se pudo generar el PDF", detalle: err?.message || String(err) },
+      { status: 500 }
+    );
+ }
 }
