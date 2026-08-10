@@ -65,6 +65,23 @@ function ArmarCatalogo() {
     setCopiado(false);
   }
 
+  function construirParams() {
+    const params = new URLSearchParams();
+    params.set("ids", seleccionados.join(","));
+    params.set("titulo", titulo || "Catálogo Bolson Click");
+    params.set("fotos", fotos);
+    params.set("precio", mostrarPrecio ? "1" : "0");
+    params.set("stock", mostrarStock ? "1" : "0");
+    params.set("desc", mostrarDescripcion ? "1" : "0");
+    return params;
+  }
+
+  function descargarPdf() {
+    if (seleccionados.length === 0) return;
+    const params = construirParams();
+    window.open(`/api/catalogo-pdf?${params.toString()}`, "_blank");
+  }
+
   async function compartir() {
     if (!linkGenerado) return;
     const texto = `Te comparto nuestro catálogo de Bolson Click 🛍️`;
@@ -211,13 +228,22 @@ function ArmarCatalogo() {
           )}
         </div>
 
-        <button
-          onClick={generarLink}
-          disabled={seleccionados.length === 0}
-          className="btn-primary w-full disabled:opacity-40"
-        >
-          Generar catálogo ({seleccionados.length} productos)
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={generarLink}
+            disabled={seleccionados.length === 0}
+            className="btn-primary flex-1 disabled:opacity-40"
+          >
+            🔗 Generar link
+          </button>
+          <button
+            onClick={descargarPdf}
+            disabled={seleccionados.length === 0}
+            className="btn-secondary flex-1 disabled:opacity-40"
+          >
+            📄 Descargar PDF
+          </button>
+        </div>
 
         {linkGenerado && (
           <div className="card p-4 mt-4 space-y-3">
