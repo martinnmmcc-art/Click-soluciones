@@ -12,7 +12,7 @@ function Dashboard() {
       <div className="container-app px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="font-extrabold text-xl text-gray-800">
-            Panel de Clic Soluciones
+            Panel de Bolson Click
           </h1>
           <button onClick={logout} className="text-sm text-red-500 font-medium">
             Salir
@@ -28,6 +28,16 @@ function Dashboard() {
               </p>
             </div>
             <span className="text-2xl">📦</span>
+          </Link>
+
+          <Link href="/admin/compartir-catalogo" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Compartir catálogo</p>
+              <p className="text-sm text-gray-500">
+                Armá un catálogo con los productos que quieras y compartilo por WhatsApp
+              </p>
+            </div>
+            <span className="text-2xl">📤</span>
           </Link>
 
           <Link href="/" className="card p-5 flex items-center justify-between hover:shadow-md">
