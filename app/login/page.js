@@ -50,14 +50,6 @@ export default function LoginPage() {
   const [localidad, setLocalidad] = useState("");
   const [esRegistro, setEsRegistro] = useState(false);
 
-  const [emailVerificacion, setEmailVerificacion] = useState("");
-  const [codigoIngresado, setCodigoIngresado] = useState("");
-  const [codigoEnviado, setCodigoEnviado] = useState(false);
-  const [emailVerificado, setEmailVerificado] = useState(false);
-  const [enviandoCodigo, setEnviandoCodigo] = useState(false);
-  const [verificandoCodigo, setVerificandoCodigo] = useState(false);
-  const [errorVerificacion, setErrorVerificacion] = useState("");
-
   const [emailPerfil, setEmailPerfil] = useState("");
   const [direccionPerfil, setDireccionPerfil] = useState("");
   const [editandoPerfil, setEditandoPerfil] = useState(false);
@@ -142,10 +134,6 @@ export default function LoginPage() {
       setError("Ingresá tu nombre y apellido para registrarte.");
       return;
     }
-    if (!emailVerificado) {
-      setError("Verificá tu correo con el código antes de completar el registro.");
-      return;
-    }
     if (clienteExistente) {
       setError("Este número ya está registrado. Iniciá sesión normalmente.");
       return;
@@ -156,7 +144,7 @@ export default function LoginPage() {
       password: passLimpio,
       nombre: nombre.trim(),
       localidad: localidad.trim(),
-      email: emailVerificacion.trim(),
+      email: "",
       direccion: ""
     };
 
@@ -189,64 +177,6 @@ export default function LoginPage() {
       window.location.href = "/admin/productos";
     } else {
       window.location.href = "/";
-    }
-  }
-
-  async function enviarCodigo() {
-    setErrorVerificacion("");
-    if (!emailVerificacion.trim() || !emailVerificacion.includes("@")) {
-      setErrorVerificacion("Ingresá un correo válido.");
-      return;
-    }
-    if (!identificador.trim()) {
-      setErrorVerificacion("Ingresá primero tu celular.");
-      return;
-    }
-    if (!validarCelular(identificador.trim())) {
-      setErrorVerificacion("Ese celular no parece válido, revisá que sean solo números (ej: 2944123456).");
-      return;
-    }
-    setEnviandoCodigo(true);
-    try {
-      const res = await fetch("/api/verificacion/enviar-codigo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telefono: identificador.trim(), email: emailVerificacion.trim() })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "No se pudo enviar el código");
-      setCodigoEnviado(true);
-    } catch (e) {
-      setErrorVerificacion(e.message);
-    } finally {
-      setEnviandoCodigo(false);
-    }
-  }
-
-  async function confirmarCodigo() {
-    setErrorVerificacion("");
-    if (!codigoIngresado.trim()) {
-      setErrorVerificacion("Ingresá el código que te llegó por correo.");
-      return;
-    }
-    setVerificandoCodigo(true);
-    try {
-      const res = await fetch("/api/verificacion/confirmar-codigo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          telefono: identificador.trim(),
-          email: emailVerificacion.trim(),
-          codigo: codigoIngresado.trim()
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Código incorrecto");
-      setEmailVerificado(true);
-    } catch (e) {
-      setErrorVerificacion(e.message);
-    } finally {
-      setVerificandoCodigo(false);
     }
   }
 
@@ -541,13 +471,13 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div>
             <label className="text-sm font-medium text-gray-700 block mb-1">
-              Celular o correo electrónico
+              Celular
             </label>
             <input
               value={identificador}
               onChange={(e) => setIdentificador(e.target.value)}
               className="input-field"
-              placeholder="Ej: 2944123456 o tucorreo@gmail.com"
+              placeholder="Ej: 2944123456"
               autoComplete="username"
               required
             />
@@ -591,81 +521,11 @@ export default function LoginPage() {
                   placeholder="Ej: El Bolsón"
                 />
               </div>
-
-              <div className="border-t border-blue-200 pt-3">
-                <p className="text-xs font-bold text-gray-700 mb-2">
-                  Verificá tu correo (así confirmamos que sos vos)
-                </p>
-
-                {emailVerificado ? (
-                  <p className="text-xs text-green-700 font-semibold bg-green-50 border border-green-200 rounded-lg p-2 text-center">
-                    ✓ Correo verificado
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    <input
-                      type="email"
-                      value={emailVerificacion}
-                      onChange={(e) => {
-                        setEmailVerificacion(e.target.value);
-                        setCodigoEnviado(false);
-                      }}
-                      className="input-field bg-white"
-                      placeholder="tucorreo@gmail.com"
-                      disabled={codigoEnviado}
-                    />
-
-                    {!codigoEnviado ? (
-                      <button
-                        type="button"
-                        onClick={enviarCodigo}
-                        disabled={enviandoCodigo}
-                        className="btn-secondary w-full text-xs py-2 disabled:opacity-50"
-                      >
-                        {enviandoCodigo ? "Enviando..." : "Enviar código"}
-                      </button>
-                    ) : (
-                      <>
-                        <input
-                          value={codigoIngresado}
-                          onChange={(e) => setCodigoIngresado(e.target.value)}
-                          className="input-field bg-white text-center tracking-widest font-bold"
-                          placeholder="Código de 6 dígitos"
-                          inputMode="numeric"
-                          maxLength={6}
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={confirmarCodigo}
-                            disabled={verificandoCodigo}
-                            className="btn-primary flex-1 text-xs py-2 disabled:opacity-50"
-                          >
-                            {verificandoCodigo ? "Verificando..." : "Confirmar código"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={enviarCodigo}
-                            disabled={enviandoCodigo}
-                            className="text-xs font-medium text-brand-blue px-2"
-                          >
-                            Reenviar
-                          </button>
-                        </div>
-                      </>
-                    )}
-
-                    {errorVerificacion && (
-                      <p className="text-xs text-red-600 font-medium">{errorVerificacion}</p>
-                    )}
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
           <button
-            disabled={loading || (esRegistro && !esCorreo && !emailVerificado)}
+            disabled={loading}
             className="btn-primary mt-2 disabled:opacity-50"
           >
             {loading
