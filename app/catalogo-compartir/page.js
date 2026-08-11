@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
@@ -92,6 +93,18 @@ function CatalogoCompartirContent() {
         >
           💬 Escribinos por WhatsApp
         </a>
+
+        <div className="mt-3 bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-gray-700">
+            💡 Registrate en la app para ver todo el catálogo, precios y comprar online.
+          </p>
+          <Link
+            href="/login"
+            className="text-xs font-bold text-white bg-brand-blue px-3 py-1.5 rounded-lg whitespace-nowrap"
+          >
+            Registrarme
+          </Link>
+        </div>
       </div>
 
       {/* PRODUCTOS */}
@@ -183,12 +196,15 @@ function CatalogoCompartirContent() {
       </div>
 
       <div className="max-w-md mx-auto px-4 mt-8 text-center">
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-gray-400 mb-3">
           Ver todo el catálogo y comprar online en{" "}
           <a href="https://www.bolsonclick.com.ar" target="_blank" rel="noopener noreferrer" className="text-brand-blue font-semibold underline">
             www.bolsonclick.com.ar
           </a>
         </p>
+        <Link href="/login" className="inline-block text-sm font-bold text-white bg-brand-blue px-5 py-2.5 rounded-xl">
+          Registrarme y comprar
+        </Link>
       </div>
     </main>
   );
