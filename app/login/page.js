@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { ADMIN_EMAILS } from "@/context/AdminContext";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import { suscribirPush } from "@/lib/push";
 
 const OPCIONES_ENTREGA_LABEL = {
   pendiente: "Pendiente",
@@ -71,6 +72,12 @@ export default function LoginPage() {
 
   const esCorreo = identificador.includes("@");
 
+  function validarCelular(tel) {
+    const limpio = (tel || "").replace(/[\s\-()]/g, "");
+    // Celular argentino: solo números, entre 10 y 13 dígitos (con o sin 54/9 adelante)
+    return /^\d{10,13}$/.test(limpio);
+  }
+
   useEffect(() => {
     const sesionStr = localStorage.getItem("cliente_sesion");
     if (sesionStr) {
@@ -109,6 +116,11 @@ export default function LoginPage() {
   async function handleLoginCelular() {
     const telLimpio = identificador.trim();
     const passLimpio = password.trim();
+
+    if (esRegistro && !validarCelular(telLimpio)) {
+      setError("Ingresá un celular válido, solo números (ej: 2944123456).");
+      return;
+    }
 
     const { data: clienteExistente } = await supabase
       .from("clientes")
@@ -156,6 +168,9 @@ export default function LoginPage() {
 
     localStorage.setItem("cliente_sesion", JSON.stringify(nuevoCliente));
     setSesionActiva(nuevoCliente);
+
+    // Apenas se registra, le pedimos el permiso de notificaciones una sola vez (no bloqueante)
+    suscribirPush(telLimpio).catch(() => {});
   }
 
   // Login de ADMIN (correo + contraseña, Supabase Auth)
@@ -185,6 +200,10 @@ export default function LoginPage() {
     }
     if (!identificador.trim()) {
       setErrorVerificacion("Ingresá primero tu celular.");
+      return;
+    }
+    if (!validarCelular(identificador.trim())) {
+      setErrorVerificacion("Ese celular no parece válido, revisá que sean solo números (ej: 2944123456).");
       return;
     }
     setEnviandoCodigo(true);
