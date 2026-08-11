@@ -1,85 +1,74 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; i++) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
+import { pushSoportado, suscribirPush, desuscribirPush, estaSuscripto } from "@/lib/push";
 
 export default function ActivarNotificaciones({ telefono }) {
-  const [estado, setEstado] = useState("cargando"); // cargando | disponible | activo | no-soportado | error
+  const [soportado, setSoportado] = useState(true);
+  const [activo, setActivo] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
 
   useEffect(() => {
     async function chequear() {
-      if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) {
-        setEstado("no-soportado");
+      if (!pushSoportado()) {
+        setSoportado(false);
+        setCargando(false);
         return;
       }
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.getSubscription();
-        setEstado(sub ? "activo" : "disponible");
-      } catch (e) {
-        setEstado("error");
-      }
+      setActivo(await estaSuscripto());
+      setBloqueado(typeof Notification !== "undefined" && Notification.permission === "denied");
+      setCargando(false);
     }
     chequear();
   }, []);
 
-  async function activar() {
+  async function toggle() {
     setProcesando(true);
     try {
-      const permiso = await Notification.requestPermission();
-      if (permiso !== "granted") {
-        setProcesando(false);
-        return;
+      if (activo) {
+        await desuscribirPush();
+        setActivo(false);
+      } else {
+        const res = await suscribirPush(telefono);
+        if (res.ok) {
+          setActivo(true);
+        } else if (res.motivo === "denegado") {
+          setBloqueado(true);
+        }
       }
-
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
-      });
-
-      await fetch("/api/push/suscribir", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subscription: sub, telefono: telefono || null })
-      });
-
-      setEstado("activo");
-    } catch (e) {
-      setEstado("error");
     } finally {
       setProcesando(false);
     }
   }
 
-  if (estado === "no-soportado" || estado === "cargando") return null;
-
-  if (estado === "activo") {
-    return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-xs text-green-700 font-semibold text-center">
-        🔔 Notificaciones activadas — te avisamos de ofertas y novedades
-      </div>
-    );
-  }
+  if (!soportado || cargando) return null;
 
   return (
-    <button
-      onClick={activar}
-      disabled={procesando}
-      className="w-full bg-brand-blue text-white text-sm font-bold py-2.5 rounded-xl shadow-sm disabled:opacity-50"
-    >
-      {procesando ? "Activando..." : "🔔 Activar notificaciones de ofertas"}
-    </button>
+    <div className="bg-white border border-gray-100 rounded-xl p-3 flex items-center justify-between gap-3 shadow-sm">
+      <div>
+        <p className="text-sm font-semibold text-gray-800">🔔 Notificaciones</p>
+        <p className="text-xs text-gray-500">
+          {bloqueado
+            ? "Las bloqueaste desde el navegador. Habilitalas en Configuración del sitio para recibir avisos."
+            : activo
+            ? "Vas a recibir avisos de ofertas y novedades"
+            : "Activalas para enterarte de ofertas y novedades"}
+        </p>
+      </div>
+      {!bloqueado && (
+        <button
+          onClick={toggle}
+          disabled={procesando}
+          className={`relative w-12 h-7 rounded-full transition flex-shrink-0 ${activo ? "bg-brand-blue" : "bg-gray-300"} disabled:opacity-50`}
+          aria-label="Activar o desactivar notificaciones"
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform ${activo ? "translate-x-5" : ""}`}
+          />
+        </button>
+      )}
+    </div>
   );
 }
