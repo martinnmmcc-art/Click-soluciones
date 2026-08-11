@@ -9,8 +9,10 @@ export default function AuthGuard({ children }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Si estamos en el login, no validamos nada
-    if (pathname.startsWith("/login")) return;
+    // Rutas públicas: no se valida sesión acá.
+    // /login: la propia pantalla de login.
+    // /catalogo-compartir: el catálogo que se comparte por WhatsApp, debe verse sin registrarse.
+    if (pathname.startsWith("/login") || pathname.startsWith("/catalogo-compartir")) return;
 
     // Verificación instantánea de sesión local (Cliente o Admin)
     const sesionCliente = typeof window !== "undefined"
