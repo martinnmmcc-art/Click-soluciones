@@ -41,7 +41,7 @@ export async function POST(request) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM || "Bolson Click <onboarding@resend.dev>",
+        from: process.env.RESEND_FROM || "Bolson Click <verificacion@bolsonclick.com.ar>",
         to: [email],
         subject: `Tu código de verificación: ${codigo}`,
         html: `<div style="font-family:sans-serif;max-width:400px;margin:0 auto">
