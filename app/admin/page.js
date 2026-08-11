@@ -30,6 +30,16 @@ function Dashboard() {
             <span className="text-2xl">📦</span>
           </Link>
 
+          <Link href="/admin/clientes" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Clientes</p>
+              <p className="text-sm text-gray-500">
+                Ver quién se registró y agregar clientes a mano
+              </p>
+            </div>
+            <span className="text-2xl">👥</span>
+          </Link>
+
           <Link href="/admin/compartir-catalogo" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Compartir catálogo</p>
