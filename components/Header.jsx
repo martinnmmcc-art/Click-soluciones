@@ -7,14 +7,19 @@ import { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAdmin } from "@/context/AdminContext";
 
-export default function Header({ showSearch = true, initialQuery = "" }) {
-  const [query, setQuery] = useState(initialQuery);
+export default function Header({ showSearch = true, initialQuery = "", busqueda, setBusqueda }) {
+  const esControlado = typeof setBusqueda === "function";
+  const [queryInterno, setQueryInterno] = useState(initialQuery);
+  const query = esControlado ? busqueda : queryInterno;
+  const setQuery = esControlado ? setBusqueda : setQueryInterno;
+
   const { cantidadTotal } = useCart();
   const { isAdmin } = useAdmin();
   const router = useRouter();
 
   function handleSearch(e) {
     e.preventDefault();
+    if (esControlado) return; // ya filtra en vivo en la misma página, no hace falta navegar
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     router.push(`/catalogo?${params.toString()}`);
