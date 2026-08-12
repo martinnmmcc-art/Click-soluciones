@@ -223,6 +223,11 @@ function PanelVentas() {
 
   async function agregarProductoAPedido(pedidoId, producto) {
     try {
+      const precioAUsar =
+        producto.precio_oferta && Number(producto.precio_oferta) < Number(producto.precio)
+          ? producto.precio_oferta
+          : producto.precio;
+
       const res = await fetch("/api/admin/pedidos/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -230,7 +235,7 @@ function PanelVentas() {
           pedido_id: pedidoId,
           producto_id: producto.id,
           nombre_producto: producto.nombre,
-          precio_unitario: producto.precio,
+          precio_unitario: precioAUsar,
           cantidad: 1,
         }),
       });
@@ -373,6 +378,11 @@ function PanelVentas() {
   }
 
   function agregarItemNuevo(producto) {
+    const precioAUsar =
+      producto.precio_oferta && Number(producto.precio_oferta) < Number(producto.precio)
+        ? producto.precio_oferta
+        : producto.precio;
+
     setNuevoItems((prev) => {
       const existente = prev.find((i) => i.producto_id === producto.id);
       if (existente) {
@@ -387,9 +397,9 @@ function PanelVentas() {
         {
           producto_id: producto.id,
           nombre_producto: producto.nombre,
-          precio_unitario: producto.precio,
+          precio_unitario: precioAUsar,
           cantidad: 1,
-          subtotal: producto.precio,
+          subtotal: precioAUsar,
         },
       ];
     });
@@ -673,7 +683,10 @@ function PanelVentas() {
                       >
                         <span className="text-gray-700">
                           {p.nombre}{" "}
-                          <span className="text-gray-400">(${formatPrice(p.precio || 0)})</span>
+                          <span className="text-gray-400">
+                            (${formatPrice(p.precio_oferta && Number(p.precio_oferta) < Number(p.precio) ? p.precio_oferta : p.precio || 0)}
+                            {p.precio_oferta && Number(p.precio_oferta) < Number(p.precio) && " · oferta"})
+                          </span>
                         </span>
                         <button
                           onClick={() => agregarItemNuevo(p)}
@@ -1207,7 +1220,8 @@ function PanelVentas() {
                                 <span className="text-gray-700">
                                   {p.nombre}{" "}
                                   <span className="text-gray-400">
-                                    (${formatPrice(p.precio || 0)})
+                                    (${formatPrice(p.precio_oferta && Number(p.precio_oferta) < Number(p.precio) ? p.precio_oferta : p.precio || 0)}
+                                    {p.precio_oferta && Number(p.precio_oferta) < Number(p.precio) && " · oferta"})
                                   </span>
                                 </span>
                                 <button
