@@ -114,6 +114,15 @@ export default function ProductoDetallePage() {
     <main className="pb-12">
       <Header showSearch={false} />
 
+      <div className="max-w-2xl mx-auto px-4 mt-3">
+        <button
+          onClick={() => router.back()}
+          className="text-sm font-semibold text-brand-blue flex items-center gap-1"
+        >
+          ← Volver
+        </button>
+      </div>
+
       {/* GALERÍA DE IMÁGENES */}
       <div className="max-w-2xl mx-auto px-4 mt-4">
         <div className="relative w-full aspect-square bg-gray-100 rounded-2xl overflow-hidden border border-gray-100 flex items-center justify-center">
