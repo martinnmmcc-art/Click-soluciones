@@ -25,6 +25,7 @@ export default function HomePage() {
         const { data: prodData, error: prodError } = await supabase
           .from("Productos")
           .select("*")
+          .or("bajo_pedido.is.null,bajo_pedido.eq.false")
           .order("id", { ascending: true });
 
         if (prodError) {
@@ -84,6 +85,17 @@ export default function HomePage() {
       )}
 
       <BannerOfertas />
+
+      <div className="max-w-md mx-auto px-4 mt-3">
+        <Link
+          href="/a-pedido"
+          className="block bg-purple-50 border border-purple-200 rounded-xl py-2.5 px-3 text-center"
+        >
+          <span className="text-[12px] text-purple-800 font-bold">
+            🛍️ ¿No lo encontrás? Mirá los productos a pedido →
+          </span>
+        </Link>
+      </div>
 
       <div className="max-w-md mx-auto px-4 mt-3">
         <p className="text-[11px] text-gray-500 text-center bg-gray-100 rounded-full py-1.5 px-3">
