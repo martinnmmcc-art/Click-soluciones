@@ -20,6 +20,7 @@ export default function CatalogoPage() {
         const { data: prodData, error: prodError } = await supabase
           .from("Productos")
           .select("*")
+          .or("bajo_pedido.is.null,bajo_pedido.eq.false")
           .order("id", { ascending: true });
 
         if (prodError) console.error("Error en Productos:", prodError.message);
