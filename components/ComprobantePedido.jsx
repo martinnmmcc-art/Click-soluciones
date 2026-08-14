@@ -66,7 +66,7 @@ export default function ComprobantePedido({ pedido, onClose }) {
     const alturaTablaHeader = 50;
     const alturaItems = Math.max(items.length * 46, lineasProductos * 30 + items.length * 16);
     const alturaTotales = tieneDescuento ? 160 : 110;
-    const alturaFooter = 175;
+    const alturaFooter = 250;
     const margenes = 100;
 
     const height =
@@ -254,25 +254,37 @@ export default function ComprobantePedido({ pedido, onClose }) {
     ctx.stroke();
     y += 26;
 
-    drawRoundedRect(ctx, pad + 30, y, width - pad * 2 - 60, 76, 14);
-    ctx.fillStyle = "#F0FDF4";
+    drawRoundedRect(ctx, pad + 30, y, width - pad * 2 - 60, 95, 14);
+    ctx.fillStyle = "#F97316";
     ctx.fill();
 
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#166534";
-    ctx.font = "700 15px Arial";
-    ctx.fillText("💳 Transferencia · Alias: bolsonclick (Tarjeta Naranja)", pad + 50, y + 30);
-    ctx.font = "400 14px Arial";
-    ctx.fillStyle = "#15803D";
-    ctx.fillText("📱 WhatsApp: 2944 396888", pad + 50, y + 56);
-
-    y += 76 + 24;
-
     ctx.textAlign = "center";
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "600 13px Arial";
+    ctx.fillText("PAGO POR TRANSFERENCIA · ALIAS", width / 2, y + 26);
+
+    ctx.font = "800 30px Arial";
+    ctx.fillText("bolsonclick", width / 2, y + 62);
+
+    ctx.font = "600 14px Arial";
+    ctx.fillText("Tarjeta Naranja", width / 2, y + 84);
+
+    y += 95 + 22;
+
+    ctx.fillStyle = "#334155";
+    ctx.font = "700 15px Arial";
+    ctx.fillText("📱 WhatsApp: 2944 396888", width / 2, y);
+    y += 26;
+
     ctx.fillStyle = "#64748B";
     ctx.font = "600 13px Arial";
     ctx.fillText("🚚 Hacemos envíos  ·  🤝 Entregas en punto de encuentro", width / 2, y);
-    y += 20;
+    y += 22;
+
+    ctx.fillStyle = "#1560D4";
+    ctx.font = "700 14px Arial";
+    ctx.fillText("🌐 www.bolsonclick.com.ar · Productos importados", width / 2, y);
+    y += 22;
 
     ctx.fillStyle = "#94A3B8";
     ctx.font = "400 13px Arial";
