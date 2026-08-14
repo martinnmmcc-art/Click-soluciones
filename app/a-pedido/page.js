@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
@@ -55,7 +56,7 @@ export default function APedidoPage() {
             {productos.map((prod) => (
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>
-                  <div className="relative">
+                  <Link href={`/a-pedido/${prod.id}`} className="block relative">
                     {prod.imagen_url ? (
                       <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
                     ) : (
@@ -64,10 +65,10 @@ export default function APedidoPage() {
                     <span className="absolute top-1.5 left-1.5 bg-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
                       A PEDIDO
                     </span>
-                  </div>
+                  </Link>
 
                   <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
-                    {prod.nombre}
+                    <Link href={`/a-pedido/${prod.id}`}>{prod.nombre}</Link>
                   </h3>
 
                   {prod.descripcion && (
