@@ -66,7 +66,7 @@ export default function ComprobantePedido({ pedido, onClose }) {
     const alturaTablaHeader = 50;
     const alturaItems = Math.max(items.length * 46, lineasProductos * 30 + items.length * 16);
     const alturaTotales = tieneDescuento ? 160 : 110;
-    const alturaFooter = 100;
+    const alturaFooter = 175;
     const margenes = 100;
 
     const height =
@@ -246,15 +246,45 @@ export default function ComprobantePedido({ pedido, onClose }) {
 
     y += 100;
 
+    ctx.strokeStyle = "#E2E8F0";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad + 30, y);
+    ctx.lineTo(width - pad - 30, y);
+    ctx.stroke();
+    y += 26;
+
+    drawRoundedRect(ctx, pad + 30, y, width - pad * 2 - 60, 76, 14);
+    ctx.fillStyle = "#F0FDF4";
+    ctx.fill();
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#166534";
+    ctx.font = "700 15px Arial";
+    ctx.fillText("💳 Transferencia · Alias: bolsonclick (Tarjeta Naranja)", pad + 50, y + 30);
+    ctx.font = "400 14px Arial";
+    ctx.fillStyle = "#15803D";
+    ctx.fillText("📱 WhatsApp: 2944 396888", pad + 50, y + 56);
+
+    y += 76 + 24;
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#64748B";
+    ctx.font = "600 13px Arial";
+    ctx.fillText("🚚 Hacemos envíos  ·  🤝 Entregas en punto de encuentro", width / 2, y);
+    y += 20;
+
     ctx.fillStyle = "#94A3B8";
     ctx.font = "400 13px Arial";
-    ctx.textAlign = "center";
     ctx.fillText(
       "Este presupuesto es informativo. Consultanos por cualquier duda 😊",
       width / 2,
       y
     );
-    ctx.fillText("Bolson Click · El Bolsón", width / 2, y + 20);
+    y += 20;
+    ctx.font = "700 13px Arial";
+    ctx.fillStyle = "#64748B";
+    ctx.fillText("Bolson Click · El Bolsón, Río Negro", width / 2, y);
     ctx.textAlign = "left";
 
     setGenerando(false);
