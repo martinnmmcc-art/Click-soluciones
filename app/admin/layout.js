@@ -8,6 +8,7 @@ const SECCIONES = [
   { href: "/admin/productos", label: "📦 Productos" },
   { href: "/admin/pedidos", label: "📊 Ventas" },
   { href: "/admin/clientes", label: "👥 Clientes" },
+  { href: "/admin/a-pedido", label: "🛍️ A pedido" },
   { href: "/admin/compartir-catalogo", label: "📤 Catálogo" },
   { href: "/admin/notificaciones", label: "🔔 Avisos" }
 ];
