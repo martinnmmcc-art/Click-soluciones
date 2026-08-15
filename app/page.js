@@ -94,6 +94,8 @@ export default function HomePage() {
     return coincideCategoria && coincideBusqueda;
   });
 
+  const destacados = productos.filter((p) => p.destacado);
+
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
       <Header busqueda={busqueda} setBusqueda={setBusqueda} showSearch={true} />
@@ -122,6 +124,42 @@ export default function HomePage() {
           🚚 Envíos a El Bolsón y la Comarca Andina — coordinamos transporte local o punto de encuentro
         </p>
       </div>
+
+      {destacados.length > 0 && (
+        <div className="mt-5">
+          <div className="max-w-md mx-auto px-4 flex items-center gap-1.5 mb-2">
+            <span className="text-lg">⭐</span>
+            <h2 className="font-extrabold text-gray-800 text-sm">Destacados</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
+            {destacados.map((prod) => {
+              const tieneOferta = prod.precio_oferta && Number(prod.precio_oferta) < Number(prod.precio);
+              return (
+                <Link
+                  key={prod.id}
+                  href={`/producto/${prod.id}`}
+                  className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-amber-200 shadow-sm"
+                >
+                  <div className="relative">
+                    {prod.imagen_url ? (
+                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
+                    ) : (
+                      <div className="w-full h-24 bg-gray-100 rounded-xl mb-1.5 flex items-center justify-center text-gray-400 text-xl">📦</div>
+                    )}
+                    <span className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+                      ⭐ DESTACADO
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</p>
+                  <p className="text-xs font-black text-brand-blue mt-1">
+                    ${Number((tieneOferta ? prod.precio_oferta : prod.precio) || 0).toLocaleString("es-AR")}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {masVendidos.length > 0 && (
         <div className="mt-5">
