@@ -52,3 +52,24 @@ body {
   background: #d1d5db;
   border-radius: 999px;
 }
+
+/* Bloquea selección de texto e imágenes para clientes (no aplica a admin) */
+.no-copiar {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+.no-copiar input,
+.no-copiar textarea {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  user-select: text;
+}
+.no-copiar img {
+  -webkit-touch-callout: none;
+  pointer-events: none;
+}
+.no-copiar a img,
+.no-copiar button img {
+  pointer-events: auto;
+}
