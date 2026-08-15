@@ -13,10 +13,24 @@ export default function HomePage() {
   const { addItem } = useCart();
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
+  const [masVendidos, setMasVendidos] = useState([]);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
   const [busqueda, setBusqueda] = useState("");
   const [loadingData, setLoadingData] = useState(true);
   const [mensajeCarrito, setMensajeCarrito] = useState("");
+
+  useEffect(() => {
+    async function cargarMasVendidos() {
+      try {
+        const res = await fetch("/api/mas-vendidos");
+        const data = await res.json();
+        if (res.ok) setMasVendidos(data.productos || []);
+      } catch (e) {
+        console.error("Error cargando más vendidos:", e);
+      }
+    }
+    cargarMasVendidos();
+  }, []);
 
   useEffect(() => {
     async function cargarDatos() {
@@ -58,6 +72,12 @@ export default function HomePage() {
     addItem(producto, 1);
     setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
     setTimeout(() => setMensajeCarrito(""), 2500);
+  }
+
+  function esNuevo(prod) {
+    if (!prod.created_at) return false;
+    const dias = (Date.now() - new Date(prod.created_at).getTime()) / (1000 * 60 * 60 * 24);
+    return dias <= 7;
   }
 
   const productosFiltrados = productos.filter((prod) => {
@@ -102,6 +122,42 @@ export default function HomePage() {
           🚚 Envíos a El Bolsón y la Comarca Andina — coordinamos transporte local o punto de encuentro
         </p>
       </div>
+
+      {masVendidos.length > 0 && (
+        <div className="mt-5">
+          <div className="max-w-md mx-auto px-4 flex items-center gap-1.5 mb-2">
+            <span className="text-lg">🔥</span>
+            <h2 className="font-extrabold text-gray-800 text-sm">Los más vendidos</h2>
+          </div>
+          <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
+            {masVendidos.map((prod) => {
+              const tieneOferta = prod.precio_oferta && Number(prod.precio_oferta) < Number(prod.precio);
+              return (
+                <Link
+                  key={prod.id}
+                  href={`/producto/${prod.id}`}
+                  className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm"
+                >
+                  <div className="relative">
+                    {prod.imagen_url ? (
+                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
+                    ) : (
+                      <div className="w-full h-24 bg-gray-100 rounded-xl mb-1.5 flex items-center justify-center text-gray-400 text-xl">📦</div>
+                    )}
+                    <span className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+                      🔥 TOP
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</p>
+                  <p className="text-xs font-black text-brand-blue mt-1">
+                    ${Number((tieneOferta ? prod.precio_oferta : prod.precio) || 0).toLocaleString("es-AR")}
+                  </p>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="max-w-md mx-auto px-4 mt-4">
         {categorias.length > 0 && (
@@ -151,6 +207,11 @@ export default function HomePage() {
                     {prod.precio_oferta && prod.precio_oferta < prod.precio && (
                       <span className="absolute top-1.5 left-1.5 bg-brand-orange text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
                         OFERTA
+                      </span>
+                    )}
+                    {!prod.precio_oferta && esNuevo(prod) && (
+                      <span className="absolute top-1.5 left-1.5 bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        NUEVO
                       </span>
                     )}
                     {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) <= 0 && (
