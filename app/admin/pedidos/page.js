@@ -13,6 +13,7 @@ const OPCIONES_ENTREGA = [
   { value: "demorado", label: "Demorado" },
   { value: "rechazado", label: "Rechazado" },
   { value: "esperando_stock", label: "Esperando stock" },
+  { value: "cancelado", label: "Cancelado (cliente)" },
 ];
 
 const OPCIONES_PAGO = [
@@ -29,6 +30,7 @@ const COLOR_ENTREGA = {
   demorado: "bg-orange-50 text-orange-700 border-orange-200",
   rechazado: "bg-red-50 text-red-700 border-red-200",
   esperando_stock: "bg-purple-50 text-purple-700 border-purple-200",
+  cancelado: "bg-gray-100 text-gray-500 border-gray-200",
 };
 
 const COLOR_PAGO = {
