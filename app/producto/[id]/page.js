@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import Header from "@/components/Header";
+import BotonFavorito from "@/components/BotonFavorito";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
 import { formatPrice, buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
@@ -195,9 +196,12 @@ export default function ProductoDetallePage() {
         <p className="text-xs uppercase tracking-wide text-brand-blue font-semibold">
           {nombreCategoria(producto.categoria)}
         </p>
-        <h1 className="text-2xl font-extrabold text-gray-800 mt-1">
-          {producto.nombre}
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-2xl font-extrabold text-gray-800 mt-1">
+            {producto.nombre}
+          </h1>
+          <BotonFavorito productoId={producto.id} className="w-10 h-10 flex-shrink-0 mt-1 border border-gray-100" />
+        </div>
 
         <div className="mt-2 flex items-center gap-3">
           <span className="text-2xl font-extrabold text-brand-blueDark">
