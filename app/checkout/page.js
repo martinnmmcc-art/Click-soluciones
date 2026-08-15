@@ -274,6 +274,17 @@ export default function CheckoutPage() {
                 </span>
               </label>
             </div>
+
+            {form.metodo_pago === "transferencia" && (
+              <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
+                <p className="text-[11px] text-orange-700 font-semibold">TRANSFERIR A ESTE ALIAS</p>
+                <p className="text-lg font-black text-orange-900 mt-0.5">bolsonclick</p>
+                <p className="text-xs text-orange-700">Tarjeta Naranja</p>
+                <p className="text-[11px] text-orange-600 mt-1.5">
+                  Te vamos a pedir el comprobante por WhatsApp para confirmar el pedido.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="card p-4 flex items-center justify-between">
