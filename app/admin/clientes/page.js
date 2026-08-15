@@ -167,6 +167,7 @@ function Clientes() {
                 <p className="text-xs text-gray-500 mt-0.5">📱 {c.telefono}</p>
                 {c.email && <p className="text-xs text-gray-500">✉️ {c.email}</p>}
                 {c.localidad && <p className="text-xs text-gray-500">📍 {c.localidad}</p>}
+                {c.referido_por && <p className="text-xs text-amber-700 font-semibold">🎁 Invitado por: {c.referido_por}</p>}
               </div>
             ))}
           </div>
