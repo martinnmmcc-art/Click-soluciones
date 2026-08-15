@@ -6,6 +6,7 @@ import { AdminProvider } from "@/context/AdminContext";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import WhatsAppFloatingButton from "@/components/WhatsAppFloatingButton";
 import BottomNav from "@/components/BottomNav";
+import ProtegerContenido from "@/components/ProtegerContenido";
 
 export const metadata = {
   title: "Bolson Click | Productos para el hogar",
@@ -38,6 +39,7 @@ export default function RootLayout({ children }) {
           <AuthProvider>
             <CartProvider>
               <AuthGuard>
+                <ProtegerContenido />
                 <ServiceWorkerRegister />
                 <div className="container-app pb-24">{children}</div>
                 <WhatsAppFloatingButton />
