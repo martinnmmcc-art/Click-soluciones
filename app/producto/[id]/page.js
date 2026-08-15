@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import Header from "@/components/Header";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
 import { formatPrice, buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
 import { nombreCategoria } from "@/lib/categorias";
+import { pedirAvisoDeStock } from "@/lib/push";
 
 export default function ProductoDetallePage() {
   const params = useParams();
@@ -23,7 +25,10 @@ export default function ProductoDetallePage() {
   const [imagenPrincipal, setImagenPrincipal] = useState("");
   
   // Agregamos esto para ver el error exacto en pantalla si falla
-  const [debugError, setDebugError] = useState(""); 
+  const [debugError, setDebugError] = useState("");
+  const [avisoSolicitado, setAvisoSolicitado] = useState(false);
+  const [pidiendoAviso, setPidiendoAviso] = useState(false);
+  const [relacionados, setRelacionados] = useState([]);
 
   useEffect(() => {
     async function fetchProducto() {
@@ -55,6 +60,32 @@ export default function ProductoDetallePage() {
 
     fetchProducto();
   }, [id]);
+
+  useEffect(() => {
+    async function cargarRelacionados() {
+      if (!producto?.categoria) return;
+      const { data } = await supabase
+        .from("Productos")
+        .select("*")
+        .eq("categoria", producto.categoria)
+        .eq("activo", true)
+        .or("bajo_pedido.is.null,bajo_pedido.eq.false")
+        .neq("id", producto.id)
+        .limit(6);
+      setRelacionados(data || []);
+    }
+    cargarRelacionados();
+  }, [producto]);
+
+  async function handleAvisoStock() {
+    setPidiendoAviso(true);
+    try {
+      const res = await pedirAvisoDeStock(producto.id);
+      if (res.ok) setAvisoSolicitado(true);
+    } finally {
+      setPidiendoAviso(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -215,14 +246,29 @@ export default function ProductoDetallePage() {
 
         <div className="grid gap-3 mt-6">
           {sinStock ? (
-            <a
-              href={buildWhatsAppLink(whatsappProductMessage(producto))}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-primary text-center"
-            >
-              💬 Consultar al vendedor
-            </a>
+            <>
+              <a
+                href={buildWhatsAppLink(whatsappProductMessage(producto))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary text-center"
+              >
+                💬 Consultar al vendedor
+              </a>
+              {avisoSolicitado ? (
+                <p className="text-center text-sm font-semibold text-green-700 bg-green-50 border border-green-200 rounded-xl py-2.5">
+                  ✓ Te vamos a avisar apenas haya stock
+                </p>
+              ) : (
+                <button
+                  onClick={handleAvisoStock}
+                  disabled={pidiendoAviso}
+                  className="btn-secondary disabled:opacity-50"
+                >
+                  {pidiendoAviso ? "Activando aviso..." : "🔔 Avisame cuando haya stock"}
+                </button>
+              )}
+            </>
           ) : (
             <>
               <button onClick={handleAgregar} className="btn-secondary">
@@ -272,6 +318,34 @@ export default function ProductoDetallePage() {
             </div>
           )}
         </div>
+
+        {relacionados.length > 0 && (
+          <div className="mt-10 border-t border-gray-100 pt-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-3">También te puede interesar</h2>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {relacionados.map((rel) => {
+                const relOferta = rel.precio_oferta && Number(rel.precio_oferta) < Number(rel.precio);
+                return (
+                  <Link
+                    key={rel.id}
+                    href={`/producto/${rel.id}`}
+                    className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm"
+                  >
+                    {rel.imagen_url ? (
+                      <img src={rel.imagen_url} alt={rel.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
+                    ) : (
+                      <div className="w-full h-24 bg-gray-100 rounded-xl mb-1.5 flex items-center justify-center text-gray-400 text-xl">📦</div>
+                    )}
+                    <p className="text-[10px] font-bold text-gray-800 line-clamp-2 leading-tight">{rel.nombre}</p>
+                    <p className="text-xs font-black text-brand-blue mt-1">
+                      ${formatPrice(relOferta ? rel.precio_oferta : rel.precio)}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
