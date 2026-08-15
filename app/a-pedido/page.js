@@ -10,6 +10,8 @@ import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
 export default function APedidoPage() {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState("");
+  const [orden, setOrden] = useState("nombre-asc"); // nombre-asc | precio-asc | precio-desc
 
   useEffect(() => {
     async function cargar() {
@@ -31,6 +33,14 @@ export default function APedidoPage() {
     );
   }
 
+  const productosFiltrados = productos
+    .filter((p) => !busqueda.trim() || p.nombre?.toLowerCase().includes(busqueda.toLowerCase()))
+    .sort((a, b) => {
+      if (orden === "precio-asc") return (a.precio || 0) - (b.precio || 0);
+      if (orden === "precio-desc") return (b.precio || 0) - (a.precio || 0);
+      return (a.nombre || "").localeCompare(b.nombre || "");
+    });
+
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
       <Header showSearch={false} />
@@ -44,16 +54,43 @@ export default function APedidoPage() {
           </p>
         </div>
 
+        <input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="input-field mb-3"
+          placeholder="Buscar producto a pedido..."
+        />
+
+        <div className="flex gap-2 overflow-x-auto pb-3 mb-1 scrollbar-none">
+          {[
+            { key: "nombre-asc", label: "A-Z" },
+            { key: "precio-asc", label: "Más barato" },
+            { key: "precio-desc", label: "Más caro" }
+          ].map((op) => (
+            <button
+              key={op.key}
+              onClick={() => setOrden(op.key)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                orden === op.key ? "bg-purple-600 text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200"
+              }`}
+            >
+              {op.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <p className="text-center text-gray-400 text-sm py-10">Cargando...</p>
-        ) : productos.length === 0 ? (
+        ) : productosFiltrados.length === 0 ? (
           <div className="text-center py-12 card p-6 bg-white rounded-2xl shadow-sm">
             <p className="text-2xl mb-2">📦</p>
-            <p className="text-sm font-bold text-gray-700">Todavía no hay productos a pedido cargados</p>
+            <p className="text-sm font-bold text-gray-700">
+              {busqueda ? "No encontramos productos con ese nombre" : "Todavía no hay productos a pedido cargados"}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {productos.map((prod) => (
+            {productosFiltrados.map((prod) => (
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>
                   <Link href={`/a-pedido/${prod.id}`} className="block relative">
