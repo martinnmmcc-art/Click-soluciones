@@ -112,11 +112,16 @@ export default function HomePage() {
       <div className="max-w-md mx-auto px-4 mt-3">
         <Link
           href="/a-pedido"
-          className="block bg-purple-50 border border-purple-200 rounded-xl py-2.5 px-3 text-center"
+          className="flex items-center justify-between gap-3 bg-purple-600 hover:bg-purple-700 active:scale-[0.98] transition rounded-2xl py-3.5 px-4 shadow-md shadow-purple-200"
         >
-          <span className="text-[12px] text-purple-800 font-bold">
-            🛍️ ¿No lo encontrás? Mirá los productos a pedido →
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🛍️</span>
+            <div className="text-left">
+              <p className="text-white font-extrabold text-sm leading-tight">¿No lo encontrás?</p>
+              <p className="text-purple-100 text-xs font-medium">Mirá los productos a pedido</p>
+            </div>
+          </div>
+          <span className="text-white text-xl font-bold">→</span>
         </Link>
       </div>
 
