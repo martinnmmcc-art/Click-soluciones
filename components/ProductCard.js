@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
+import BotonFavorito from "@/components/BotonFavorito";
 
 export default function ProductCard({ producto }) {
   const { addItem } = useCart();
@@ -56,6 +57,7 @@ export default function ProductCard({ producto }) {
               ¡Última unidad!
             </span>
           )}
+          <BotonFavorito productoId={idProducto} className="absolute bottom-1.5 right-1.5 w-8 h-8" />
         </div>
         
         <div>
