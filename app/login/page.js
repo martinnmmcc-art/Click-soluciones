@@ -1,318 +1,669 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import Header from "@/components/Header";
-import BottomNav from "@/components/BottomNav";
-import BannerOfertas from "@/components/BannerOfertas";
+import ActivarNotificaciones from "@/components/ActivarNotificaciones";
+import { useAuth } from "@/context/AuthContext";
+import { ADMIN_EMAILS } from "@/context/AdminContext";
 import { supabase } from "@/lib/supabaseClient";
-import { useCart } from "@/context/CartContext";
-import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
-import BotonFavorito from "@/components/BotonFavorito";
+import { formatPrice } from "@/lib/whatsapp";
+import { suscribirPush } from "@/lib/push";
 
-export default function HomePage() {
-  const { addItem } = useCart();
-  const [productos, setProductos] = useState([]);
-  const [categorias, setCategorias] = useState([]);
-  const [masVendidos, setMasVendidos] = useState([]);
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
-  const [busqueda, setBusqueda] = useState("");
-  const [loadingData, setLoadingData] = useState(true);
-  const [mensajeCarrito, setMensajeCarrito] = useState("");
+const OPCIONES_ENTREGA_LABEL = {
+  pendiente: "Pendiente",
+  entregado: "Entregado",
+  demorado: "Demorado",
+  rechazado: "Rechazado",
+  esperando_stock: "Esperando stock",
+  cancelado: "Cancelado por vos"
+};
+
+const OPCIONES_PAGO_LABEL = {
+  falta_pagar: "Falta pagar",
+  pagado: "Pagado",
+  deuda_parcial: "Deuda parcial",
+  a_favor: "A favor",
+  señado: "Señado"
+};
+
+const COLOR_ENTREGA = {
+  pendiente: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  entregado: "bg-green-50 text-green-700 border-green-200",
+  demorado: "bg-orange-50 text-orange-700 border-orange-200",
+  rechazado: "bg-red-50 text-red-700 border-red-200",
+  esperando_stock: "bg-purple-50 text-purple-700 border-purple-200",
+  cancelado: "bg-gray-100 text-gray-500 border-gray-200"
+};
+
+const COLOR_PAGO = {
+  falta_pagar: "bg-red-50 text-red-700 border-red-200",
+  pagado: "bg-green-50 text-green-700 border-green-200",
+  deuda_parcial: "bg-orange-50 text-orange-700 border-orange-200",
+  a_favor: "bg-blue-50 text-blue-700 border-blue-200",
+  señado: "bg-purple-50 text-purple-700 border-purple-200"
+};
+
+export default function LoginPage() {
+  const { user, logout } = useAuth();
+
+  const [identificador, setIdentificador] = useState("");
+  const [password, setPassword] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [localidad, setLocalidad] = useState("");
+  const [esRegistro, setEsRegistro] = useState(false);
+
+  const [emailPerfil, setEmailPerfil] = useState("");
+  const [direccionPerfil, setDireccionPerfil] = useState("");
+  const [editandoPerfil, setEditandoPerfil] = useState(false);
+  const [mensajePerfil, setMensajePerfil] = useState("");
+
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sesionActiva, setSesionActiva] = useState(null);
+
+  const [misPedidos, setMisPedidos] = useState([]);
+  const [pedidosLoading, setPedidosLoading] = useState(false);
+  const [cancelandoId, setCancelandoId] = useState(null);
+
+  const [refCode, setRefCode] = useState("");
+  const [refNombre, setRefNombre] = useState("");
+  const [linkCopiado, setLinkCopiado] = useState(false);
+
+  const esCorreo = identificador.includes("@");
+
+  function validarCelular(tel) {
+    const limpio = (tel || "").replace(/[\s\-()]/g, "");
+    // Celular argentino: solo números, entre 10 y 13 dígitos (con o sin 54/9 adelante)
+    return /^\d{10,13}$/.test(limpio);
+  }
 
   useEffect(() => {
-    async function cargarMasVendidos() {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (!ref) return;
+    setRefCode(ref);
+    setEsRegistro(true);
+
+    async function buscarNombreReferente() {
+      const { data } = await supabase
+        .from("clientes")
+        .select("nombre")
+        .eq("telefono", ref)
+        .maybeSingle();
+      if (data?.nombre) setRefNombre(data.nombre);
+    }
+    buscarNombreReferente();
+  }, []);
+
+  useEffect(() => {
+    const sesionStr = localStorage.getItem("cliente_sesion");
+    if (sesionStr) {
       try {
-        const res = await fetch("/api/mas-vendidos");
-        const data = await res.json();
-        if (res.ok) setMasVendidos(data.productos || []);
+        const sesion = JSON.parse(sesionStr);
+        setSesionActiva(sesion);
+        setEmailPerfil(sesion.email || "");
+        setDireccionPerfil(sesion.direccion || "");
+        setLocalidad(sesion.localidad || "");
+        setNombre(sesion.nombre || "");
       } catch (e) {
-        console.error("Error cargando más vendidos:", e);
+        console.error(e);
       }
     }
-    cargarMasVendidos();
   }, []);
 
   useEffect(() => {
-    async function cargarDatos() {
-      setLoadingData(true);
+    const tel = user?.telefono || sesionActiva?.telefono;
+    if (!tel) return;
+
+    async function cargarPedidos() {
+      setPedidosLoading(true);
       try {
-        const { data: prodData, error: prodError } = await supabase
-          .from("Productos")
-          .select("*")
-          .or("bajo_pedido.is.null,bajo_pedido.eq.false")
-          .order("id", { ascending: false });
-
-        if (prodError) {
-          console.error("Error en Productos:", prodError.message);
-        } else if (prodData) {
-          setProductos(prodData);
-        }
-
-        const { data: catData, error: catError } = await supabase
-          .from("Categorias")
-          .select("*")
-          .order("nombre", { ascending: true });
-
-        if (catError) {
-          console.error("Error en Categorias:", catError.message);
-        } else if (catData) {
-          setCategorias(catData);
-        }
-      } catch (err) {
-        console.error("Error general de red:", err);
-      } finally {
-        setLoadingData(false);
+        const res = await fetch(`/api/mis-pedidos?telefono=${encodeURIComponent(tel)}`);
+        const result = await res.json();
+        if (res.ok) setMisPedidos(result.pedidos || []);
+      } catch (e) {
+        console.error(e);
       }
+      setPedidosLoading(false);
+    }
+    cargarPedidos();
+  }, [user, sesionActiva]);
+
+  // Login/registro de CLIENTE (celular + contraseña propia, tabla "clientes")
+  async function handleLoginCelular() {
+    // Por seguridad: si quedó una sesión de admin activa de antes, la cerramos
+    // antes de loguear como cliente, para que nunca se mezclen los dos accesos.
+    await supabase.auth.signOut();
+
+    const telLimpio = identificador.trim();
+    const passLimpio = password.trim();
+
+    if (esRegistro && !validarCelular(telLimpio)) {
+      setError("Ingresá un celular válido, solo números (ej: 2944123456).");
+      return;
     }
 
-    cargarDatos();
-  }, []);
+    const { data: clienteExistente } = await supabase
+      .from("clientes")
+      .select("*")
+      .eq("telefono", telLimpio)
+      .maybeSingle();
 
-  function agregarAlCarrito(producto) {
-    addItem(producto, 1);
-    setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
-    setTimeout(() => setMensajeCarrito(""), 2500);
+    if (clienteExistente && !esRegistro) {
+      if (clienteExistente.password !== passLimpio) {
+        setError("Contraseña incorrecta.");
+        return;
+      }
+      localStorage.setItem("cliente_sesion", JSON.stringify(clienteExistente));
+      setSesionActiva(clienteExistente);
+      return;
+    }
+
+    if (!nombre.trim()) {
+      setError("Ingresá tu nombre y apellido para registrarte.");
+      return;
+    }
+    if (clienteExistente) {
+      setError("Este número ya está registrado. Iniciá sesión normalmente.");
+      return;
+    }
+
+    const nuevoCliente = {
+      telefono: telLimpio,
+      password: passLimpio,
+      nombre: nombre.trim(),
+      localidad: localidad.trim(),
+      email: "",
+      direccion: "",
+      referido_por: refCode || null
+    };
+
+    const { error: insertError } = await supabase.from("clientes").insert([nuevoCliente]);
+    if (insertError) {
+      setError(`Error al registrar: ${insertError.message}`);
+      return;
+    }
+
+    localStorage.setItem("cliente_sesion", JSON.stringify(nuevoCliente));
+    setSesionActiva(nuevoCliente);
+
+    // Apenas se registra, le pedimos el permiso de notificaciones una sola vez (no bloqueante)
+    suscribirPush(telLimpio).catch(() => {});
   }
 
-  function esNuevo(prod) {
-    if (!prod.created_at) return false;
-    const dias = (Date.now() - new Date(prod.created_at).getTime()) / (1000 * 60 * 60 * 24);
-    return dias <= 7;
+  // Login de ADMIN (correo + contraseña, Supabase Auth)
+  async function handleLoginCorreo() {
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email: identificador.trim(),
+      password: password.trim(),
+    });
+
+    if (loginError) {
+      setError("Correo o contraseña incorrectos.");
+      return;
+    }
+
+    if (ADMIN_EMAILS.includes(identificador.trim())) {
+      window.location.href = "/admin/productos";
+    } else {
+      window.location.href = "/";
+    }
   }
 
-  const productosFiltrados = productos.filter((prod) => {
-    const coincideCategoria =
-      categoriaSeleccionada === "todas" ||
-      prod.categoria_id === categoriaSeleccionada ||
-      prod.categoria === categoriaSeleccionada;
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
 
-    const coincideBusqueda =
-      !busqueda.trim() ||
-      prod.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      prod.descripcion?.toLowerCase().includes(busqueda.toLowerCase());
+    if (!identificador.trim() || !password.trim()) {
+      setError("Completá los dos campos.");
+      return;
+    }
 
-    return coincideCategoria && coincideBusqueda;
-  });
+    setLoading(true);
+    try {
+      if (esCorreo) {
+        await handleLoginCorreo();
+      } else {
+        await handleLoginCelular();
+      }
+    } catch (err) {
+      setError(`Ocurrió un error: ${err.message || "Desconocido"}`);
+    } finally {
+      setLoading(false);
+    }
+  }
 
-  const destacados = productos.filter((p) => p.destacado);
+  async function cancelarPedido(pedidoId) {
+    if (!confirm("¿Seguro que querés cancelar este pedido?")) return;
+    setCancelandoId(pedidoId);
+    try {
+      const tel = user?.telefono || sesionActiva?.telefono;
+      const res = await fetch("/api/mis-pedidos/cancelar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pedido_id: pedidoId, telefono: tel })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "No se pudo cancelar el pedido.");
+        return;
+      }
+      setMisPedidos((prev) =>
+        prev.map((p) => (p.id === pedidoId ? { ...p, estado: "cancelado" } : p))
+      );
+    } catch (e) {
+      alert("Ocurrió un error al cancelar.");
+    } finally {
+      setCancelandoId(null);
+    }
+  }
 
-  return (
-    <main className="min-h-screen bg-gray-50 pb-28">
-      <Header busqueda={busqueda} setBusqueda={setBusqueda} showSearch={true} />
+  async function handleGuardarPerfil(e) {
+    e.preventDefault();
+    setMensajePerfil("");
+    setLoading(true);
 
-      {mensajeCarrito && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transition animate-bounce">
-          {mensajeCarrito}
-        </div>
-      )}
+    if (!sesionActiva) {
+      setLoading(false);
+      return;
+    }
 
-      <BannerOfertas />
+    const datosActualizados = {
+      ...sesionActiva,
+      email: emailPerfil.trim(),
+      direccion: direccionPerfil.trim(),
+      localidad: localidad.trim()
+    };
 
-      <div className="max-w-md mx-auto px-4 mt-3">
-        <Link
-          href="/a-pedido"
-          className="flex items-center justify-between gap-3 bg-purple-600 hover:bg-purple-700 active:scale-[0.98] transition rounded-2xl py-3.5 px-4 shadow-md shadow-purple-200"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🛍️</span>
-            <div className="text-left">
-              <p className="text-white font-extrabold text-sm leading-tight">¿No lo encontrás?</p>
-              <p className="text-purple-100 text-xs font-medium">Mirá los productos a pedido</p>
+    const { error: updateError } = await supabase
+      .from("clientes")
+      .update({
+        email: emailPerfil.trim(),
+        direccion: direccionPerfil.trim(),
+        localidad: localidad.trim()
+      })
+      .eq("telefono", sesionActiva.telefono);
+
+    if (updateError) {
+      setMensajePerfil("❌ Error al actualizar el perfil.");
+      setLoading(false);
+      return;
+    }
+
+    localStorage.setItem("cliente_sesion", JSON.stringify(datosActualizados));
+    setSesionActiva(datosActualizados);
+    setMensajePerfil("✅ ¡Perfil actualizado con éxito!");
+    setEditandoPerfil(false);
+    setLoading(false);
+  }
+
+  if (user || sesionActiva) {
+    return (
+      <main className="pb-28">
+        <Header showSearch={false} />
+        <div className="px-4 mt-6 max-w-md mx-auto">
+          <div className="flex gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => { window.location.href = "/"; }}
+              className="flex-1 bg-brand-blue text-white text-center py-2.5 rounded-xl text-xs font-bold shadow-sm"
+            >
+              🛒 Ir al Catálogo
+            </button>
+            <button
+              type="button"
+              onClick={() => { window.location.href = "/carrito"; }}
+              className="flex-1 bg-gray-100 text-gray-700 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm"
+            >
+              🛍️ Ver Carrito
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => { window.location.href = "/favoritos"; }}
+            className="w-full bg-white border border-gray-200 text-gray-700 text-center py-2.5 rounded-xl text-xs font-bold shadow-sm mb-4"
+          >
+            ❤️ Mis Favoritos
+          </button>
+
+          <div className="card p-6 text-center space-y-3 mb-4">
+            <p className="text-3xl mb-1">👋</p>
+            <h1 className="font-bold text-lg text-gray-800">
+              Hola, {user?.nombre || sesionActiva?.nombre || user?.email || "Cliente"}
+            </h1>
+            <p className="text-sm text-gray-500 font-medium">📱 {user?.telefono || sesionActiva?.telefono || "Registrado"}</p>
+
+            <div className="flex flex-wrap justify-center gap-1 pt-1">
+              {sesionActiva?.localidad && (
+                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full">
+                  📍 {sesionActiva.localidad}
+                </span>
+              )}
+              {sesionActiva?.direccion && (
+                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full">
+                  🏠 {sesionActiva.direccion}
+                </span>
+              )}
+              {sesionActiva?.email && (
+                <span className="text-xs bg-gray-100 text-gray-600 py-1 px-3 rounded-full w-full">
+                  ✉️ {sesionActiva.email}
+                </span>
+              )}
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setEditandoPerfil(!editandoPerfil)}
+                className="btn-secondary w-full text-xs"
+              >
+                {editandoPerfil ? "Cancelar edición" : "⚙️ Completar / Editar mis datos opcionales"}
+              </button>
             </div>
           </div>
-          <span className="text-white text-xl font-bold">→</span>
-        </Link>
-      </div>
 
-      <div className="max-w-md mx-auto px-4 mt-3">
-        <p className="text-[11px] text-gray-500 text-center bg-gray-100 rounded-full py-1.5 px-3">
-          🚚 Envíos a El Bolsón y la Comarca Andina — coordinamos transporte local o punto de encuentro
-        </p>
-      </div>
+          {editandoPerfil && (
+            <div className="card p-5 mb-4 bg-blue-50/50 border border-blue-200">
+              <h2 className="font-bold text-sm text-gray-800 mb-3 text-center">Tus datos adicionales (Opcional)</h2>
 
-      {destacados.length > 0 && (
-        <div className="mt-5">
-          <div className="max-w-md mx-auto px-4 flex items-center gap-1.5 mb-2">
-            <span className="text-lg">⭐</span>
-            <h2 className="font-extrabold text-gray-800 text-sm">Destacados</h2>
-          </div>
-          <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
-            {destacados.map((prod) => {
-              const tieneOferta = prod.precio_oferta && Number(prod.precio_oferta) < Number(prod.precio);
-              return (
-                <Link
-                  key={prod.id}
-                  href={`/producto/${prod.id}`}
-                  className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-amber-200 shadow-sm"
-                >
-                  <div className="relative">
-                    {prod.imagen_url ? (
-                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
-                    ) : (
-                      <div className="w-full h-24 bg-gray-100 rounded-xl mb-1.5 flex items-center justify-center text-gray-400 text-xl">📦</div>
-                    )}
-                    <span className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
-                      ⭐ DESTACADO
-                    </span>
-                  </div>
-                  <p className="text-[10px] font-bold text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</p>
-                  <p className="text-xs font-black text-brand-blue mt-1">
-                    ${Number((tieneOferta ? prod.precio_oferta : prod.precio) || 0).toLocaleString("es-AR")}
-                  </p>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
+              {mensajePerfil && (
+                <div className="text-xs text-center p-2 mb-3 rounded-lg bg-white border font-medium">
+                  {mensajePerfil}
+                </div>
+              )}
 
-      {masVendidos.length > 0 && (
-        <div className="mt-5">
-          <div className="max-w-md mx-auto px-4 flex items-center gap-1.5 mb-2">
-            <span className="text-lg">🔥</span>
-            <h2 className="font-extrabold text-gray-800 text-sm">Los más vendidos</h2>
-          </div>
-          <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
-            {masVendidos.map((prod) => {
-              const tieneOferta = prod.precio_oferta && Number(prod.precio_oferta) < Number(prod.precio);
-              return (
-                <Link
-                  key={prod.id}
-                  href={`/producto/${prod.id}`}
-                  className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm"
-                >
-                  <div className="relative">
-                    {prod.imagen_url ? (
-                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
-                    ) : (
-                      <div className="w-full h-24 bg-gray-100 rounded-xl mb-1.5 flex items-center justify-center text-gray-400 text-xl">📦</div>
-                    )}
-                    <span className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
-                      🔥 TOP
-                    </span>
-                  </div>
-                  <p className="text-[10px] font-bold text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</p>
-                  <p className="text-xs font-black text-brand-blue mt-1">
-                    ${Number((tieneOferta ? prod.precio_oferta : prod.precio) || 0).toLocaleString("es-AR")}
-                  </p>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-md mx-auto px-4 mt-4">
-        {categorias.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
-            <button
-              onClick={() => setCategoriaSeleccionada("todas")}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
-                categoriaSeleccionada === "todas" ? "bg-brand-blue text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200"
-              }`}
-            >
-              Todas
-            </button>
-            {categorias.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => setCategoriaSeleccionada(cat.id)}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
-                  categoriaSeleccionada === cat.id ? "bg-brand-blue text-white shadow-sm" : "bg-white text-gray-600 border border-gray-200"
-                }`}
-              >
-                {cat.nombre}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {loadingData ? (
-          <div className="text-center py-12">
-            <p className="text-sm text-gray-500 font-medium">Cargando catálogo...</p>
-          </div>
-        ) : productosFiltrados.length === 0 ? (
-          <div className="text-center py-12 card p-6 bg-white rounded-2xl shadow-sm">
-            <p className="text-2xl mb-2">🔍</p>
-            <p className="text-sm font-bold text-gray-700">No hay productos disponibles</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            {productosFiltrados.map((prod) => (
-              <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
+              <form onSubmit={handleGuardarPerfil} className="space-y-3">
                 <div>
-                  <Link href={`/producto/${prod.id}`} className="block relative">
-                    {prod.imagen_url ? (
-                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
-                    ) : (
-                      <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">📦</div>
-                    )}
-                    {prod.precio_oferta && prod.precio_oferta < prod.precio && (
-                      <span className="absolute top-1.5 left-1.5 bg-brand-orange text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        OFERTA
-                      </span>
-                    )}
-                    {!prod.precio_oferta && esNuevo(prod) && (
-                      <span className="absolute top-1.5 left-1.5 bg-emerald-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        NUEVO
-                      </span>
-                    )}
-                    {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) <= 0 && (
-                      <span className="absolute top-1.5 right-1.5 bg-gray-700 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        Sin stock
-                      </span>
-                    )}
-                    {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) === 1 && (
-                      <span className="absolute top-1.5 right-1.5 bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        ¡Última unidad!
-                      </span>
-                    )}
-                    <BotonFavorito productoId={prod.id} className="absolute bottom-3.5 right-1.5 w-7 h-7" />
-                  </Link>
-
-                  <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
-                    <Link href={`/producto/${prod.id}`} className="block">
-                      {prod.nombre}
-                    </Link>
-                  </h3>
-
-                  {prod.descripcion && (
-                    <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{prod.descripcion}</p>
-                  )}
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Correo electrónico</label>
+                  <input
+                    type="email"
+                    value={emailPerfil}
+                    onChange={(e) => setEmailPerfil(e.target.value)}
+                    className="input-field bg-white"
+                    placeholder="tucorreo@gmail.com"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Dirección de entrega</label>
+                  <input
+                    value={direccionPerfil}
+                    onChange={(e) => setDireccionPerfil(e.target.value)}
+                    className="input-field bg-white"
+                    placeholder="Ej: Av. San Martín 450"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
+                  <input
+                    value={localidad}
+                    onChange={(e) => setLocalidad(e.target.value)}
+                    className="input-field bg-white"
+                    placeholder="Ej: El Bolsón"
+                  />
                 </div>
 
-                <div className="mt-3 pt-2 border-t border-gray-50 flex flex-col gap-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm text-brand-blue">
-                      ${Number((prod.precio_oferta && prod.precio_oferta < prod.precio ? prod.precio_oferta : prod.precio) || 0).toLocaleString("es-AR")}
-                    </span>
-                    {prod.precio_oferta && prod.precio_oferta < prod.precio && (
-                      <span className="text-[10px] text-gray-400 line-through">
-                        ${Number(prod.precio || 0).toLocaleString("es-AR")}
-                      </span>
-                    )}
-                  </div>
-                  {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) <= 0 ? (
-                    <a
-                      href={buildWhatsAppLink(whatsappProductMessage(prod))}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full bg-gray-600 text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition text-center"
-                    >
-                      Consultar al vendedor
-                    </a>
-                  ) : (
-                    <button onClick={() => agregarAlCarrito(prod)} className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition">+ Agregar</button>
-                  )}
-                </div>
+                <button disabled={loading} className="btn-primary w-full text-xs py-2 mt-2">
+                  {loading ? "Guardando..." : "Guardar mis datos"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          <div className="mb-4">
+            <ActivarNotificaciones telefono={user?.telefono || sesionActiva?.telefono} />
+          </div>
+
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <p className="font-bold text-amber-900 text-sm">🎁 Invitá a tus amigos</p>
+            <p className="text-xs text-amber-800 mt-1 mb-3">
+              Compartí tu link y avisale a Bolson Click cuando alguien se registre gracias a vos.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `https://www.bolsonclick.com.ar/login?ref=${encodeURIComponent(user?.telefono || sesionActiva?.telefono)}`
+                  );
+                  setLinkCopiado(true);
+                  setTimeout(() => setLinkCopiado(false), 2000);
+                }}
+                className="flex-1 bg-white border border-amber-300 text-amber-800 text-xs font-bold py-2 rounded-xl"
+              >
+                {linkCopiado ? "✓ Copiado" : "Copiar link"}
+              </button>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(
+                  `¡Mirá Bolson Click! Productos importados en El Bolsón y la Comarca Andina 🛍️ Entrá con mi link: https://www.bolsonclick.com.ar/login?ref=${user?.telefono || sesionActiva?.telefono}`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 bg-amber-500 text-white text-xs font-bold py-2 rounded-xl text-center"
+              >
+                Compartir
+              </a>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <h2 className="font-bold text-sm text-gray-800 mb-3">📦 Mis Pedidos</h2>
+
+            {pedidosLoading && (
+              <p className="text-xs text-gray-400 text-center py-4">Cargando tus pedidos...</p>
+            )}
+
+            {!pedidosLoading && misPedidos.length === 0 && (
+              <div className="card p-5 text-center text-gray-400 text-sm">
+                Todavía no hiciste ningún pedido.
               </div>
-            ))}
+            )}
+
+            {!pedidosLoading && misPedidos.length > 0 && (
+              <div className="space-y-3">
+                {misPedidos.map((pedido) => {
+                  const saldo = Number(pedido.total || 0) - Number(pedido.monto_pagado || 0);
+                  return (
+                    <div key={pedido.id} className="card p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <span className="text-xs font-bold text-brand-blue bg-blue-50 px-2 py-1 rounded-md">
+                            Pedido #{pedido.id}
+                          </span>
+                          <p className="text-xs text-gray-400 mt-1.5">
+                            {new Date(pedido.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <span className="text-base font-extrabold text-gray-900">
+                          ${formatPrice(pedido.total)}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <span className={`text-[11px] font-semibold border rounded-lg px-2 py-1 ${COLOR_ENTREGA[pedido.estado] || "bg-gray-50 text-gray-700 border-gray-200"}`}>
+                          {OPCIONES_ENTREGA_LABEL[pedido.estado] || "Pendiente"}
+                        </span>
+                        <span className={`text-[11px] font-semibold border rounded-lg px-2 py-1 ${COLOR_PAGO[pedido.estado_pago] || "bg-gray-50 text-gray-700 border-gray-200"}`}>
+                          {OPCIONES_PAGO_LABEL[pedido.estado_pago] || "Falta pagar"}
+                        </span>
+                      </div>
+
+                      {saldo > 0 && (
+                        <p className="text-xs font-bold text-red-700 mb-2">Debés ${formatPrice(saldo)}</p>
+                      )}
+                      {saldo < 0 && (
+                        <p className="text-xs font-bold text-blue-700 mb-2">A favor ${formatPrice(Math.abs(saldo))}</p>
+                      )}
+                      {saldo === 0 && (
+                        <p className="text-xs font-bold text-green-700 mb-2">Saldado ✅</p>
+                      )}
+
+                      <div className="border-t border-gray-100 pt-2 mt-2 space-y-1">
+                        {pedido.items_pedido && pedido.items_pedido.map((item) => (
+                          <div key={item.id} className="flex justify-between text-xs text-gray-600">
+                            <span>{item.cantidad}x {item.nombre_producto}</span>
+                            <span className="font-medium">${formatPrice(item.precio_unitario * item.cantidad)}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {(!pedido.estado || pedido.estado === "pendiente") && (
+                        <button
+                          onClick={() => cancelarPedido(pedido.id)}
+                          disabled={cancelandoId === pedido.id}
+                          className="text-xs font-semibold text-red-500 mt-3 disabled:opacity-50"
+                        >
+                          {cancelandoId === pedido.id ? "Cancelando..." : "Cancelar pedido"}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem("cliente_sesion");
+              setSesionActiva(null);
+              logout();
+              supabase.auth.signOut();
+              window.location.reload();
+            }}
+            className="text-xs text-red-500 font-medium w-full text-center py-2 hover:underline"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="pb-28">
+      <Header showSearch={false} />
+      <div className="px-4 mt-6 max-w-md mx-auto">
+        <h1 className="font-bold text-xl text-gray-800 mb-1 text-center">
+          {esRegistro ? "Crear una cuenta nueva" : "Bienvenido a Bolson Click"}
+        </h1>
+        {esRegistro && !esCorreo && (
+          <p className="text-xs text-gray-400 mb-3 text-center">
+            El registro de clientes es solo con número de celular.
+          </p>
+        )}
+        {refCode && esRegistro && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-center">
+            <p className="text-sm text-amber-800 font-semibold">
+              🎁 {refNombre ? `${refNombre} te invitó` : "Te invitaron"} a Bolson Click
+            </p>
           </div>
         )}
-      </div>
+        {!esRegistro && (
+          <>
+            <p className="text-sm text-brand-orange font-bold mb-1 text-center">
+              Productos importados en El Bolsón y la Comarca Andina
+            </p>
+            <p className="text-xs text-gray-400 mb-3 text-center px-2">
+              🚚 Envíos a El Bolsón y la Comarca Andina. Coordinamos por transporte local o punto de encuentro.
+            </p>
+          </>
+        )}
+        <p className="text-sm text-gray-500 mb-5 text-center">
+          Ingresá con tu celular.
+        </p>
 
-      <BottomNav />
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 mb-4 text-center">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">
+              Celular
+            </label>
+            <input
+              value={identificador}
+              onChange={(e) => setIdentificador(e.target.value)}
+              className="input-field"
+              placeholder="Ej: 2944123456"
+              autoComplete="username"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 block mb-1">
+              Contraseña
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input-field"
+              placeholder="Tu contraseña"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+
+          {esRegistro && !esCorreo && (
+            <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl space-y-3 mt-1">
+              <p className="text-xs text-blue-800 font-medium text-center">
+                Completá tus datos básicos:
+              </p>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Nombre y apellido</label>
+                <input
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  className="input-field bg-white"
+                  placeholder="Ej: Martín Cáceres"
+                  required={esRegistro}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
+                <input
+                  value={localidad}
+                  onChange={(e) => setLocalidad(e.target.value)}
+                  className="input-field bg-white"
+                  placeholder="Ej: El Bolsón"
+                />
+              </div>
+            </div>
+          )}
+
+          <button
+            disabled={loading}
+            className="btn-primary mt-2 disabled:opacity-50"
+          >
+            {loading
+              ? "Procesando..."
+              : esRegistro && !esCorreo
+              ? "Completar Registro"
+              : "Iniciar Sesión"}
+          </button>
+
+          {!esCorreo && (
+            <div className="text-center mt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setEsRegistro(!esRegistro);
+                  setError("");
+                }}
+                className="text-xs font-medium text-brand-blue hover:underline"
+              >
+                {esRegistro
+                  ? "¿Ya tenés cuenta? Iniciá sesión"
+                  : "¿No tenés cuenta? Registrate acá"}
+              </button>
+            </div>
+          )}
+        </form>
+      </div>
     </main>
   );
 }
