@@ -990,6 +990,16 @@ function PanelVentas() {
                     <p className="text-xs text-gray-400">
                       Fecha: {new Date(pedido.created_at).toLocaleString()}
                     </p>
+                    {pedido.comprobante_url && (
+                      <a
+                        href={pedido.comprobante_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2 py-1 rounded-md mt-1.5"
+                      >
+                        📎 Ver comprobante
+                      </a>
+                    )}
                   </div>
                   <div className="text-right">
                     {tieneDescuento && (
