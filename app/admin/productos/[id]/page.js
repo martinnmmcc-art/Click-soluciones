@@ -28,8 +28,21 @@ function EditarProducto() {
   }, [id]);
 
   async function handleUpdate(data) {
+    const stockViejo = Number(producto?.stock || 0);
+    const stockNuevo = Number(data?.stock || 0);
+
     const { error } = await supabase.from("Productos").update(data).eq("id", id);
     if (error) throw error;
+
+    // Si el producto estaba sin stock y ahora tiene, avisamos a quienes pidieron aviso (no bloqueante)
+    if (stockViejo <= 0 && stockNuevo > 0) {
+      fetch("/api/avisos-stock/notificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ producto_id: id })
+      }).catch(() => {});
+    }
+
     router.push("/admin/productos");
   }
 
