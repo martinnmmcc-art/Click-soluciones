@@ -19,6 +19,12 @@ export default function ProductCard({ producto }) {
   const sinStock = stock !== null && stock !== undefined && Number(stock) <= 0;
   const ultimaUnidad = stock !== null && stock !== undefined && Number(stock) === 1;
 
+  const esNuevo = (() => {
+    if (!producto.created_at) return false;
+    const dias = (Date.now() - new Date(producto.created_at).getTime()) / (1000 * 60 * 60 * 24);
+    return dias <= 7;
+  })();
+
   return (
     <div className="bg-white border border-gray-100 rounded-lg shadow-sm p-3 flex flex-col justify-between hover:shadow-md transition-shadow">
       
@@ -33,6 +39,11 @@ export default function ProductCard({ producto }) {
           {tieneOferta && (
             <span className="absolute top-1.5 left-1.5 bg-brand-orange text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
               OFERTA
+            </span>
+          )}
+          {!tieneOferta && esNuevo && (
+            <span className="absolute top-1.5 left-1.5 bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+              NUEVO
             </span>
           )}
           {sinStock && (
