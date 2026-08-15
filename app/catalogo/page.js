@@ -21,7 +21,7 @@ export default function CatalogoPage() {
           .from("Productos")
           .select("*")
           .or("bajo_pedido.is.null,bajo_pedido.eq.false")
-          .order("id", { ascending: true });
+          .order("id", { ascending: false });
 
         if (prodError) console.error("Error en Productos:", prodError.message);
         if (prodData) setProductos(prodData);
