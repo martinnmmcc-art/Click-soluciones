@@ -62,6 +62,10 @@ export default function LoginPage() {
   const [misPedidos, setMisPedidos] = useState([]);
   const [pedidosLoading, setPedidosLoading] = useState(false);
 
+  const [refCode, setRefCode] = useState("");
+  const [refNombre, setRefNombre] = useState("");
+  const [linkCopiado, setLinkCopiado] = useState(false);
+
   const esCorreo = identificador.includes("@");
 
   function validarCelular(tel) {
@@ -69,6 +73,24 @@ export default function LoginPage() {
     // Celular argentino: solo números, entre 10 y 13 dígitos (con o sin 54/9 adelante)
     return /^\d{10,13}$/.test(limpio);
   }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (!ref) return;
+    setRefCode(ref);
+    setEsRegistro(true);
+
+    async function buscarNombreReferente() {
+      const { data } = await supabase
+        .from("clientes")
+        .select("nombre")
+        .eq("telefono", ref)
+        .maybeSingle();
+      if (data?.nombre) setRefNombre(data.nombre);
+    }
+    buscarNombreReferente();
+  }, []);
 
   useEffect(() => {
     const sesionStr = localStorage.getItem("cliente_sesion");
@@ -145,7 +167,8 @@ export default function LoginPage() {
       nombre: nombre.trim(),
       localidad: localidad.trim(),
       email: "",
-      direccion: ""
+      direccion: "",
+      referido_por: refCode || null
     };
 
     const { error: insertError } = await supabase.from("clientes").insert([nuevoCliente]);
@@ -351,6 +374,37 @@ export default function LoginPage() {
             <ActivarNotificaciones telefono={user?.telefono || sesionActiva?.telefono} />
           </div>
 
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <p className="font-bold text-amber-900 text-sm">🎁 Invitá a tus amigos</p>
+            <p className="text-xs text-amber-800 mt-1 mb-3">
+              Compartí tu link y avisale a Bolson Click cuando alguien se registre gracias a vos.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `https://www.bolsonclick.com.ar/login?ref=${encodeURIComponent(user?.telefono || sesionActiva?.telefono)}`
+                  );
+                  setLinkCopiado(true);
+                  setTimeout(() => setLinkCopiado(false), 2000);
+                }}
+                className="flex-1 bg-white border border-amber-300 text-amber-800 text-xs font-bold py-2 rounded-xl"
+              >
+                {linkCopiado ? "✓ Copiado" : "Copiar link"}
+              </button>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(
+                  `¡Mirá Bolson Click! Productos importados en El Bolsón y la Comarca Andina 🛍️ Entrá con mi link: https://www.bolsonclick.com.ar/login?ref=${user?.telefono || sesionActiva?.telefono}`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 bg-amber-500 text-white text-xs font-bold py-2 rounded-xl text-center"
+              >
+                Compartir
+              </a>
+            </div>
+          </div>
+
           <div className="mb-4">
             <h2 className="font-bold text-sm text-gray-800 mb-3">📦 Mis Pedidos</h2>
 
@@ -447,6 +501,13 @@ export default function LoginPage() {
           <p className="text-xs text-gray-400 mb-3 text-center">
             El registro de clientes es solo con número de celular.
           </p>
+        )}
+        {refCode && esRegistro && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-center">
+            <p className="text-sm text-amber-800 font-semibold">
+              🎁 {refNombre ? `${refNombre} te invitó` : "Te invitaron"} a Bolson Click
+            </p>
+          </div>
         )}
         {!esRegistro && (
           <>
