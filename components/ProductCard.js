@@ -51,13 +51,16 @@ export default function ProductCard({ producto }) {
           <h3 className="font-semibold text-sm text-gray-800 line-clamp-2 mb-1 group-hover:text-blue-600 transition-colors">
             {nombre}
           </h3>
+          {producto.descripcion && (
+            <p className="text-[11px] text-gray-500 line-clamp-2 mb-1">{producto.descripcion}</p>
+          )}
           <div className="flex items-center gap-2">
             <p className="text-blue-600 font-bold text-lg">
-              ${precio}
+              ${Number(precio || 0).toLocaleString("es-AR")}
             </p>
             {tieneOferta && (
               <p className="text-gray-400 text-xs line-through">
-                ${producto.precio}
+                ${Number(producto.precio || 0).toLocaleString("es-AR")}
               </p>
             )}
           </div>
