@@ -8,6 +8,7 @@ import BannerOfertas from "@/components/BannerOfertas";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
+import BotonFavorito from "@/components/BotonFavorito";
 
 export default function HomePage() {
   const { addItem } = useCart();
@@ -262,6 +263,7 @@ export default function HomePage() {
                         ¡Última unidad!
                       </span>
                     )}
+                    <BotonFavorito productoId={prod.id} className="absolute bottom-3.5 right-1.5 w-7 h-7" />
                   </Link>
 
                   <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
