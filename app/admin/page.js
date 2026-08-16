@@ -52,7 +52,7 @@ function Dashboard() {
                 <p className="text-white text-xl font-extrabold mt-1">
                   ${m.ventasMes.toLocaleString("es-AR")}
                 </p>
-                <p className="text-blue-100 text-[11px] mt-0.5">{m.cantidadPedidosMes} pedidos</p>
+                <p className="text-blue-50 text-[11px] mt-0.5 font-semibold">{m.cantidadPedidosMes} pedidos</p>
               </div>
 
               <div className="card p-4 bg-white border-2 border-amber-400">
@@ -69,11 +69,11 @@ function Dashboard() {
                 <p className="text-gray-400 text-[11px] mt-0.5">{m.clientesTotal} en total</p>
               </div>
 
-              <div className="card p-4">
+              <Link href="/admin/productos?filtro=sin-stock" className="card p-4 hover:shadow-md block">
                 <p className="text-gray-500 text-xs font-semibold">Sin stock</p>
                 <p className="text-red-600 text-xl font-extrabold mt-1">{m.sinStock}</p>
-                <p className="text-gray-400 text-[11px] mt-0.5">productos agotados</p>
-              </div>
+                <p className="text-brand-blue text-[11px] mt-0.5 font-semibold underline">Ver lista →</p>
+              </Link>
             </div>
 
             {/* ESTADÍSTICAS DEL MES: PLATA */}
