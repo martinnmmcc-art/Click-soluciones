@@ -44,20 +44,12 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
 
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <>
-              <Link
-                href="/admin/pedidos"
-                className="bg-brand-blue text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm hover:bg-blue-700 transition"
-              >
-                📊 Ventas
-              </Link>
-              <Link
-                href="/admin/productos"
-                className="bg-orange-500 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm hover:bg-orange-600 transition"
-              >
-                📦 Productos
-              </Link>
-            </>
+            <Link
+              href="/admin"
+              className="bg-brand-blue text-white text-xs font-bold px-3 py-2 rounded-xl shadow-sm hover:bg-blue-700 transition"
+            >
+              🏠 Panel
+            </Link>
           )}
 
           <Link href="/carrito" className="relative p-1" aria-label="Carrito">
