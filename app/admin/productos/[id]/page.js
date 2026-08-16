@@ -12,6 +12,7 @@ function EditarProducto() {
   const router = useRouter();
   const [producto, setProducto] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [historial, setHistorial] = useState([]);
 
   useEffect(() => {
     async function fetchProducto() {
@@ -27,9 +28,36 @@ function EditarProducto() {
     if (id) fetchProducto();
   }, [id]);
 
+  useEffect(() => {
+    async function fetchHistorial() {
+      const { data } = await supabase
+        .from("historial_precios")
+        .select("*")
+        .eq("producto_id", id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      setHistorial(data || []);
+    }
+    if (id) fetchHistorial();
+  }, [id]);
+
   async function handleUpdate(data) {
     const stockViejo = Number(producto?.stock || 0);
     const stockNuevo = Number(data?.stock || 0);
+
+    // Si cambió el precio o el precio de oferta, dejamos registro en el historial
+    const precioCambio = Number(producto?.precio || 0) !== Number(data?.precio || 0);
+    const ofertaCambio = Number(producto?.precio_oferta || 0) !== Number(data?.precio_oferta || 0);
+
+    if (precioCambio || ofertaCambio) {
+      await supabase.from("historial_precios").insert({
+        producto_id: id,
+        precio_anterior: producto?.precio || null,
+        precio_nuevo: data?.precio || null,
+        precio_oferta_anterior: producto?.precio_oferta || null,
+        precio_oferta_nuevo: data?.precio_oferta || null
+      });
+    }
 
     const { error } = await supabase.from("Productos").update(data).eq("id", id);
     if (error) throw error;
@@ -85,6 +113,33 @@ function EditarProducto() {
             >
               Eliminar producto
             </button>
+          </div>
+        )}
+
+        {historial.length > 0 && (
+          <div className="card p-4 mt-4">
+            <p className="font-bold text-sm text-gray-800 mb-3">📈 Historial de precios</p>
+            <div className="flex flex-col gap-2">
+              {historial.map((h) => (
+                <div key={h.id} className="text-xs border-b border-gray-50 pb-2 last:border-0">
+                  <p className="text-gray-400 mb-0.5">
+                    {new Date(h.created_at).toLocaleString("es-AR")}
+                  </p>
+                  {Number(h.precio_anterior) !== Number(h.precio_nuevo) && (
+                    <p className="text-gray-700">
+                      Precio: <span className="line-through text-gray-400">${Number(h.precio_anterior || 0).toLocaleString("es-AR")}</span>{" "}
+                      → <span className="font-bold text-gray-800">${Number(h.precio_nuevo || 0).toLocaleString("es-AR")}</span>
+                    </p>
+                  )}
+                  {Number(h.precio_oferta_anterior || 0) !== Number(h.precio_oferta_nuevo || 0) && (
+                    <p className="text-gray-700">
+                      Oferta: <span className="line-through text-gray-400">${Number(h.precio_oferta_anterior || 0).toLocaleString("es-AR")}</span>{" "}
+                      → <span className="font-bold text-orange-600">${Number(h.precio_oferta_nuevo || 0).toLocaleString("es-AR")}</span>
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
