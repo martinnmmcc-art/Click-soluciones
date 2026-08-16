@@ -4,58 +4,27 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { useAdmin } from "@/context/AdminContext";
-import { supabase } from "@/lib/supabaseClient";
 
 function Dashboard() {
   const { logout } = useAdmin();
-  const [metricas, setMetricas] = useState(null);
+  const [m, setM] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function cargarMetricas() {
-      const inicioMes = new Date();
-      inicioMes.setDate(1);
-      inicioMes.setHours(0, 0, 0, 0);
-      const inicioMesISO = inicioMes.toISOString();
-
-      const [pedidosMesRes, pedidosPendientesRes, clientesMesRes, clientesTotalRes, productosRes, itemsMesRes] =
-        await Promise.all([
-          supabase.from("pedidos").select("total, estado").gte("created_at", inicioMesISO),
-          supabase.from("pedidos").select("id", { count: "exact", head: true }).or("estado.is.null,estado.eq.pendiente"),
-          supabase.from("clientes").select("id", { count: "exact", head: true }).gte("created_at", inicioMesISO),
-          supabase.from("clientes").select("id", { count: "exact", head: true }),
-          supabase.from("Productos").select("id, bajo_pedido, activo, stock"),
-          supabase.from("items_pedido").select("nombre_producto, cantidad, pedido_id, pedidos!inner(created_at)").gte("pedidos.created_at", inicioMesISO)
-        ]);
-
-      const pedidosMes = (pedidosMesRes.data || []).filter((p) => p.estado !== "cancelado");
-      const ventasMes = pedidosMes.reduce((acc, p) => acc + Number(p.total || 0), 0);
-
-      const productos = productosRes.data || [];
-      const productosActivos = productos.filter((p) => p.activo && !p.bajo_pedido).length;
-      const productosAPedido = productos.filter((p) => p.bajo_pedido).length;
-      const sinStock = productos.filter((p) => !p.bajo_pedido && p.stock !== null && Number(p.stock) <= 0).length;
-
-      const conteoVendidos = {};
-      (itemsMesRes.data || []).forEach((item) => {
-        conteoVendidos[item.nombre_producto] = (conteoVendidos[item.nombre_producto] || 0) + Number(item.cantidad || 0);
-      });
-      const masVendido = Object.entries(conteoVendidos).sort((a, b) => b[1] - a[1])[0];
-
-      setMetricas({
-        ventasMes,
-        cantidadPedidosMes: pedidosMes.length,
-        pedidosPendientes: pedidosPendientesRes.count || 0,
-        clientesNuevosMes: clientesMesRes.count || 0,
-        clientesTotal: clientesTotalRes.count || 0,
-        productosActivos,
-        productosAPedido,
-        sinStock,
-        masVendido: masVendido ? { nombre: masVendido[0], cantidad: masVendido[1] } : null
-      });
-      setLoading(false);
+    async function cargar() {
+      try {
+        const res = await fetch("/api/admin/estadisticas");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Error al cargar estadísticas");
+        setM(data);
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
     }
-    cargarMetricas();
+    cargar();
   }, []);
 
   return (
@@ -70,61 +39,97 @@ function Dashboard() {
           </button>
         </div>
 
-        {/* DASHBOARD DE MÉTRICAS */}
         {loading ? (
           <div className="card p-6 text-center text-gray-400 text-sm mb-6">Cargando números...</div>
+        ) : error ? (
+          <div className="card p-4 text-center text-red-500 text-sm mb-6 bg-red-50 border border-red-200">{error}</div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 mb-6">
-            <div className="card p-4 bg-brand-blue">
-              <p className="text-blue-100 text-xs font-semibold">Ventas este mes</p>
-              <p className="text-white text-xl font-extrabold mt-1">
-                ${metricas.ventasMes.toLocaleString("es-AR")}
-              </p>
-              <p className="text-blue-100 text-[11px] mt-0.5">{metricas.cantidadPedidosMes} pedidos</p>
-            </div>
-
-            <div className="card p-4 bg-yellow-500">
-              <p className="text-yellow-50 text-xs font-semibold">Pedidos pendientes</p>
-              <p className="text-white text-xl font-extrabold mt-1">{metricas.pedidosPendientes}</p>
-              <Link href="/admin/pedidos" className="text-yellow-50 text-[11px] mt-0.5 underline">
-                Ver todos →
-              </Link>
-            </div>
-
-            <div className="card p-4">
-              <p className="text-gray-500 text-xs font-semibold">Clientes nuevos (mes)</p>
-              <p className="text-gray-800 text-xl font-extrabold mt-1">{metricas.clientesNuevosMes}</p>
-              <p className="text-gray-400 text-[11px] mt-0.5">{metricas.clientesTotal} en total</p>
-            </div>
-
-            <div className="card p-4">
-              <p className="text-gray-500 text-xs font-semibold">Sin stock</p>
-              <p className="text-red-600 text-xl font-extrabold mt-1">{metricas.sinStock}</p>
-              <p className="text-gray-400 text-[11px] mt-0.5">productos agotados</p>
-            </div>
-
-            <div className="card p-4 col-span-2">
-              <p className="text-gray-500 text-xs font-semibold">🔥 Más vendido este mes</p>
-              {metricas.masVendido ? (
-                <p className="text-gray-800 text-sm font-bold mt-1 line-clamp-1">
-                  {metricas.masVendido.nombre} <span className="text-gray-400 font-normal">({metricas.masVendido.cantidad} vendidos)</span>
+          <>
+            {/* RESUMEN RÁPIDO */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="card p-4 bg-brand-blue">
+                <p className="text-blue-100 text-xs font-semibold">Ventas este mes</p>
+                <p className="text-white text-xl font-extrabold mt-1">
+                  ${m.ventasMes.toLocaleString("es-AR")}
                 </p>
+                <p className="text-blue-100 text-[11px] mt-0.5">{m.cantidadPedidosMes} pedidos</p>
+              </div>
+
+              <div className="card p-4 bg-white border-2 border-amber-400">
+                <p className="text-amber-700 text-xs font-semibold">Pedidos pendientes</p>
+                <p className="text-amber-600 text-xl font-extrabold mt-1">{m.pedidosPendientes}</p>
+                <Link href="/admin/pedidos" className="text-brand-blue text-[11px] mt-0.5 underline font-semibold">
+                  Ver todos →
+                </Link>
+              </div>
+
+              <div className="card p-4">
+                <p className="text-gray-500 text-xs font-semibold">Clientes nuevos (mes)</p>
+                <p className="text-gray-800 text-xl font-extrabold mt-1">{m.clientesNuevosMes}</p>
+                <p className="text-gray-400 text-[11px] mt-0.5">{m.clientesTotal} en total</p>
+              </div>
+
+              <div className="card p-4">
+                <p className="text-gray-500 text-xs font-semibold">Sin stock</p>
+                <p className="text-red-600 text-xl font-extrabold mt-1">{m.sinStock}</p>
+                <p className="text-gray-400 text-[11px] mt-0.5">productos agotados</p>
+              </div>
+            </div>
+
+            {/* ESTADÍSTICAS DEL MES: PLATA */}
+            <div className="card p-4 mb-4">
+              <p className="font-bold text-gray-800 text-sm mb-3">💰 Estadísticas del mes</p>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Ventas totales</span>
+                  <span className="font-bold text-gray-800">${m.ventasMes.toLocaleString("es-AR")}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Gastado en materiales</span>
+                  <span className="font-bold text-gray-700">-${m.costoMateriales.toLocaleString("es-AR")}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Gastado en fletes</span>
+                  <span className="font-bold text-gray-700">-${m.gastoFletes.toLocaleString("es-AR")}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-1">
+                  <span className="text-gray-800 font-semibold">Ganancia estimada</span>
+                  <span className={`font-extrabold ${m.ganancia >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    ${m.ganancia.toLocaleString("es-AR")}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* RANKING DE VENTAS */}
+            <div className="card p-4 mb-4">
+              <p className="font-bold text-gray-800 text-sm mb-3">🔥 Más vendidos este mes</p>
+              {m.rankingVendidos.length === 0 ? (
+                <p className="text-gray-400 text-sm">Todavía no hay ventas este mes</p>
               ) : (
-                <p className="text-gray-400 text-sm mt-1">Todavía no hay ventas este mes</p>
+                <div className="space-y-2">
+                  {m.rankingVendidos.map((item, i) => (
+                    <div key={item.nombre} className="flex items-center gap-2 text-sm">
+                      <span className="text-gray-400 font-bold w-4">{i + 1}°</span>
+                      <span className="flex-1 text-gray-700 line-clamp-1">{item.nombre}</span>
+                      <span className="font-bold text-brand-blue">{item.cantidad}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
 
-            <div className="card p-4 col-span-2 flex justify-around text-center">
+            <div className="card p-4 mb-6 flex justify-around text-center">
               <div>
-                <p className="text-gray-800 text-lg font-extrabold">{metricas.productosActivos}</p>
+                <p className="text-gray-800 text-lg font-extrabold">{m.productosActivos}</p>
                 <p className="text-gray-400 text-[11px]">En catálogo</p>
               </div>
               <div>
-                <p className="text-gray-800 text-lg font-extrabold">{metricas.productosAPedido}</p>
+                <p className="text-gray-800 text-lg font-extrabold">{m.productosAPedido}</p>
                 <p className="text-gray-400 text-[11px]">A pedido</p>
               </div>
             </div>
-          </div>
+          </>
         )}
 
         <div className="grid gap-3">
@@ -136,6 +141,16 @@ function Dashboard() {
               </p>
             </div>
             <span className="text-2xl">📦</span>
+          </Link>
+
+          <Link href="/admin/pedidos" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Ventas</p>
+              <p className="text-sm text-gray-500">
+                Gestionar pedidos, pagos y comprobantes
+              </p>
+            </div>
+            <span className="text-2xl">📊</span>
           </Link>
 
           <Link href="/admin/clientes" className="card p-5 flex items-center justify-between hover:shadow-md">
