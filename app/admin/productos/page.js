@@ -2,14 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import { nombreCategoria } from "@/lib/categorias";
 
 function ListaProductos() {
+  const router = useRouter();
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [duplicandoId, setDuplicandoId] = useState(null);
+  const [exportando, setExportando] = useState(false);
 
   async function cargarProductos() {
     setLoading(true);
@@ -35,6 +39,54 @@ function ListaProductos() {
       return;
     }
     setProductos((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function handleDuplicar(producto) {
+    setDuplicandoId(producto.id);
+    try {
+      const copia = { ...producto };
+      delete copia.id;
+      delete copia.created_at;
+      copia.nombre = `${producto.nombre} (copia)`;
+      copia.stock = 0;
+
+      const { data, error } = await supabase.from("Productos").insert(copia).select().single();
+      if (error) throw new Error(error.message);
+
+      router.push(`/admin/productos/${data.id}`);
+    } catch (e) {
+      alert("No se pudo duplicar: " + e.message);
+    } finally {
+      setDuplicandoId(null);
+    }
+  }
+
+  async function handleExportar() {
+    setExportando(true);
+    try {
+      const XLSX = await import("xlsx");
+      const filas = productos.map((p) => ({
+        ID: p.id,
+        Nombre: p.nombre,
+        Categoría: nombreCategoria(p.categoria),
+        Precio: p.precio,
+        "Precio Oferta": p.precio_oferta || "",
+        Costo: p.costo || "",
+        Stock: p.stock ?? "",
+        "A pedido": p.bajo_pedido ? "Sí" : "No",
+        Activo: p.activo ? "Sí" : "No",
+        Destacado: p.destacado ? "Sí" : "No"
+      }));
+
+      const hoja = XLSX.utils.json_to_sheet(filas);
+      const libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, hoja, "Productos");
+      XLSX.writeFile(libro, `productos-bolson-click-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (e) {
+      alert("No se pudo exportar: " + e.message);
+    } finally {
+      setExportando(false);
+    }
   }
 
   const conStockBajo = productos.filter(
@@ -69,6 +121,14 @@ function ListaProductos() {
             </span>
           )}
         </Link>
+
+        <button
+          onClick={handleExportar}
+          disabled={exportando || productos.length === 0}
+          className="w-full flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-5 font-semibold text-sm disabled:opacity-50"
+        >
+          📊 {exportando ? "Generando..." : "Exportar catálogo a Excel"}
+        </button>
 
         {loading ? (
           <p className="text-center text-gray-400 py-10">Cargando...</p>
@@ -117,6 +177,13 @@ function ListaProductos() {
                     >
                       Editar
                     </Link>
+                    <button
+                      onClick={() => handleDuplicar(p)}
+                      disabled={duplicandoId === p.id}
+                      className="text-xs font-semibold text-gray-500 disabled:opacity-50"
+                    >
+                      {duplicandoId === p.id ? "Duplicando..." : "Duplicar"}
+                    </button>
                     <button
                       onClick={() => handleEliminar(p.id)}
                       className="text-xs font-semibold text-red-500"
