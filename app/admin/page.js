@@ -47,14 +47,12 @@ function Dashboard() {
           <>
             {/* RESUMEN RÁPIDO */}
             <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="card p-4 bg-brand-blue">
-                <p className="text-blue-100 text-xs font-semibold">Ventas este mes</p>
-                <p className="text-white text-xl font-extrabold mt-1">
+              <div className="card p-4">
+                <p className="text-gray-500 text-xs font-semibold">Ventas este mes</p>
+                <p className="text-green-600 text-xl font-extrabold mt-1">
                   ${m.ventasMes.toLocaleString("es-AR")}
                 </p>
-                <span className="inline-block bg-white/20 text-white text-[11px] font-bold px-2 py-0.5 rounded-full mt-1">
-                  {m.cantidadPedidosMes} pedidos
-                </span>
+                <p className="text-gray-400 text-[11px] mt-0.5">{m.cantidadPedidosMes} pedidos</p>
               </div>
 
               <div className="card p-4 bg-white border-2 border-amber-400">
