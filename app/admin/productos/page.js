@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
@@ -10,6 +10,8 @@ import { nombreCategoria } from "@/lib/categorias";
 
 function ListaProductos() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const filtro = searchParams.get("filtro"); // "sin-stock" | null
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [duplicandoId, setDuplicandoId] = useState(null);
@@ -93,6 +95,11 @@ function ListaProductos() {
     (p) => Number(p.stock || 0) <= Number(p.stock_minimo ?? 3)
   ).length;
 
+  const productosMostrados =
+    filtro === "sin-stock"
+      ? productos.filter((p) => !p.bajo_pedido && p.stock !== null && Number(p.stock) <= 0)
+      : productos;
+
   return (
     <main className="min-h-screen bg-brand-bg">
       <div className="container-app px-4 py-6">
@@ -130,15 +137,24 @@ function ListaProductos() {
           📊 {exportando ? "Generando..." : "Exportar catálogo a Excel"}
         </button>
 
+        {filtro === "sin-stock" && (
+          <div className="flex items-center justify-between bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 mb-4 text-sm font-semibold">
+            <span>Mostrando solo productos sin stock ({productosMostrados.length})</span>
+            <Link href="/admin/productos" className="underline text-xs">
+              Ver todos
+            </Link>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-center text-gray-400 py-10">Cargando...</p>
-        ) : productos.length === 0 ? (
+        ) : productosMostrados.length === 0 ? (
           <div className="card p-6 text-center text-gray-500">
-            Todavía no hay productos cargados.
+            {filtro === "sin-stock" ? "No tenés productos sin stock 🎉" : "Todavía no hay productos cargados."}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {productos.map((p) => {
+            {productosMostrados.map((p) => {
               const stockBajo = Number(p.stock || 0) <= Number(p.stock_minimo ?? 3);
               return (
                 <div key={p.id} className="card p-3 flex gap-3 items-center">
@@ -204,7 +220,9 @@ function ListaProductos() {
 export default function AdminProductosPage() {
   return (
     <AdminGuard>
-      <ListaProductos />
+      <Suspense fallback={<div className="text-center text-gray-400 py-16">Cargando...</div>}>
+        <ListaProductos />
+      </Suspense>
     </AdminGuard>
   );
 }
