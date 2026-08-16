@@ -64,6 +64,9 @@ export default function LoginPage() {
   const [misPedidos, setMisPedidos] = useState([]);
   const [pedidosLoading, setPedidosLoading] = useState(false);
   const [cancelandoId, setCancelandoId] = useState(null);
+  const [editandoId, setEditandoId] = useState(null);
+  const [itemsEditados, setItemsEditados] = useState({});
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
 
   const [refCode, setRefCode] = useState("");
   const [refNombre, setRefNombre] = useState("");
@@ -255,6 +258,59 @@ export default function LoginPage() {
       alert("Ocurrió un error al cancelar.");
     } finally {
       setCancelandoId(null);
+    }
+  }
+
+  function empezarEdicion(pedido) {
+    setEditandoId(pedido.id);
+    const inicial = {};
+    (pedido.items_pedido || []).forEach((item) => {
+      inicial[item.id] = item.cantidad;
+    });
+    setItemsEditados(inicial);
+  }
+
+  function cambiarCantidadEditada(itemId, delta) {
+    setItemsEditados((prev) => ({
+      ...prev,
+      [itemId]: Math.max(0, (prev[itemId] || 0) + delta)
+    }));
+  }
+
+  async function guardarEdicion(pedidoId) {
+    setGuardandoEdicion(true);
+    try {
+      const tel = user?.telefono || sesionActiva?.telefono;
+      const items = Object.entries(itemsEditados).map(([id, cantidad]) => ({
+        id: Number(id),
+        cantidad
+      }));
+
+      const res = await fetch("/api/mis-pedidos/modificar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pedido_id: pedidoId, telefono: tel, items })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "No se pudo modificar el pedido.");
+        return;
+      }
+
+      setMisPedidos((prev) =>
+        prev.map((p) => {
+          if (p.id !== pedidoId) return p;
+          const nuevosItems = (p.items_pedido || [])
+            .map((item) => ({ ...item, cantidad: itemsEditados[item.id] ?? item.cantidad }))
+            .filter((item) => item.cantidad > 0);
+          return { ...p, items_pedido: nuevosItems, total: data.total };
+        })
+      );
+      setEditandoId(null);
+    } catch (e) {
+      alert("Ocurrió un error al guardar los cambios.");
+    } finally {
+      setGuardandoEdicion(false);
     }
   }
 
@@ -497,23 +553,80 @@ export default function LoginPage() {
                         <p className="text-xs font-bold text-green-700 mb-2">Saldado ✅</p>
                       )}
 
-                      <div className="border-t border-gray-100 pt-2 mt-2 space-y-1">
-                        {pedido.items_pedido && pedido.items_pedido.map((item) => (
-                          <div key={item.id} className="flex justify-between text-xs text-gray-600">
-                            <span>{item.cantidad}x {item.nombre_producto}</span>
-                            <span className="font-medium">${formatPrice(item.precio_unitario * item.cantidad)}</span>
-                          </div>
-                        ))}
-                      </div>
+                      {editandoId === pedido.id ? (
+                        <div className="border-t border-gray-100 pt-2 mt-2 space-y-2">
+                          {(pedido.items_pedido || []).map((item) => {
+                            const cantidadActual = itemsEditados[item.id] ?? item.cantidad;
+                            return (
+                              <div key={item.id} className="flex items-center justify-between gap-2">
+                                <span className="text-xs text-gray-700 flex-1 line-clamp-1">
+                                  {item.nombre_producto}
+                                </span>
+                                <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden flex-shrink-0">
+                                  <button
+                                    onClick={() => cambiarCantidadEditada(item.id, -1)}
+                                    className="px-2 py-0.5 text-gray-600 hover:bg-gray-50"
+                                  >
+                                    −
+                                  </button>
+                                  <span className={`px-2.5 text-xs font-bold ${cantidadActual === 0 ? "text-red-500" : ""}`}>
+                                    {cantidadActual}
+                                  </span>
+                                  <button
+                                    onClick={() => cambiarCantidadEditada(item.id, 1)}
+                                    className="px-2 py-0.5 text-gray-600 hover:bg-gray-50"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <p className="text-[11px] text-gray-400">Poné un ítem en 0 para eliminarlo.</p>
 
-                      {(!pedido.estado || pedido.estado === "pendiente") && (
-                        <button
-                          onClick={() => cancelarPedido(pedido.id)}
-                          disabled={cancelandoId === pedido.id}
-                          className="text-xs font-semibold text-red-500 mt-3 disabled:opacity-50"
-                        >
-                          {cancelandoId === pedido.id ? "Cancelando..." : "Cancelar pedido"}
-                        </button>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={() => guardarEdicion(pedido.id)}
+                              disabled={guardandoEdicion}
+                              className="btn-primary flex-1 text-xs py-2 disabled:opacity-50"
+                            >
+                              {guardandoEdicion ? "Guardando..." : "Guardar cambios"}
+                            </button>
+                            <button
+                              onClick={() => setEditandoId(null)}
+                              className="flex-1 bg-gray-100 text-gray-700 text-xs font-bold py-2 rounded-xl"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border-t border-gray-100 pt-2 mt-2 space-y-1">
+                          {pedido.items_pedido && pedido.items_pedido.map((item) => (
+                            <div key={item.id} className="flex justify-between text-xs text-gray-600">
+                              <span>{item.cantidad}x {item.nombre_producto}</span>
+                              <span className="font-medium">${formatPrice(item.precio_unitario * item.cantidad)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {(!pedido.estado || pedido.estado === "pendiente") && editandoId !== pedido.id && (
+                        <div className="flex gap-3 mt-3">
+                          <button
+                            onClick={() => empezarEdicion(pedido)}
+                            className="text-xs font-semibold text-brand-blue"
+                          >
+                            ✏️ Modificar pedido
+                          </button>
+                          <button
+                            onClick={() => cancelarPedido(pedido.id)}
+                            disabled={cancelandoId === pedido.id}
+                            className="text-xs font-semibold text-red-500 disabled:opacity-50"
+                          >
+                            {cancelandoId === pedido.id ? "Cancelando..." : "Cancelar pedido"}
+                          </button>
+                        </div>
                       )}
                     </div>
                   );
