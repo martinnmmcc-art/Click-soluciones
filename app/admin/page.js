@@ -52,7 +52,9 @@ function Dashboard() {
                 <p className="text-white text-xl font-extrabold mt-1">
                   ${m.ventasMes.toLocaleString("es-AR")}
                 </p>
-                <p className="text-blue-50 text-[11px] mt-0.5 font-semibold">{m.cantidadPedidosMes} pedidos</p>
+                <span className="inline-block bg-white/20 text-white text-[11px] font-bold px-2 py-0.5 rounded-full mt-1">
+                  {m.cantidadPedidosMes} pedidos
+                </span>
               </div>
 
               <div className="card p-4 bg-white border-2 border-amber-400">
@@ -161,6 +163,26 @@ function Dashboard() {
               </p>
             </div>
             <span className="text-2xl">👥</span>
+          </Link>
+
+          <Link href="/admin/referidos" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Referidos</p>
+              <p className="text-sm text-gray-500">
+                Ranking de quién invitó a quién
+              </p>
+            </div>
+            <span className="text-2xl">🎁</span>
+          </Link>
+
+          <Link href="/admin/clientes-riesgo" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Clientes en riesgo</p>
+              <p className="text-sm text-gray-500">
+                Compraron una vez y no volvieron
+              </p>
+            </div>
+            <span className="text-2xl">😴</span>
           </Link>
 
           <Link href="/admin/a-pedido" className="card p-5 flex items-center justify-between hover:shadow-md">
