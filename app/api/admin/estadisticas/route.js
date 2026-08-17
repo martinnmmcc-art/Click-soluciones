@@ -1,4 +1,6 @@
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
@@ -76,21 +78,28 @@ export async function GET() {
     const productosAPedido = productos.filter((p) => p.bajo_pedido).length;
     const sinStock = productos.filter((p) => !p.bajo_pedido && p.stock !== null && Number(p.stock) <= 0).length;
 
-    return Response.json({
-      ventasMes,
-      cantidadPedidosMes: pedidosMes.length,
-      pedidosPendientes,
-      clientesNuevosMes: clientesMesRes.count || 0,
-      clientesTotal: clientesTotalRes.count || 0,
-      productosActivos,
-      productosAPedido,
-      sinStock,
-      costoMateriales,
-      gastoFletes,
-      ganancia,
-      masVendido: masVendido ? { nombre: masVendido[0], cantidad: masVendido[1] } : null,
-      rankingVendidos
-    });
+    return Response.json(
+      {
+        ventasMes,
+        cantidadPedidosMes: pedidosMes.length,
+        pedidosPendientes,
+        clientesNuevosMes: clientesMesRes.count || 0,
+        clientesTotal: clientesTotalRes.count || 0,
+        productosActivos,
+        productosAPedido,
+        sinStock,
+        costoMateriales,
+        gastoFletes,
+        ganancia,
+        masVendido: masVendido ? { nombre: masVendido[0], cantidad: masVendido[1] } : null,
+        rankingVendidos
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0"
+        }
+      }
+    );
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }
