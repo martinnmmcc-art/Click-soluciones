@@ -33,7 +33,7 @@ export async function GET() {
       comprasProveedorRes,
       gastosGeneralesRes
     ] = await Promise.all([
-      supabaseAdmin.from("pedidos").select("id, total, estado, created_at, items_pedido(nombre_producto, cantidad, producto_id)"),
+      supabaseAdmin.from("pedidos").select("id, total, estado, estado_pago, monto_pagado, created_at, items_pedido(nombre_producto, cantidad, producto_id)"),
       supabaseAdmin.from("clientes").select("id", { count: "exact", head: true }).gte("created_at", inicioMesISO),
       supabaseAdmin.from("clientes").select("id", { count: "exact", head: true }),
       supabaseAdmin.from("Productos").select("id, costo, costo_envio, bajo_pedido, activo, stock"),
@@ -103,6 +103,27 @@ export async function GET() {
     );
     const resultadoCaja = ventasMes - gastoMaterialesCaja - gastoTransporteCaja - otrosGastosReal;
 
+    // =====================================================================
+    // BLOQUE 3 — FOTO ACTUAL (no es "de este mes", es "ahora mismo")
+    // =====================================================================
+    // Valor de inventario: plata que tenés "parada" en stock sin vender.
+    // Usa el costo real (igual que el margen) por la cantidad que tenés hoy.
+    const valorInventario = (productosRes.data || []).reduce((acc, p) => {
+      const stock = Number(p.stock || 0);
+      if (p.bajo_pedido || stock <= 0) return acc;
+      const costoUnitarioReal = Number(p.costo || 0) * MULTIPLICADOR_COSTO_REAL + Number(p.costo_envio || 0);
+      return acc + costoUnitarioReal * stock;
+    }, 0);
+
+    // Cuentas por cobrar: plata que tus clientes todavía te deben, de TODOS
+    // los pedidos activos (no solo los de este mes).
+    const cuentasPorCobrar = todosPedidos.reduce((acc, p) => {
+      if (p.estado === "cancelado") return acc;
+      if (p.estado_pago !== "falta_pagar" && p.estado_pago !== "deuda_parcial") return acc;
+      const saldo = Number(p.total || 0) - Number(p.monto_pagado || 0);
+      return acc + Math.max(saldo, 0);
+    }, 0);
+
     const masVendido = Object.entries(conteoVendidos).sort((a, b) => b[1] - a[1])[0];
     const rankingVendidos = Object.entries(conteoVendidos)
       .sort((a, b) => b[1] - a[1])
@@ -135,6 +156,10 @@ export async function GET() {
         gastoMaterialesCaja,
         gastoTransporteCaja,
         resultadoCaja,
+
+        // Bloque 3: foto actual
+        valorInventario,
+        cuentasPorCobrar,
 
         masVendido: masVendido ? { nombre: masVendido[0], cantidad: masVendido[1] } : null,
         rankingVendidos
