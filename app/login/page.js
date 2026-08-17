@@ -148,17 +148,26 @@ export default function LoginPage() {
 
     const { data: clienteExistente } = await supabase
       .from("clientes")
-      .select("*")
+      .select("id, telefono, nombre, localidad, email, direccion")
       .eq("telefono", telLimpio)
       .maybeSingle();
 
     if (clienteExistente && !esRegistro) {
-      if (clienteExistente.password !== passLimpio) {
+      // La verificación de contraseña se hace en una función segura de la base
+      // de datos (RPC), que nunca expone la contraseña al navegador.
+      const { data: loginData, error: loginError } = await supabase.rpc(
+        "validar_login_cliente",
+        { p_telefono: telLimpio, p_password: passLimpio }
+      );
+
+      if (loginError || !loginData || loginData.length === 0) {
         setError("Contraseña incorrecta.");
         return;
       }
-      localStorage.setItem("cliente_sesion", JSON.stringify(clienteExistente));
-      setSesionActiva(clienteExistente);
+
+      const clienteLogueado = loginData[0];
+      localStorage.setItem("cliente_sesion", JSON.stringify(clienteLogueado));
+      setSesionActiva(clienteLogueado);
       return;
     }
 
@@ -187,8 +196,10 @@ export default function LoginPage() {
       return;
     }
 
-    localStorage.setItem("cliente_sesion", JSON.stringify(nuevoCliente));
-    setSesionActiva(nuevoCliente);
+    // No guardamos la contraseña en la sesión local (por seguridad)
+    const { password: _omit, ...clienteSinPassword } = nuevoCliente;
+    localStorage.setItem("cliente_sesion", JSON.stringify(clienteSinPassword));
+    setSesionActiva(clienteSinPassword);
 
     // Apenas se registra, le pedimos el permiso de notificaciones una sola vez (no bloqueante)
     suscribirPush(telLimpio).catch(() => {});
