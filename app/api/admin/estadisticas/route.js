@@ -25,12 +25,18 @@ export async function GET() {
     inicioMes.setHours(0, 0, 0, 0);
     const inicioMesISO = inicioMes.toISOString();
 
-    const [pedidosRes, clientesMesRes, clientesTotalRes, productosRes] = await Promise.all([
+    const [pedidosRes, clientesMesRes, clientesTotalRes, productosRes, comprasProveedorRes] = await Promise.all([
       supabaseAdmin.from("pedidos").select("id, total, estado, created_at, items_pedido(nombre_producto, cantidad, precio_unitario, producto_id)"),
       supabaseAdmin.from("clientes").select("id", { count: "exact", head: true }).gte("created_at", inicioMesISO),
       supabaseAdmin.from("clientes").select("id", { count: "exact", head: true }),
-      supabaseAdmin.from("Productos").select("id, costo, costo_envio, bajo_pedido, activo, stock")
+      supabaseAdmin.from("Productos").select("id, costo, costo_envio, bajo_pedido, activo, stock"),
+      supabaseAdmin.from("compras_proveedor").select("flete").gte("fecha", inicioMesISO.slice(0, 10))
     ]);
+
+    const fleteProveedorMes = (comprasProveedorRes.data || []).reduce(
+      (acc, c) => acc + Number(c.flete || 0),
+      0
+    );
 
     if (pedidosRes.error) throw new Error(pedidosRes.error.message);
 
@@ -90,6 +96,7 @@ export async function GET() {
         sinStock,
         costoMateriales,
         gastoFletes,
+        fleteProveedorMes,
         ganancia,
         masVendido: masVendido ? { nombre: masVendido[0], cantidad: masVendido[1] } : null,
         rankingVendidos
