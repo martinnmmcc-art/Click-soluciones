@@ -183,7 +183,7 @@ function Dashboard() {
             <span className="text-2xl">😴</span>
           </Link>
 
-          <Link href="/admin/a-pedido" className="card p-5 flex items-center justify-between hover:shadow-md">
+          <Link href="/admin/productos?tab=a-pedido" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">A pedido</p>
               <p className="text-sm text-gray-500">
