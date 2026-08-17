@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { useAdmin } from "@/context/AdminContext";
@@ -9,23 +9,32 @@ function Dashboard() {
   const { logout } = useAdmin();
   const [m, setM] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actualizando, setActualizando] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function cargar() {
-      try {
-        const res = await fetch("/api/admin/estadisticas");
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Error al cargar estadísticas");
-        setM(data);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
+  const cargar = useCallback(async ({ mostrarSpinnerChico } = {}) => {
+    if (mostrarSpinnerChico) {
+      setActualizando(true);
+    } else {
+      setLoading(true);
     }
-    cargar();
+    try {
+      const res = await fetch("/api/admin/estadisticas", { cache: "no-store" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al cargar estadísticas");
+      setM(data);
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+      setActualizando(false);
+    }
   }, []);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
 
   return (
     <main className="min-h-screen bg-brand-bg">
@@ -34,9 +43,19 @@ function Dashboard() {
           <h1 className="font-extrabold text-xl text-gray-800">
             Panel de Bolson Click
           </h1>
-          <button onClick={logout} className="text-sm text-red-500 font-medium">
-            Salir
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => cargar({ mostrarSpinnerChico: true })}
+              disabled={actualizando || loading}
+              className="text-sm text-brand-blue font-medium disabled:opacity-40"
+              title="Actualizar números"
+            >
+              {actualizando ? "Actualizando..." : "🔄 Actualizar"}
+            </button>
+            <button onClick={logout} className="text-sm text-red-500 font-medium">
+              Salir
+            </button>
+          </div>
         </div>
 
         {loading ? (
