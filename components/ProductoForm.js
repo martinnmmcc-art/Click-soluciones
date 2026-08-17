@@ -24,6 +24,7 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
     categoria: initialData?.categoria || "hogar",
     destacado: initialData?.destacado ?? false,
     activo: initialData?.activo ?? true,
+    bajo_pedido: initialData?.bajo_pedido ?? false,
     stock: initialData?.stock ?? 0,
     stock_minimo: initialData?.stock_minimo ?? 3,
     costo: initialData?.costo ?? "",
@@ -73,13 +74,19 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
 
     setGuardando(true);
     try {
+      const stockFinal = Number(form.stock) || 0;
+      // Si es un producto "a pedido" pero ya le cargaste stock real, lo pasamos
+      // solo a la lista normal de productos (ya no hace falta pedirlo bajo consulta).
+      const bajoPedidoFinal = form.bajo_pedido && stockFinal > 0 ? false : form.bajo_pedido;
+
       await onSubmit({
         ...form,
         precio: Number(form.precio),
         precio_oferta: form.precio_oferta ? Number(form.precio_oferta) : null,
         imagen_url_2: form.imagen_url_2 || null,
         imagen_url_3: form.imagen_url_3 || null,
-        stock: Number(form.stock) || 0,
+        bajo_pedido: bajoPedidoFinal,
+        stock: stockFinal,
         stock_minimo: Number(form.stock_minimo) || 0,
         costo: form.costo !== "" ? Number(form.costo) : null,
         margen_porcentaje: form.margen_porcentaje !== "" ? Number(form.margen_porcentaje) : null,
@@ -98,6 +105,23 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3">
           {error}
         </div>
+      )}
+
+      <label className="flex items-center gap-2 text-sm bg-purple-50 border border-purple-200 rounded-xl p-3">
+        <input
+          type="checkbox"
+          name="bajo_pedido"
+          checked={form.bajo_pedido}
+          onChange={handleChange}
+        />
+        <span className="text-purple-800 font-semibold">
+          🛍️ Es "a pedido" (no tengo stock, se pide al proveedor bajo consulta)
+        </span>
+      </label>
+      {form.bajo_pedido && (
+        <p className="text-[11px] text-purple-600 -mt-2 ml-1">
+          Tip: si le cargás stock (más de 0) y guardás, se va a pasar solo a la lista normal de productos.
+        </p>
       )}
 
       <div>
