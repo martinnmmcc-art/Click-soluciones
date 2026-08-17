@@ -19,7 +19,7 @@ function Clientes() {
     setLoading(true);
     const { data } = await supabase
       .from("clientes")
-      .select("*")
+      .select("id, telefono, nombre, localidad, created_at, email, direccion, referido_por")
       .order("created_at", { ascending: false });
     setClientes(data || []);
     setLoading(false);
