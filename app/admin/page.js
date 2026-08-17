@@ -95,41 +95,39 @@ function Dashboard() {
               </Link>
             </div>
 
-            {/* ESTADÍSTICAS DEL MES: PLATA */}
+            {/* ESTADÍSTICAS DEL MES: PLATA REAL (no estimaciones) */}
             <div className="card p-4 mb-4">
-              <p className="font-bold text-gray-800 text-sm mb-3">💰 Estadísticas del mes</p>
+              <p className="font-bold text-gray-800 text-sm mb-1">💰 Estadísticas del mes</p>
+              <p className="text-gray-400 text-[11px] mb-3">Plata real, no estimada</p>
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Ventas totales</span>
+                  <span className="text-gray-500">Ventas</span>
                   <span className="font-bold text-gray-800">${m.ventasMes.toLocaleString("es-AR")}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Gastado en materiales</span>
-                  <span className="font-bold text-gray-700">-${m.costoMateriales.toLocaleString("es-AR")}</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-500">Gastado en fletes</span>
-                  <span className="font-bold text-gray-700">-${m.gastoFletes.toLocaleString("es-AR")}</span>
-                </div>
+                <Link href="/admin/compras-proveedor" className="flex justify-between items-center text-sm hover:underline">
+                  <span className="text-gray-500">Gastos en materiales</span>
+                  <span className="font-bold text-gray-700">-${m.gastoMaterialesReal.toLocaleString("es-AR")}</span>
+                </Link>
+                <Link href="/admin/compras-proveedor" className="flex justify-between items-center text-sm hover:underline">
+                  <span className="text-gray-500">Gastos en transporte</span>
+                  <span className="font-bold text-gray-700">-${m.gastoTransporteReal.toLocaleString("es-AR")}</span>
+                </Link>
+                <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
+                  <span className="text-gray-500">Otros gastos</span>
+                  <span className="font-bold text-gray-700">-${m.otrosGastosReal.toLocaleString("es-AR")}</span>
+                </Link>
                 <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-1">
-                  <span className="text-gray-800 font-semibold">Ganancia estimada</span>
-                  <span className={`font-extrabold ${m.ganancia >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    ${m.ganancia.toLocaleString("es-AR")}
+                  <span className="text-gray-800 font-semibold">Ganancia</span>
+                  <span className={`font-extrabold ${m.gananciaReal >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    ${m.gananciaReal.toLocaleString("es-AR")}
                   </span>
                 </div>
               </div>
+              <p className="text-gray-400 text-[10px] mt-3">
+                Los gastos son lo que cargaste en "Compras a proveedor" y "Otros gastos" este mes —
+                no dependen de cuánto vendiste, sino de cuánto compraste/gastaste.
+              </p>
             </div>
-
-            {/* FLETE PAGADO AL PROVEEDOR: dato aparte, no afecta la ganancia de arriba */}
-            <Link href="/admin/compras-proveedor" className="card p-4 mb-4 block hover:shadow-md">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">🚚 Flete pagado a proveedores (mes)</span>
-                <span className="font-bold text-amber-600">
-                  ${(m.fleteProveedorMes || 0).toLocaleString("es-AR")}
-                </span>
-              </div>
-              <p className="text-brand-blue text-[11px] mt-1 font-semibold underline">Cargar / ver compras →</p>
-            </Link>
 
             {/* RANKING DE VENTAS */}
             <div className="card p-4 mb-4">
@@ -181,6 +179,26 @@ function Dashboard() {
               </p>
             </div>
             <span className="text-2xl">📊</span>
+          </Link>
+
+          <Link href="/admin/compras-proveedor" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Compras a proveedor</p>
+              <p className="text-sm text-gray-500">
+                Cargar cada pedido: subtotal y flete pagado
+              </p>
+            </div>
+            <span className="text-2xl">🚚</span>
+          </Link>
+
+          <Link href="/admin/gastos-generales" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Otros gastos</p>
+              <p className="text-sm text-gray-500">
+                Alquiler, publicidad, embalajes y demás
+              </p>
+            </div>
+            <span className="text-2xl">🧾</span>
           </Link>
 
           <Link href="/admin/clientes" className="card p-5 flex items-center justify-between hover:shadow-md">
