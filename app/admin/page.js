@@ -120,6 +120,17 @@ function Dashboard() {
               </div>
             </div>
 
+            {/* FLETE PAGADO AL PROVEEDOR: dato aparte, no afecta la ganancia de arriba */}
+            <Link href="/admin/compras-proveedor" className="card p-4 mb-4 block hover:shadow-md">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-500">🚚 Flete pagado a proveedores (mes)</span>
+                <span className="font-bold text-amber-600">
+                  ${(m.fleteProveedorMes || 0).toLocaleString("es-AR")}
+                </span>
+              </div>
+              <p className="text-brand-blue text-[11px] mt-1 font-semibold underline">Cargar / ver compras →</p>
+            </Link>
+
             {/* RANKING DE VENTAS */}
             <div className="card p-4 mb-4">
               <p className="font-bold text-gray-800 text-sm mb-3">🔥 Más vendidos este mes</p>
