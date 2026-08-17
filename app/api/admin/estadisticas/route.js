@@ -8,6 +8,15 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// El campo "costo" de cada producto es el precio CRUDO del proveedor (sin recargos).
+// El costo real que paga Bolson Click incluye además:
+//   - 3% que cobra el proveedor por pagar con transferencia
+//   - 5% que se agrega por la variación del dólar
+// Estos dos recargos NO son ganancia, son costo real de la mercadería.
+const RECARGO_TRANSFERENCIA = 0.03;
+const RECARGO_INFLACION_DOLAR = 0.05;
+const MULTIPLICADOR_COSTO_REAL = (1 + RECARGO_TRANSFERENCIA) * (1 + RECARGO_INFLACION_DOLAR);
+
 export async function GET() {
   try {
     const inicioMes = new Date();
@@ -24,10 +33,10 @@ export async function GET() {
       comprasProveedorRes,
       gastosGeneralesRes
     ] = await Promise.all([
-      supabaseAdmin.from("pedidos").select("id, total, estado, created_at, items_pedido(nombre_producto, cantidad)"),
+      supabaseAdmin.from("pedidos").select("id, total, estado, created_at, items_pedido(nombre_producto, cantidad, producto_id)"),
       supabaseAdmin.from("clientes").select("id", { count: "exact", head: true }).gte("created_at", inicioMesISO),
       supabaseAdmin.from("clientes").select("id", { count: "exact", head: true }),
-      supabaseAdmin.from("Productos").select("id, bajo_pedido, activo, stock"),
+      supabaseAdmin.from("Productos").select("id, costo, costo_envio, bajo_pedido, activo, stock"),
       supabaseAdmin.from("compras_proveedor").select("subtotal, flete").gte("fecha", inicioMesFecha),
       supabaseAdmin.from("gastos_generales").select("monto").gte("fecha", inicioMesFecha)
     ]);
@@ -42,33 +51,58 @@ export async function GET() {
     const ventasMes = pedidosMes.reduce((acc, p) => acc + Number(p.total || 0), 0);
     const pedidosPendientes = todosPedidos.filter((p) => !p.estado || p.estado === "pendiente").length;
 
-    // ---------- PLATA REAL DEL MES (no estimaciones) ----------
-    // Gastado en materiales y en transporte: suma de lo que realmente pagaste a proveedores
-    // este mes, cargado a mano en "Compras a proveedor". No depende de cuánto vendiste,
-    // depende de cuánto compraste — así funciona la plata real.
-    const gastoMaterialesReal = (comprasProveedorRes.data || []).reduce(
-      (acc, c) => acc + Number(c.subtotal || 0),
-      0
-    );
-    const gastoTransporteReal = (comprasProveedorRes.data || []).reduce(
-      (acc, c) => acc + Number(c.flete || 0),
-      0
-    );
     const otrosGastosReal = (gastosGeneralesRes.data || []).reduce(
       (acc, g) => acc + Number(g.monto || 0),
       0
     );
 
-    const gananciaReal = ventasMes - gastoMaterialesReal - gastoTransporteReal - otrosGastosReal;
+    // =====================================================================
+    // BLOQUE 1 — MARGEN SOBRE LO VENDIDO (rentabilidad real de tus ventas)
+    // Responde: "de lo que vendí este mes, ¿cuánto me quedó de ganancia?"
+    // Usa el costo real de CADA PRODUCTO VENDIDO (no de lo que compraste al
+    // proveedor). Es la forma correcta de medir rentabilidad en contabilidad:
+    // el costo se descuenta cuando el producto se vende, no cuando se compra.
+    // =====================================================================
+    const costosPorProducto = {};
+    (productosRes.data || []).forEach((p) => {
+      costosPorProducto[p.id] = { costo: Number(p.costo || 0), costo_envio: Number(p.costo_envio || 0) };
+    });
 
-    // ---------- RANKING DE PRODUCTOS VENDIDOS (informativo, no toca la plata) ----------
+    let costoMercaderiaVendida = 0;
     const conteoVendidos = {};
+
     pedidosMes.forEach((pedido) => {
       (pedido.items_pedido || []).forEach((item) => {
         const cantidad = Number(item.cantidad || 0);
+        const costos = costosPorProducto[item.producto_id];
+        if (costos) {
+          const costoUnitarioReal = costos.costo * MULTIPLICADOR_COSTO_REAL + costos.costo_envio;
+          costoMercaderiaVendida += costoUnitarioReal * cantidad;
+        }
         conteoVendidos[item.nombre_producto] = (conteoVendidos[item.nombre_producto] || 0) + cantidad;
       });
     });
+
+    const gananciaBruta = ventasMes - costoMercaderiaVendida;
+    const gananciaNeta = gananciaBruta - otrosGastosReal;
+
+    // =====================================================================
+    // BLOQUE 2 — FLUJO DE CAJA (plata real que entró y salió del bolsillo)
+    // Responde: "¿me está sobrando o faltando plata este mes?"
+    // Usa lo que compraste al proveedor este mes, venda o no venda todavía.
+    // Si compraste más de lo que vendiste, da negativo — no es una pérdida,
+    // es mercadería que quedó en stock y todavía no se convirtió en venta.
+    // =====================================================================
+    const gastoMaterialesCaja = (comprasProveedorRes.data || []).reduce(
+      (acc, c) => acc + Number(c.subtotal || 0),
+      0
+    );
+    const gastoTransporteCaja = (comprasProveedorRes.data || []).reduce(
+      (acc, c) => acc + Number(c.flete || 0),
+      0
+    );
+    const resultadoCaja = ventasMes - gastoMaterialesCaja - gastoTransporteCaja - otrosGastosReal;
+
     const masVendido = Object.entries(conteoVendidos).sort((a, b) => b[1] - a[1])[0];
     const rankingVendidos = Object.entries(conteoVendidos)
       .sort((a, b) => b[1] - a[1])
@@ -90,10 +124,18 @@ export async function GET() {
         productosActivos,
         productosAPedido,
         sinStock,
-        gastoMaterialesReal,
-        gastoTransporteReal,
+
+        // Bloque 1: margen sobre lo vendido
+        costoMercaderiaVendida,
+        gananciaBruta,
         otrosGastosReal,
-        gananciaReal,
+        gananciaNeta,
+
+        // Bloque 2: flujo de caja
+        gastoMaterialesCaja,
+        gastoTransporteCaja,
+        resultadoCaja,
+
         masVendido: masVendido ? { nombre: masVendido[0], cantidad: masVendido[1] } : null,
         rankingVendidos
       },
