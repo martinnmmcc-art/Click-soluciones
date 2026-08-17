@@ -95,37 +95,70 @@ function Dashboard() {
               </Link>
             </div>
 
-            {/* ESTADÍSTICAS DEL MES: PLATA REAL (no estimaciones) */}
+            {/* BLOQUE 1: MARGEN SOBRE LO VENDIDO */}
             <div className="card p-4 mb-4">
-              <p className="font-bold text-gray-800 text-sm mb-1">💰 Estadísticas del mes</p>
-              <p className="text-gray-400 text-[11px] mb-3">Plata real, no estimada</p>
+              <p className="font-bold text-gray-800 text-sm mb-1">📈 Margen sobre lo vendido</p>
+              <p className="text-gray-400 text-[11px] mb-3">
+                Cuánto ganás por lo que efectivamente vendiste, con el costo real de esos productos
+              </p>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Ventas</span>
+                  <span className="font-bold text-gray-800">${m.ventasMes.toLocaleString("es-AR")}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Costo de mercadería vendida</span>
+                  <span className="font-bold text-gray-700">-${m.costoMercaderiaVendida.toLocaleString("es-AR")}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-500">Ganancia bruta</span>
+                  <span className="font-bold text-gray-700">${m.gananciaBruta.toLocaleString("es-AR")}</span>
+                </div>
+                <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
+                  <span className="text-gray-500">Otros gastos</span>
+                  <span className="font-bold text-gray-700">-${m.otrosGastosReal.toLocaleString("es-AR")}</span>
+                </Link>
+                <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-1">
+                  <span className="text-gray-800 font-semibold">Ganancia neta</span>
+                  <span className={`font-extrabold ${m.gananciaNeta >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    ${m.gananciaNeta.toLocaleString("es-AR")}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* BLOQUE 2: FLUJO DE CAJA */}
+            <div className="card p-4 mb-4">
+              <p className="font-bold text-gray-800 text-sm mb-1">💵 Flujo de caja</p>
+              <p className="text-gray-400 text-[11px] mb-3">
+                Plata real que entró y salió este mes, venda o no venda todavía
+              </p>
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-500">Ventas</span>
                   <span className="font-bold text-gray-800">${m.ventasMes.toLocaleString("es-AR")}</span>
                 </div>
                 <Link href="/admin/compras-proveedor" className="flex justify-between items-center text-sm hover:underline">
-                  <span className="text-gray-500">Gastos en materiales</span>
-                  <span className="font-bold text-gray-700">-${m.gastoMaterialesReal.toLocaleString("es-AR")}</span>
+                  <span className="text-gray-500">Compras de mercadería</span>
+                  <span className="font-bold text-gray-700">-${m.gastoMaterialesCaja.toLocaleString("es-AR")}</span>
                 </Link>
                 <Link href="/admin/compras-proveedor" className="flex justify-between items-center text-sm hover:underline">
-                  <span className="text-gray-500">Gastos en transporte</span>
-                  <span className="font-bold text-gray-700">-${m.gastoTransporteReal.toLocaleString("es-AR")}</span>
+                  <span className="text-gray-500">Transporte pagado</span>
+                  <span className="font-bold text-gray-700">-${m.gastoTransporteCaja.toLocaleString("es-AR")}</span>
                 </Link>
                 <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
                   <span className="text-gray-500">Otros gastos</span>
                   <span className="font-bold text-gray-700">-${m.otrosGastosReal.toLocaleString("es-AR")}</span>
                 </Link>
                 <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-1">
-                  <span className="text-gray-800 font-semibold">Ganancia</span>
-                  <span className={`font-extrabold ${m.gananciaReal >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    ${m.gananciaReal.toLocaleString("es-AR")}
+                  <span className="text-gray-800 font-semibold">Resultado de caja</span>
+                  <span className={`font-extrabold ${m.resultadoCaja >= 0 ? "text-green-600" : "text-red-600"}`}>
+                    ${m.resultadoCaja.toLocaleString("es-AR")}
                   </span>
                 </div>
               </div>
               <p className="text-gray-400 text-[10px] mt-3">
-                Los gastos son lo que cargaste en "Compras a proveedor" y "Otros gastos" este mes —
-                no dependen de cuánto vendiste, sino de cuánto compraste/gastaste.
+                Si da negativo no es pérdida: puede ser mercadería comprada que todavía no vendiste.
               </p>
             </div>
 
