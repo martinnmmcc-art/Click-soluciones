@@ -162,6 +162,24 @@ function Dashboard() {
               </p>
             </div>
 
+            {/* BLOQUE 3: FOTO ACTUAL */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="card p-4">
+                <p className="text-gray-500 text-xs font-semibold">📦 Valor en stock</p>
+                <p className="text-gray-800 text-lg font-extrabold mt-1">
+                  ${m.valorInventario.toLocaleString("es-AR")}
+                </p>
+                <p className="text-gray-400 text-[11px] mt-0.5">Plata parada en mercadería</p>
+              </div>
+              <Link href="/admin/pedidos" className="card p-4 hover:shadow-md block">
+                <p className="text-gray-500 text-xs font-semibold">🤝 Te deben</p>
+                <p className="text-amber-600 text-lg font-extrabold mt-1">
+                  ${m.cuentasPorCobrar.toLocaleString("es-AR")}
+                </p>
+                <p className="text-brand-blue text-[11px] mt-0.5 font-semibold underline">Ver pedidos →</p>
+              </Link>
+            </div>
+
             {/* RANKING DE VENTAS */}
             <div className="card p-4 mb-4">
               <p className="font-bold text-gray-800 text-sm mb-3">🔥 Más vendidos este mes</p>
