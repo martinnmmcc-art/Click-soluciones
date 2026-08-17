@@ -6,6 +6,16 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// El campo "costo" de cada producto es el precio CRUDO del proveedor (sin recargos).
+// El costo real que paga Bolson Click incluye además:
+//   - 3% que cobra el proveedor por pagar con transferencia
+//   - 5% que se agrega por la variación del dólar
+// Estos dos recargos NO son ganancia, son costo real. Si el día de mañana cambian
+// estos porcentajes, se ajustan acá.
+const RECARGO_TRANSFERENCIA = 0.03;
+const RECARGO_INFLACION_DOLAR = 0.05;
+const MULTIPLICADOR_COSTO_REAL = (1 + RECARGO_TRANSFERENCIA) * (1 + RECARGO_INFLACION_DOLAR);
+
 export async function GET() {
   try {
     const inicioMes = new Date();
@@ -45,7 +55,8 @@ export async function GET() {
         const cantidad = Number(item.cantidad || 0);
         const costos = costosPorProducto[item.producto_id];
         if (costos) {
-          costoMateriales += costos.costo * cantidad;
+          // Costo real = precio crudo del proveedor + 3% transferencia + 5% inflación dólar
+          costoMateriales += costos.costo * MULTIPLICADOR_COSTO_REAL * cantidad;
           gastoFletes += costos.costo_envio * cantidad;
         }
         conteoVendidos[item.nombre_producto] = (conteoVendidos[item.nombre_producto] || 0) + cantidad;
