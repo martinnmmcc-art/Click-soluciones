@@ -16,6 +16,8 @@ function ListaProductos() {
   const [loading, setLoading] = useState(true);
   const [duplicandoId, setDuplicandoId] = useState(null);
   const [exportando, setExportando] = useState(false);
+  const tabInicial = searchParams.get("tab") === "a-pedido" ? "a-pedido" : "tengo";
+  const [tab, setTab] = useState(tabInicial); // "tengo" | "a-pedido"
 
   async function cargarProductos() {
     setLoading(true);
@@ -91,14 +93,19 @@ function ListaProductos() {
     }
   }
 
-  const conStockBajo = productos.filter(
+  const productosTengo = productos.filter((p) => !p.bajo_pedido);
+  const productosAPedido = productos.filter((p) => p.bajo_pedido);
+
+  const conStockBajo = productosTengo.filter(
     (p) => Number(p.stock || 0) <= Number(p.stock_minimo ?? 3)
   ).length;
 
+  const listaBase = tab === "tengo" ? productosTengo : productosAPedido;
+
   const productosMostrados =
     filtro === "sin-stock"
-      ? productos.filter((p) => !p.bajo_pedido && p.stock !== null && Number(p.stock) <= 0)
-      : productos;
+      ? productosTengo.filter((p) => p.stock !== null && Number(p.stock) <= 0)
+      : listaBase;
 
   return (
     <main className="min-h-screen bg-brand-bg">
@@ -117,25 +124,56 @@ function ListaProductos() {
           </Link>
         </div>
 
-        <Link
-          href="/admin/pedido-proveedor"
-          className="flex items-center justify-between bg-orange-50 border border-orange-200 text-orange-700 rounded-xl px-4 py-3 mb-5 font-semibold text-sm"
-        >
-          📋 Pedido a proveedor
-          {conStockBajo > 0 && (
-            <span className="bg-orange-500 text-white text-xs font-bold rounded-full px-2 py-0.5">
-              {conStockBajo} con stock bajo
-            </span>
-          )}
-        </Link>
+        {/* PESTAÑAS */}
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button
+            onClick={() => setTab("tengo")}
+            className={`py-3 rounded-xl text-sm font-bold transition ${
+              tab === "tengo" ? "bg-brand-blue text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600"
+            }`}
+          >
+            📦 Tengo {productosTengo.length > 0 && `(${productosTengo.length})`}
+          </button>
+          <button
+            onClick={() => setTab("a-pedido")}
+            className={`py-3 rounded-xl text-sm font-bold transition ${
+              tab === "a-pedido" ? "bg-purple-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600"
+            }`}
+          >
+            🛍️ A pedido {productosAPedido.length > 0 && `(${productosAPedido.length})`}
+          </button>
+        </div>
 
-        <button
-          onClick={handleExportar}
-          disabled={exportando || productos.length === 0}
-          className="w-full flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-5 font-semibold text-sm disabled:opacity-50"
-        >
-          📊 {exportando ? "Generando..." : "Exportar catálogo a Excel"}
-        </button>
+        {tab === "tengo" && (
+          <>
+            <Link
+              href="/admin/pedido-proveedor"
+              className="flex items-center justify-between bg-orange-50 border border-orange-200 text-orange-700 rounded-xl px-4 py-3 mb-3 font-semibold text-sm"
+            >
+              📋 Pedido a proveedor
+              {conStockBajo > 0 && (
+                <span className="bg-orange-500 text-white text-xs font-bold rounded-full px-2 py-0.5">
+                  {conStockBajo} con stock bajo
+                </span>
+              )}
+            </Link>
+
+            <button
+              onClick={handleExportar}
+              disabled={exportando || productos.length === 0}
+              className="w-full flex items-center justify-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 mb-5 font-semibold text-sm disabled:opacity-50"
+            >
+              📊 {exportando ? "Generando..." : "Exportar catálogo a Excel"}
+            </button>
+          </>
+        )}
+
+        {tab === "a-pedido" && (
+          <p className="text-xs text-gray-500 mb-4">
+            Estos productos aparecen en la sección pública "A pedido" de la app, separados del catálogo normal.
+            Si les cargás stock (más de 0), se pasan solos a la pestaña "Tengo".
+          </p>
+        )}
 
         {filtro === "sin-stock" && (
           <div className="flex items-center justify-between bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 mb-4 text-sm font-semibold">
@@ -150,12 +188,16 @@ function ListaProductos() {
           <p className="text-center text-gray-400 py-10">Cargando...</p>
         ) : productosMostrados.length === 0 ? (
           <div className="card p-6 text-center text-gray-500">
-            {filtro === "sin-stock" ? "No tenés productos sin stock 🎉" : "Todavía no hay productos cargados."}
+            {filtro === "sin-stock"
+              ? "No tenés productos sin stock 🎉"
+              : tab === "a-pedido"
+              ? "Todavía no cargaste productos a pedido."
+              : "Todavía no hay productos cargados."}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             {productosMostrados.map((p) => {
-              const stockBajo = Number(p.stock || 0) <= Number(p.stock_minimo ?? 3);
+              const stockBajo = !p.bajo_pedido && Number(p.stock || 0) <= Number(p.stock_minimo ?? 3);
               return (
                 <div key={p.id} className="card p-3 flex gap-3 items-center">
                   <div className="w-14 h-14 rounded-xl bg-gray-100 flex-shrink-0 overflow-hidden flex items-center justify-center">
@@ -175,11 +217,16 @@ function ListaProductos() {
                       {p.nombre}
                     </p>
                     <p className="text-xs text-gray-500">
-                      {nombreCategoria(p.categoria)} ·{" "}
-                      <span className={stockBajo ? "text-orange-600 font-bold" : ""}>
-                        Stock: {p.stock}
-                        {stockBajo && " ⚠️"}
-                      </span>
+                      {nombreCategoria(p.categoria)}
+                      {!p.bajo_pedido && (
+                        <>
+                          {" · "}
+                          <span className={stockBajo ? "text-orange-600 font-bold" : ""}>
+                            Stock: {p.stock}
+                            {stockBajo && " ⚠️"}
+                          </span>
+                        </>
+                      )}
                       {!p.activo && " · Inactivo"}
                     </p>
                     <p className="text-brand-blueDark font-bold text-sm mt-0.5">
