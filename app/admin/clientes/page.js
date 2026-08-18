@@ -123,7 +123,7 @@ function Clientes() {
     }
 
     setGuardandoEdit(true);
-    const { error: updateError } = await supabase
+    const { data: actualizados, error: updateError } = await supabase
       .from("clientes")
       .update({
         nombre: formEdit.nombre.trim(),
@@ -132,16 +132,24 @@ function Clientes() {
         email: formEdit.email.trim(),
         direccion: formEdit.direccion.trim()
       })
-      .eq("id", id);
+      .eq("id", id)
+      .select("id");
 
     setGuardandoEdit(false);
 
     if (updateError) {
       setErrorEdit(
-        updateError.message.includes("clientes_telefono_unico")
+        updateError.message.includes("clientes_telefono")
           ? "Ya existe otro cliente con ese celular."
+          : updateError.message.includes("TELEFONO_BLOQUEADO")
+          ? "Ese celular está bloqueado. Desbloquealo primero."
           : updateError.message
       );
+      return;
+    }
+
+    if (!actualizados || actualizados.length === 0) {
+      setErrorEdit("No se guardaron los cambios. Verificá que estés logueado como admin.");
       return;
     }
 
@@ -153,13 +161,18 @@ function Clientes() {
     const nueva = prompt(`Nueva contraseña para ${c.nombre || c.telefono}:`);
     if (!nueva || !nueva.trim()) return;
 
-    const { error: updateError } = await supabase
+    const { data: actualizados, error: updateError } = await supabase
       .from("clientes")
       .update({ password: nueva.trim() })
-      .eq("id", c.id);
+      .eq("id", c.id)
+      .select("id");
 
     if (updateError) {
       alert("No se pudo cambiar la contraseña: " + updateError.message);
+      return;
+    }
+    if (!actualizados || actualizados.length === 0) {
+      alert("No se cambió la contraseña. Verificá que estés logueado como admin.");
       return;
     }
     alert("Contraseña actualizada. Avisale al cliente cuál es su nueva contraseña.");
@@ -210,9 +223,18 @@ function Clientes() {
     );
     if (!ok) return;
 
-    const { error: deleteError } = await supabase.from("clientes").delete().eq("id", c.id);
+    const { data: borrados, error: deleteError } = await supabase
+      .from("clientes")
+      .delete()
+      .eq("id", c.id)
+      .select("id");
+
     if (deleteError) {
       alert("No se pudo eliminar: " + deleteError.message);
+      return;
+    }
+    if (!borrados || borrados.length === 0) {
+      alert("No se eliminó el cliente. Verificá que estés logueado como admin y volvé a intentar.");
       return;
     }
     cargarClientes();
