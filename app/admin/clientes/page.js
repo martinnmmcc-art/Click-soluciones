@@ -69,7 +69,7 @@ function Clientes() {
       const { data: existente } = await supabase
         .from("clientes")
         .select("id")
-        .eq("telefono", form.telefono.trim())
+        .eq("telefono", normalizarTelefono(form.telefono))
         .maybeSingle();
 
       if (existente) {
@@ -80,7 +80,7 @@ function Clientes() {
 
       const { error: insertError } = await supabase.from("clientes").insert({
         nombre: form.nombre.trim(),
-        telefono: form.telefono.trim(),
+        telefono: normalizarTelefono(form.telefono),
         password: form.password.trim(),
         localidad: form.localidad.trim(),
         email: form.email.trim()
@@ -127,7 +127,7 @@ function Clientes() {
       .from("clientes")
       .update({
         nombre: formEdit.nombre.trim(),
-        telefono: formEdit.telefono.trim(),
+        telefono: normalizarTelefono(formEdit.telefono),
         localidad: formEdit.localidad.trim(),
         email: formEdit.email.trim(),
         direccion: formEdit.direccion.trim()
@@ -178,6 +178,26 @@ function Clientes() {
     alert("Contraseña actualizada. Avisale al cliente cuál es su nueva contraseña.");
   }
 
+  // Deja el teléfono en el formato que usa toda la app (2944636224): sin +54,
+  // sin el 9 de celular, sin espacios ni guiones. Así siempre coincide con el
+  // teléfono que se guarda en los pedidos y el cliente ve "Mis pedidos" bien.
+  function normalizarTelefono(tel) {
+    let limpio = (tel || "").replace(/\D/g, "");
+    if (limpio.startsWith("54")) limpio = limpio.slice(2);
+    if (limpio.startsWith("9")) limpio = limpio.slice(1);
+    return limpio;
+  }
+
+  // WhatsApp necesita el número en formato internacional (54 9 + número),
+  // pero en la base guardamos el número simple (2944636224) para que coincida
+  // con el de los pedidos. Esta función hace la conversión solo al abrir el chat.
+  function telefonoParaWhatsapp(tel) {
+    let limpio = (tel || "").replace(/\D/g, "");
+    if (limpio.startsWith("54")) limpio = limpio.slice(2);
+    if (limpio.startsWith("9")) limpio = limpio.slice(1);
+    return `549${limpio}`;
+  }
+
   async function generarLinkAcceso(c) {
     const dias = prompt(
       `¿Cuántos días querés que dure el link de acceso de ${c.nombre || c.telefono}?\n\n` +
@@ -219,7 +239,7 @@ function Clientes() {
       `⚠️ El link es personal, no lo compartas. ${textoVencimiento}\n\n` +
       `Tip: una vez adentro, tocá el menú del navegador y elegí "Instalar app" para tenerla en tu celular como una app más.`;
 
-    const wa = `https://wa.me/${c.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(mensaje)}`;
+    const wa = `https://wa.me/${telefonoParaWhatsapp(c.telefono)}?text=${encodeURIComponent(mensaje)}`;
     window.open(wa, "_blank");
   }
 
@@ -233,7 +253,7 @@ function Clientes() {
       `• iPhone: compartir (⬆️) → "Agregar a pantalla de inicio"`;
 
     const wa = c?.telefono
-      ? `https://wa.me/${c.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(mensaje)}`
+      ? `https://wa.me/${telefonoParaWhatsapp(c.telefono)}?text=${encodeURIComponent(mensaje)}`
       : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
     window.open(wa, "_blank");
   }
