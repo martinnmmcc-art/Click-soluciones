@@ -146,6 +146,15 @@ export default function LoginPage() {
       return;
     }
 
+    // Un celular bloqueado por el admin no puede registrarse ni iniciar sesión
+    const { data: estaBloqueado } = await supabase.rpc("telefono_esta_bloqueado", {
+      p_telefono: telLimpio
+    });
+    if (estaBloqueado) {
+      setError("Este número no puede acceder. Contactate con Bolson Click por WhatsApp.");
+      return;
+    }
+
     const { data: clienteExistente } = await supabase
       .from("clientes")
       .select("id, telefono, nombre, localidad, email, direccion")
@@ -192,7 +201,13 @@ export default function LoginPage() {
 
     const { error: insertError } = await supabase.from("clientes").insert([nuevoCliente]);
     if (insertError) {
-      setError(`Error al registrar: ${insertError.message}`);
+      let mensaje = `Error al registrar: ${insertError.message}`;
+      if (insertError.message.includes("TELEFONO_BLOQUEADO")) {
+        mensaje = "Este número no puede acceder. Contactate con Bolson Click por WhatsApp.";
+      } else if (insertError.message.includes("clientes_telefono")) {
+        mensaje = "Este número ya está registrado. Iniciá sesión normalmente.";
+      }
+      setError(mensaje);
       return;
     }
 
