@@ -88,12 +88,8 @@ export default function LoginPage() {
     setEsRegistro(true);
 
     async function buscarNombreReferente() {
-      const { data } = await supabase
-        .from("clientes")
-        .select("nombre")
-        .eq("telefono", ref)
-        .maybeSingle();
-      if (data?.nombre) setRefNombre(data.nombre);
+      const { data } = await supabase.rpc("nombre_de_referente", { p_telefono: ref });
+      if (data) setRefNombre(data);
     }
     buscarNombreReferente();
   }, []);
@@ -167,7 +163,15 @@ export default function LoginPage() {
     // antes de loguear como cliente, para que nunca se mezclen los dos accesos.
     await supabase.auth.signOut();
 
-    const telLimpio = identificador.trim();
+    // Dejamos el teléfono siempre en el mismo formato (2944636224): sin +54,
+    // sin el 9 de celular, sin espacios. Si cada uno lo escribe distinto, después
+    // no coinciden los pedidos con la cuenta y "Mis pedidos" aparece vacío.
+    const telLimpio = (() => {
+      let limpio = identificador.trim().replace(/\D/g, "");
+      if (limpio.startsWith("54")) limpio = limpio.slice(2);
+      if (limpio.startsWith("9")) limpio = limpio.slice(1);
+      return limpio;
+    })();
     const passLimpio = password.trim();
 
     if (esRegistro && !validarCelular(telLimpio)) {
@@ -184,11 +188,9 @@ export default function LoginPage() {
       return;
     }
 
-    const { data: clienteExistente } = await supabase
-      .from("clientes")
-      .select("id, telefono, nombre, localidad, email, direccion")
-      .eq("telefono", telLimpio)
-      .maybeSingle();
+    const { data: clienteExistente } = await supabase.rpc("telefono_ya_registrado", {
+      p_telefono: telLimpio
+    });
 
     if (clienteExistente && !esRegistro) {
       // La verificación de contraseña se hace en una función segura de la base
