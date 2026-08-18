@@ -179,9 +179,25 @@ function Clientes() {
   }
 
   async function generarLinkAcceso(c) {
+    const dias = prompt(
+      `¿Cuántos días querés que dure el link de acceso de ${c.nombre || c.telefono}?\n\n` +
+        `Dejá 7 para el plazo normal. Para una persona mayor que quiera entrar siempre sin escribir nada, poné 365.`,
+      "7"
+    );
+    if (dias === null) return;
+
+    const diasNum = Number(dias);
+    if (!diasNum || diasNum < 1) {
+      alert("Poné un número de días válido (por ejemplo 7 o 365).");
+      return;
+    }
+
+    const expira = new Date();
+    expira.setDate(expira.getDate() + diasNum);
+
     const { data, error: insertError } = await supabase
       .from("accesos_rapidos")
-      .insert({ telefono: c.telefono })
+      .insert({ telefono: c.telefono, expira_en: expira.toISOString() })
       .select("token")
       .single();
 
@@ -191,11 +207,16 @@ function Clientes() {
     }
 
     const link = `https://www.bolsonclick.com.ar/login?acceso=${data.token}`;
+    const textoVencimiento =
+      diasNum >= 365
+        ? `Podés usarlo siempre que quieras (vence el ${expira.toLocaleDateString("es-AR")}).`
+        : `Podés usarlo las veces que quieras hasta el ${expira.toLocaleDateString("es-AR")}.`;
+
     const mensaje =
       `¡Hola ${c.nombre || ""}! 👋\n\n` +
       `Ya tenés tu cuenta lista en Bolson Click 🛍️\n\n` +
       `Entrá con este link y vas a quedar adentro directamente, sin poner contraseña:\n${link}\n\n` +
-      `⚠️ El link es personal y vence en 7 días.\n\n` +
+      `⚠️ El link es personal, no lo compartas. ${textoVencimiento}\n\n` +
       `Tip: una vez adentro, tocá el menú del navegador y elegí "Instalar app" para tenerla en tu celular como una app más.`;
 
     const wa = `https://wa.me/${c.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(mensaje)}`;
