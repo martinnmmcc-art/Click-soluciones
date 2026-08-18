@@ -61,10 +61,10 @@ function ConfirmacionContent() {
         .from("comprobantes")
         .getPublicUrl(rutaArchivo);
 
-      const { error: updateError } = await supabase
-        .from("pedidos")
-        .update({ comprobante_url: urlData.publicUrl })
-        .eq("numero_pedido", numero);
+      const { data: guardado, error: updateError } = await supabase.rpc(
+        "subir_comprobante_pedido",
+        { p_numero_pedido: numero, p_url: urlData.publicUrl }
+      );
 
       if (updateError) throw new Error(updateError.message);
 
