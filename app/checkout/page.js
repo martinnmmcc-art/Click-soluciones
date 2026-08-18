@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/whatsapp";
+import { avisarAdmin } from "@/lib/avisarAdmin";
 
 function generarNumeroPedido() {
   const fecha = new Date();
@@ -87,6 +88,14 @@ export default function CheckoutPage() {
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Error al crear el pedido");
+
+      avisarAdmin({
+        tipo: "pedido_nuevo",
+        telefono: form.telefono_cliente,
+        nombre: form.nombre_cliente,
+        detalle: `${items.length} producto(s)`,
+        monto: total
+      });
 
       clearCart();
       router.push(`/confirmacion?numero=${numero_pedido}`);
