@@ -1,10 +1,21 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const dynamic = "force-dynamic";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+// Deja el teléfono en su forma "núcleo": solo dígitos, sin el 54 de país
+// ni el 9 de celular, para que distintos formatos coincidan igual.
+function normalizarTelefono(tel) {
+  let limpio = (tel || "").replace(/\D/g, "");
+  if (limpio.startsWith("54")) limpio = limpio.slice(2);
+  if (limpio.startsWith("9")) limpio = limpio.slice(1);
+  return limpio;
+}
 
 export async function POST(request) {
   try {
@@ -24,7 +35,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Pedido no encontrado" }, { status: 404 });
     }
 
-    if (pedido.telefono_cliente !== telefono) {
+    if (normalizarTelefono(pedido.telefono_cliente) !== normalizarTelefono(telefono)) {
       return NextResponse.json({ error: "Este pedido no te pertenece" }, { status: 403 });
     }
 
