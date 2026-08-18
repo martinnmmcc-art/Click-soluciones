@@ -10,6 +10,7 @@ import {
   whatsappOrderMessage,
   formatPrice
 } from "@/lib/whatsapp";
+import { avisarAdmin, clienteActual } from "@/lib/avisarAdmin";
 
 function ConfirmacionContent() {
   const searchParams = useSearchParams();
@@ -67,6 +68,14 @@ function ConfirmacionContent() {
       );
 
       if (updateError) throw new Error(updateError.message);
+
+      const cliente = clienteActual();
+      avisarAdmin({
+        tipo: "comprobante",
+        telefono: cliente?.telefono,
+        nombre: cliente?.nombre,
+        detalle: numero
+      });
 
       setComprobanteUrl(urlData.publicUrl);
     } catch (err) {
