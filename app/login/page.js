@@ -317,14 +317,8 @@ export default function LoginPage() {
         alert(data.error || "No se pudo cancelar el pedido.");
         return;
       }
-      const pedidoCancelado = misPedidos.find((p) => p.id === pedidoId);
-      avisarAdmin({
-        tipo: "pedido_cancelado",
-        telefono: tel,
-        nombre: user?.nombre || sesionActiva?.nombre,
-        monto: pedidoCancelado?.total
-      });
-
+      // El aviso al negocio lo manda la propia ruta /api/mis-pedidos/cancelar,
+      // que tiene los datos reales del pedido aunque se cancele apenas creado.
       setMisPedidos((prev) =>
         prev.map((p) => (p.id === pedidoId ? { ...p, estado: "cancelado" } : p))
       );
