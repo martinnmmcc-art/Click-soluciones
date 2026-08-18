@@ -252,6 +252,16 @@ function Dashboard() {
             <span className="text-2xl">🧾</span>
           </Link>
 
+          <Link href="/admin/actividad" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Actividad en vivo</p>
+              <p className="text-sm text-gray-500">
+                Quién entró, qué miró y qué compró — con botón para escribirle
+              </p>
+            </div>
+            <span className="text-2xl">👀</span>
+          </Link>
+
           <Link href="/admin/clientes" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Clientes</p>
