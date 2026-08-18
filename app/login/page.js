@@ -98,6 +98,35 @@ export default function LoginPage() {
     buscarNombreReferente();
   }, []);
 
+  // Acceso rápido: si el link trae ?acceso=TOKEN, loguea directo sin escribir nada
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("acceso");
+    if (!token) return;
+
+    async function canjearAcceso() {
+      setLoading(true);
+      const { data, error: rpcError } = await supabase.rpc("canjear_acceso_rapido", {
+        p_token: token
+      });
+
+      if (rpcError || !data || data.length === 0) {
+        setError("Este link de acceso ya fue usado o venció. Ingresá con tu celular y contraseña.");
+        setLoading(false);
+        window.history.replaceState({}, "", "/login");
+        return;
+      }
+
+      const cliente = data[0];
+      localStorage.setItem("cliente_sesion", JSON.stringify(cliente));
+      setSesionActiva(cliente);
+      setLoading(false);
+      window.history.replaceState({}, "", "/login");
+      suscribirPush(cliente.telefono).catch(() => {});
+    }
+    canjearAcceso();
+  }, []);
+
   useEffect(() => {
     const sesionStr = localStorage.getItem("cliente_sesion");
     if (sesionStr) {
