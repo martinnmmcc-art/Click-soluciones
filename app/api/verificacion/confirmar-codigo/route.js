@@ -2,10 +2,14 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
+// Usa la service role key porque la columna "codigo" está protegida:
+// nadie puede leerla desde el navegador (para que no se puedan robar los
+// códigos de verificación de otros). La comparación se hace acá, en el servidor.
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 export async function POST(request) {
