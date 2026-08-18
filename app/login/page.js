@@ -8,6 +8,7 @@ import { ADMIN_EMAILS } from "@/context/AdminContext";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import { suscribirPush } from "@/lib/push";
+import { avisarAdmin } from "@/lib/avisarAdmin";
 
 const OPCIONES_ENTREGA_LABEL = {
   pendiente: "Pendiente",
@@ -247,6 +248,14 @@ export default function LoginPage() {
     localStorage.setItem("cliente_sesion", JSON.stringify(clienteSinPassword));
     setSesionActiva(clienteSinPassword);
 
+    // Le avisamos al negocio que se sumó alguien nuevo
+    avisarAdmin({
+      tipo: "registro",
+      telefono: telLimpio,
+      nombre: nombre.trim(),
+      detalle: localidad.trim() || null
+    });
+
     // Apenas se registra, le pedimos el permiso de notificaciones una sola vez (no bloqueante)
     suscribirPush(telLimpio).catch(() => {});
   }
@@ -308,6 +317,14 @@ export default function LoginPage() {
         alert(data.error || "No se pudo cancelar el pedido.");
         return;
       }
+      const pedidoCancelado = misPedidos.find((p) => p.id === pedidoId);
+      avisarAdmin({
+        tipo: "pedido_cancelado",
+        telefono: tel,
+        nombre: user?.nombre || sesionActiva?.nombre,
+        monto: pedidoCancelado?.total
+      });
+
       setMisPedidos((prev) =>
         prev.map((p) => (p.id === pedidoId ? { ...p, estado: "cancelado" } : p))
       );
@@ -412,6 +429,13 @@ export default function LoginPage() {
         alert(data.error || "No se pudo modificar el pedido.");
         return;
       }
+
+      avisarAdmin({
+        tipo: "pedido_modificado",
+        telefono: tel,
+        nombre: user?.nombre || sesionActiva?.nombre,
+        monto: data.total
+      });
 
       setMisPedidos((prev) =>
         prev.map((p) => {
