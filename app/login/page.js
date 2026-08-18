@@ -386,16 +386,18 @@ export default function LoginPage() {
       localidad: localidad.trim()
     };
 
-    const { error: updateError } = await supabase
-      .from("clientes")
-      .update({
-        email: emailPerfil.trim(),
-        direccion: direccionPerfil.trim(),
-        localidad: localidad.trim()
-      })
-      .eq("telefono", sesionActiva.telefono);
+    const { data: actualizado, error: updateError } = await supabase.rpc(
+      "actualizar_perfil_cliente",
+      {
+        p_id: sesionActiva.id,
+        p_telefono: sesionActiva.telefono,
+        p_email: emailPerfil.trim(),
+        p_direccion: direccionPerfil.trim(),
+        p_localidad: localidad.trim()
+      }
+    );
 
-    if (updateError) {
+    if (updateError || !actualizado) {
       setMensajePerfil("❌ Error al actualizar el perfil.");
       setLoading(false);
       return;
