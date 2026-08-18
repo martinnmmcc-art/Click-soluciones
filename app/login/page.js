@@ -318,6 +318,65 @@ export default function LoginPage() {
     }
   }
 
+  // --- Agregar productos a un pedido ya hecho ---
+  const [agregandoAId, setAgregandoAId] = useState(null);
+  const [busquedaProducto, setBusquedaProducto] = useState("");
+  const [resultadosProducto, setResultadosProducto] = useState([]);
+  const [buscandoProducto, setBuscandoProducto] = useState(false);
+  const [agregandoProducto, setAgregandoProducto] = useState(false);
+
+  async function buscarProductos(texto) {
+    setBusquedaProducto(texto);
+    if (!texto || texto.trim().length < 2) {
+      setResultadosProducto([]);
+      return;
+    }
+    setBuscandoProducto(true);
+    const { data } = await supabase
+      .from("Productos")
+      .select("id, nombre, precio, precio_oferta, imagen_url")
+      .ilike("nombre", `%${texto.trim()}%`)
+      .eq("activo", true)
+      .limit(8);
+    setResultadosProducto(data || []);
+    setBuscandoProducto(false);
+  }
+
+  async function agregarProductoAPedido(pedidoId, producto) {
+    setAgregandoProducto(true);
+    try {
+      const tel = user?.telefono || sesionActiva?.telefono;
+      const res = await fetch("/api/mis-pedidos/agregar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pedido_id: pedidoId,
+          telefono: tel,
+          productos: [{ producto_id: producto.id, cantidad: 1 }]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "No se pudo agregar el producto.");
+        return;
+      }
+
+      // Refrescamos los pedidos para ver el cambio
+      const resPedidos = await fetch(`/api/mis-pedidos?telefono=${encodeURIComponent(tel)}`);
+      const result = await resPedidos.json();
+      if (resPedidos.ok) setMisPedidos(result.pedidos || []);
+
+      setBusquedaProducto("");
+      setResultadosProducto([]);
+      setAgregandoAId(null);
+      alert(`✅ Agregado: ${data.agregados.join(", ")}`);
+    } catch (e) {
+      alert("Ocurrió un error al agregar el producto.");
+    } finally {
+      setAgregandoProducto(false);
+    }
+  }
+
   function empezarEdicion(pedido) {
     setEditandoId(pedido.id);
     const inicial = {};
@@ -671,21 +730,99 @@ export default function LoginPage() {
                       )}
 
                       {(!pedido.estado || pedido.estado === "pendiente") && editandoId !== pedido.id && (
-                        <div className="flex gap-3 mt-3">
-                          <button
-                            onClick={() => empezarEdicion(pedido)}
-                            className="text-xs font-semibold text-brand-blue"
-                          >
-                            ✏️ Modificar pedido
-                          </button>
-                          <button
-                            onClick={() => cancelarPedido(pedido.id)}
-                            disabled={cancelandoId === pedido.id}
-                            className="text-xs font-semibold text-red-500 disabled:opacity-50"
-                          >
-                            {cancelandoId === pedido.id ? "Cancelando..." : "Cancelar pedido"}
-                          </button>
-                        </div>
+                        <>
+                          <div className="flex flex-wrap gap-3 mt-3">
+                            <button
+                              onClick={() => {
+                                setAgregandoAId(agregandoAId === pedido.id ? null : pedido.id);
+                                setBusquedaProducto("");
+                                setResultadosProducto([]);
+                              }}
+                              className="text-xs font-semibold text-green-600"
+                            >
+                              {agregandoAId === pedido.id ? "✕ Cerrar" : "➕ Agregar producto"}
+                            </button>
+                            <button
+                              onClick={() => empezarEdicion(pedido)}
+                              className="text-xs font-semibold text-brand-blue"
+                            >
+                              ✏️ Modificar pedido
+                            </button>
+                            <button
+                              onClick={() => cancelarPedido(pedido.id)}
+                              disabled={cancelandoId === pedido.id}
+                              className="text-xs font-semibold text-red-500 disabled:opacity-50"
+                            >
+                              {cancelandoId === pedido.id ? "Cancelando..." : "Cancelar pedido"}
+                            </button>
+                          </div>
+
+                          {agregandoAId === pedido.id && (
+                            <div className="mt-3 bg-green-50 border border-green-200 rounded-xl p-3">
+                              <p className="text-xs font-bold text-green-800 mb-2">
+                                Buscá el producto que querés sumar a este pedido
+                              </p>
+                              <input
+                                value={busquedaProducto}
+                                onChange={(e) => buscarProductos(e.target.value)}
+                                className="input-field bg-white text-sm"
+                                placeholder="Ej: luz led, termo, organizador..."
+                                autoFocus
+                              />
+
+                              {buscandoProducto && (
+                                <p className="text-xs text-gray-400 mt-2">Buscando...</p>
+                              )}
+
+                              {!buscandoProducto && busquedaProducto.length >= 2 && resultadosProducto.length === 0 && (
+                                <p className="text-xs text-gray-500 mt-2">
+                                  No encontramos nada con ese nombre.
+                                </p>
+                              )}
+
+                              <div className="space-y-2 mt-2">
+                                {resultadosProducto.map((prod) => {
+                                  const precioFinal =
+                                    Number(prod.precio_oferta) > 0 ? prod.precio_oferta : prod.precio;
+                                  return (
+                                    <div
+                                      key={prod.id}
+                                      className="flex items-center gap-2 bg-white rounded-lg p-2 border border-gray-100"
+                                    >
+                                      {prod.imagen_url && (
+                                        <img
+                                          src={prod.imagen_url}
+                                          alt=""
+                                          className="w-10 h-10 object-cover rounded-md flex-shrink-0"
+                                        />
+                                      )}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs text-gray-800 line-clamp-2">{prod.nombre}</p>
+                                        <p className="text-xs font-bold text-brand-blue">
+                                          ${formatPrice(precioFinal)}
+                                        </p>
+                                      </div>
+                                      <button
+                                        onClick={() => agregarProductoAPedido(pedido.id, prod)}
+                                        disabled={agregandoProducto}
+                                        className="bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex-shrink-0 disabled:opacity-50"
+                                      >
+                                        {agregandoProducto ? "..." : "Agregar"}
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              <a
+                                href={`/catalogo?agregar_a=${pedido.id}`}
+                                className="block text-center text-xs font-semibold text-brand-blue mt-3 underline"
+                              >
+                                O buscá en todo el catálogo →
+                              </a>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   );
