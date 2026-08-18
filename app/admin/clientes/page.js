@@ -5,8 +5,11 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 
+const CAMPOS_CLIENTE = "id, telefono, nombre, localidad, created_at, email, direccion, referido_por";
+
 function Clientes() {
   const [clientes, setClientes] = useState([]);
+  const [bloqueados, setBloqueados] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
 
@@ -15,19 +18,28 @@ function Clientes() {
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
 
+  // Edición en línea
+  const [editandoId, setEditandoId] = useState(null);
+  const [formEdit, setFormEdit] = useState({ nombre: "", telefono: "", localidad: "", email: "", direccion: "" });
+  const [guardandoEdit, setGuardandoEdit] = useState(false);
+  const [errorEdit, setErrorEdit] = useState("");
+
   async function cargarClientes() {
     setLoading(true);
-    const { data } = await supabase
-      .from("clientes")
-      .select("id, telefono, nombre, localidad, created_at, email, direccion, referido_por")
-      .order("created_at", { ascending: false });
-    setClientes(data || []);
+    const [{ data: clientesData }, { data: bloqueadosData }] = await Promise.all([
+      supabase.from("clientes").select(CAMPOS_CLIENTE).order("created_at", { ascending: false }),
+      supabase.from("telefonos_bloqueados").select("telefono, motivo")
+    ]);
+    setClientes(clientesData || []);
+    setBloqueados(bloqueadosData || []);
     setLoading(false);
   }
 
   useEffect(() => {
     cargarClientes();
   }, []);
+
+  const telefonosBloqueados = new Set(bloqueados.map((b) => b.telefono));
 
   const clientesFiltrados = clientes.filter((c) => {
     const q = busqueda.toLowerCase();
@@ -84,6 +96,143 @@ function Clientes() {
     } finally {
       setGuardando(false);
     }
+  }
+
+  function empezarEdicion(c) {
+    setEditandoId(c.id);
+    setErrorEdit("");
+    setFormEdit({
+      nombre: c.nombre || "",
+      telefono: c.telefono || "",
+      localidad: c.localidad || "",
+      email: c.email || "",
+      direccion: c.direccion || ""
+    });
+  }
+
+  function handleChangeEdit(e) {
+    setFormEdit({ ...formEdit, [e.target.name]: e.target.value });
+  }
+
+  async function guardarEdicion(id) {
+    setErrorEdit("");
+
+    if (!formEdit.nombre.trim() || !formEdit.telefono.trim()) {
+      setErrorEdit("El nombre y el celular no pueden quedar vacíos.");
+      return;
+    }
+
+    setGuardandoEdit(true);
+    const { error: updateError } = await supabase
+      .from("clientes")
+      .update({
+        nombre: formEdit.nombre.trim(),
+        telefono: formEdit.telefono.trim(),
+        localidad: formEdit.localidad.trim(),
+        email: formEdit.email.trim(),
+        direccion: formEdit.direccion.trim()
+      })
+      .eq("id", id);
+
+    setGuardandoEdit(false);
+
+    if (updateError) {
+      setErrorEdit(
+        updateError.message.includes("clientes_telefono_unico")
+          ? "Ya existe otro cliente con ese celular."
+          : updateError.message
+      );
+      return;
+    }
+
+    setEditandoId(null);
+    cargarClientes();
+  }
+
+  async function resetearPassword(c) {
+    const nueva = prompt(`Nueva contraseña para ${c.nombre || c.telefono}:`);
+    if (!nueva || !nueva.trim()) return;
+
+    const { error: updateError } = await supabase
+      .from("clientes")
+      .update({ password: nueva.trim() })
+      .eq("id", c.id);
+
+    if (updateError) {
+      alert("No se pudo cambiar la contraseña: " + updateError.message);
+      return;
+    }
+    alert("Contraseña actualizada. Avisale al cliente cuál es su nueva contraseña.");
+  }
+
+  async function eliminarCliente(c) {
+    const ok = confirm(
+      `¿Eliminar a ${c.nombre || c.telefono}?\n\nEsto borra su cuenta, pero NO borra sus pedidos ya hechos. Esta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+
+    const { error: deleteError } = await supabase.from("clientes").delete().eq("id", c.id);
+    if (deleteError) {
+      alert("No se pudo eliminar: " + deleteError.message);
+      return;
+    }
+    cargarClientes();
+  }
+
+  async function bloquearTelefono(c) {
+    const motivo = prompt(
+      `Bloquear el celular ${c.telefono}.\n\nNo va a poder iniciar sesión ni volver a registrarse.\n\nMotivo (opcional):`
+    );
+    if (motivo === null) return; // canceló
+
+    const { error: insertError } = await supabase.from("telefonos_bloqueados").insert({
+      telefono: c.telefono,
+      motivo: motivo.trim() || null
+    });
+
+    if (insertError) {
+      alert("No se pudo bloquear: " + insertError.message);
+      return;
+    }
+    cargarClientes();
+  }
+
+  async function desbloquearTelefono(telefono) {
+    if (!confirm(`¿Desbloquear el celular ${telefono}?`)) return;
+
+    const { error: deleteError } = await supabase
+      .from("telefonos_bloqueados")
+      .delete()
+      .eq("telefono", telefono);
+
+    if (deleteError) {
+      alert("No se pudo desbloquear: " + deleteError.message);
+      return;
+    }
+    cargarClientes();
+  }
+
+  async function bloquearNumeroSuelto() {
+    const tel = prompt("Celular a bloquear (solo números, sin espacios):");
+    if (!tel || !tel.trim()) return;
+
+    const motivo = prompt("Motivo (opcional):");
+    if (motivo === null) return;
+
+    const { error: insertError } = await supabase.from("telefonos_bloqueados").insert({
+      telefono: tel.trim(),
+      motivo: motivo.trim() || null
+    });
+
+    if (insertError) {
+      alert(
+        insertError.message.includes("duplicate")
+          ? "Ese celular ya estaba bloqueado."
+          : "No se pudo bloquear: " + insertError.message
+      );
+      return;
+    }
+    cargarClientes();
   }
 
   return (
@@ -156,22 +305,133 @@ function Clientes() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {clientesFiltrados.map((c) => (
-              <div key={c.id} className="card p-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-sm text-gray-800">{c.nombre || "Sin nombre"}</p>
-                  <span className="text-[10px] text-gray-400">
-                    {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR") : ""}
-                  </span>
+            {clientesFiltrados.map((c) => {
+              const estaBloqueado = telefonosBloqueados.has(c.telefono);
+
+              if (editandoId === c.id) {
+                return (
+                  <div key={c.id} className="card p-4 border-2 border-brand-blue space-y-3">
+                    <p className="font-bold text-sm text-gray-800">Editando cliente</p>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Nombre y apellido *</label>
+                      <input name="nombre" value={formEdit.nombre} onChange={handleChangeEdit} className="input-field" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Celular *</label>
+                      <input name="telefono" value={formEdit.telefono} onChange={handleChangeEdit} className="input-field" inputMode="tel" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
+                      <input name="localidad" value={formEdit.localidad} onChange={handleChangeEdit} className="input-field" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Email</label>
+                      <input name="email" value={formEdit.email} onChange={handleChangeEdit} className="input-field" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-gray-700 block mb-1">Dirección</label>
+                      <input name="direccion" value={formEdit.direccion} onChange={handleChangeEdit} className="input-field" />
+                    </div>
+
+                    {errorEdit && <p className="text-xs text-red-600 font-medium">{errorEdit}</p>}
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => guardarEdicion(c.id)}
+                        disabled={guardandoEdit}
+                        className="btn-primary flex-1 text-xs py-2 disabled:opacity-50"
+                      >
+                        {guardandoEdit ? "Guardando..." : "Guardar"}
+                      </button>
+                      <button
+                        onClick={() => setEditandoId(null)}
+                        className="flex-1 bg-gray-100 text-gray-700 text-xs font-bold py-2 rounded-xl"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={c.id} className={`card p-3 ${estaBloqueado ? "bg-red-50 border border-red-200" : ""}`}>
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-sm text-gray-800">
+                      {c.nombre || "Sin nombre"}
+                      {estaBloqueado && (
+                        <span className="ml-2 text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-full font-bold">
+                          BLOQUEADO
+                        </span>
+                      )}
+                    </p>
+                    <span className="text-[10px] text-gray-400">
+                      {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR") : ""}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">📱 {c.telefono}</p>
+                  {c.email && <p className="text-xs text-gray-500">✉️ {c.email}</p>}
+                  {c.localidad && <p className="text-xs text-gray-500">📍 {c.localidad}</p>}
+                  {c.direccion && <p className="text-xs text-gray-500">🏠 {c.direccion}</p>}
+                  {c.referido_por && <p className="text-xs text-amber-700 font-semibold">🎁 Invitado por: {c.referido_por}</p>}
+
+                  <div className="flex flex-wrap gap-3 mt-2 pt-2 border-t border-gray-100">
+                    <button onClick={() => empezarEdicion(c)} className="text-xs font-semibold text-brand-blue">
+                      ✏️ Editar
+                    </button>
+                    <button onClick={() => resetearPassword(c)} className="text-xs font-semibold text-gray-600">
+                      🔑 Cambiar clave
+                    </button>
+                    {estaBloqueado ? (
+                      <button onClick={() => desbloquearTelefono(c.telefono)} className="text-xs font-semibold text-green-600">
+                        ✅ Desbloquear
+                      </button>
+                    ) : (
+                      <button onClick={() => bloquearTelefono(c)} className="text-xs font-semibold text-amber-600">
+                        🚫 Bloquear
+                      </button>
+                    )}
+                    <button onClick={() => eliminarCliente(c)} className="text-xs font-semibold text-red-500">
+                      🗑️ Eliminar
+                    </button>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">📱 {c.telefono}</p>
-                {c.email && <p className="text-xs text-gray-500">✉️ {c.email}</p>}
-                {c.localidad && <p className="text-xs text-gray-500">📍 {c.localidad}</p>}
-                {c.referido_por && <p className="text-xs text-amber-700 font-semibold">🎁 Invitado por: {c.referido_por}</p>}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
+
+        {/* NÚMEROS BLOQUEADOS QUE NO SON CLIENTES */}
+        <div className="card p-4 mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-bold text-gray-800 text-sm">🚫 Celulares bloqueados</p>
+            <button onClick={bloquearNumeroSuelto} className="text-xs font-bold text-brand-blue">
+              + Bloquear número
+            </button>
+          </div>
+
+          {bloqueados.length === 0 ? (
+            <p className="text-gray-400 text-xs">No hay ningún celular bloqueado.</p>
+          ) : (
+            <div className="space-y-2">
+              {bloqueados.map((b) => (
+                <div key={b.telefono} className="flex justify-between items-center text-xs border border-gray-100 rounded-lg p-2">
+                  <div>
+                    <p className="font-semibold text-gray-800">{b.telefono}</p>
+                    {b.motivo && <p className="text-gray-400">{b.motivo}</p>}
+                  </div>
+                  <button onClick={() => desbloquearTelefono(b.telefono)} className="text-green-600 font-semibold">
+                    Desbloquear
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="text-[11px] text-gray-400 mt-3">
+            Un celular bloqueado no puede iniciar sesión ni registrarse de nuevo, aunque tenga la contraseña correcta.
+          </p>
+        </div>
       </div>
     </main>
   );
