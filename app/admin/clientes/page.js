@@ -165,6 +165,45 @@ function Clientes() {
     alert("Contraseña actualizada. Avisale al cliente cuál es su nueva contraseña.");
   }
 
+  async function generarLinkAcceso(c) {
+    const { data, error: insertError } = await supabase
+      .from("accesos_rapidos")
+      .insert({ telefono: c.telefono })
+      .select("token")
+      .single();
+
+    if (insertError || !data) {
+      alert("No se pudo generar el link: " + (insertError?.message || "error desconocido"));
+      return;
+    }
+
+    const link = `https://www.bolsonclick.com.ar/login?acceso=${data.token}`;
+    const mensaje =
+      `¡Hola ${c.nombre || ""}! 👋\n\n` +
+      `Ya tenés tu cuenta lista en Bolson Click 🛍️\n\n` +
+      `Entrá con este link y vas a quedar adentro directamente, sin poner contraseña:\n${link}\n\n` +
+      `⚠️ El link es personal y vence en 7 días.\n\n` +
+      `Tip: una vez adentro, tocá el menú del navegador y elegí "Instalar app" para tenerla en tu celular como una app más.`;
+
+    const wa = `https://wa.me/${c.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(mensaje)}`;
+    window.open(wa, "_blank");
+  }
+
+  function compartirApp(c) {
+    const mensaje =
+      `¡Hola${c?.nombre ? " " + c.nombre : ""}! 👋\n\n` +
+      `Te comparto Bolson Click 🛍️ Productos importados en El Bolsón y la Comarca Andina.\n\n` +
+      `Entrá acá: https://www.bolsonclick.com.ar\n\n` +
+      `📲 Para tenerla como app en tu celu:\n` +
+      `• Android: menú (⋮) → "Instalar app"\n` +
+      `• iPhone: compartir (⬆️) → "Agregar a pantalla de inicio"`;
+
+    const wa = c?.telefono
+      ? `https://wa.me/${c.telefono.replace(/\D/g, "")}?text=${encodeURIComponent(mensaje)}`
+      : `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+    window.open(wa, "_blank");
+  }
+
   async function eliminarCliente(c) {
     const ok = confirm(
       `¿Eliminar a ${c.nombre || c.telefono}?\n\nEsto borra su cuenta, pero NO borra sus pedidos ya hechos. Esta acción no se puede deshacer.`
@@ -245,12 +284,20 @@ function Clientes() {
           <h1 className="font-extrabold text-xl text-gray-800">
             Clientes ({clientes.length})
           </h1>
-          <button
-            onClick={() => setMostrarForm(!mostrarForm)}
-            className="bg-brand-blue text-white text-xs font-bold px-3 py-2 rounded-xl"
-          >
-            {mostrarForm ? "Cancelar" : "+ Agregar"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => compartirApp(null)}
+              className="bg-emerald-600 text-white text-xs font-bold px-3 py-2 rounded-xl"
+            >
+              📲 Compartir app
+            </button>
+            <button
+              onClick={() => setMostrarForm(!mostrarForm)}
+              className="bg-brand-blue text-white text-xs font-bold px-3 py-2 rounded-xl"
+            >
+              {mostrarForm ? "Cancelar" : "+ Agregar"}
+            </button>
+          </div>
         </div>
 
         {mostrarForm && (
@@ -376,6 +423,14 @@ function Clientes() {
                   {c.referido_por && <p className="text-xs text-amber-700 font-semibold">🎁 Invitado por: {c.referido_por}</p>}
 
                   <div className="flex flex-wrap gap-3 mt-2 pt-2 border-t border-gray-100">
+                    {!estaBloqueado && (
+                      <button onClick={() => generarLinkAcceso(c)} className="text-xs font-semibold text-green-600">
+                        🔗 Enviar acceso directo
+                      </button>
+                    )}
+                    <button onClick={() => compartirApp(c)} className="text-xs font-semibold text-emerald-700">
+                      📲 Compartir app
+                    </button>
                     <button onClick={() => empezarEdicion(c)} className="text-xs font-semibold text-brand-blue">
                       ✏️ Editar
                     </button>
