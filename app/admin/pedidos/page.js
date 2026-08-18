@@ -70,6 +70,7 @@ function PanelVentas() {
   const [comprobantePedido, setComprobantePedido] = useState(null);
 
   // --- FILTRO DE FECHAS / BALANCE ---
+  const [ordenResumen, setOrdenResumen] = useState("reciente");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
 
@@ -338,12 +339,34 @@ function PanelVentas() {
           nombre: p.nombre_cliente || "Sin nombre",
           cantidadPedidos: 0,
           saldoNeto: 0,
+          totalComprado: 0,
+          primeraCompra: null,
+          ultimaCompra: null,
         };
       }
       grupos[clave].cantidadPedidos += 1;
       grupos[clave].saldoNeto += Number(p.total || 0) - Number(p.monto_pagado || 0);
+      grupos[clave].totalComprado += Number(p.total || 0);
+
+      const fecha = p.created_at ? new Date(p.created_at) : null;
+      if (fecha && !isNaN(fecha)) {
+        if (!grupos[clave].primeraCompra || fecha < grupos[clave].primeraCompra) {
+          grupos[clave].primeraCompra = fecha;
+        }
+        if (!grupos[clave].ultimaCompra || fecha > grupos[clave].ultimaCompra) {
+          grupos[clave].ultimaCompra = fecha;
+        }
+      }
     });
-    return Object.values(grupos).sort((a, b) => b.saldoNeto - a.saldoNeto);
+
+    // Ordenado por última compra: el que compró más recientemente aparece primero
+    return Object.values(grupos).sort((a, b) => {
+      if (ordenResumen === "deuda") return b.saldoNeto - a.saldoNeto;
+      if (ordenResumen === "monto") return b.totalComprado - a.totalComprado;
+      if (!a.ultimaCompra) return 1;
+      if (!b.ultimaCompra) return -1;
+      return b.ultimaCompra - a.ultimaCompra;
+    });
   }
 
   function filtrarPorFecha(lista) {
@@ -892,9 +915,20 @@ function PanelVentas() {
 
         {resumenClientes.length > 0 && (
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
-              Resumen por cliente
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                Resumen por cliente
+              </p>
+              <select
+                value={ordenResumen}
+                onChange={(e) => setOrdenResumen(e.target.value)}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600"
+              >
+                <option value="reciente">Compra más reciente</option>
+                <option value="deuda">Mayor deuda</option>
+                <option value="monto">Más compró</option>
+              </select>
+            </div>
             <div className="space-y-2">
               {resumenClientes.map((c) => (
                 <button
@@ -912,6 +946,15 @@ function PanelVentas() {
                     {c.nombre} ({c.telefono}){" "}
                     <span className="text-gray-400 font-normal">
                       · {c.cantidadPedidos} pedido{c.cantidadPedidos === 1 ? "" : "s"}
+                    </span>
+                    <span className="block text-[11px] text-gray-400 font-normal mt-0.5">
+                      {c.ultimaCompra && (
+                        <>Última compra: {c.ultimaCompra.toLocaleDateString("es-AR")}</>
+                      )}
+                      {c.primeraCompra && c.cantidadPedidos > 1 && (
+                        <> · Cliente desde: {c.primeraCompra.toLocaleDateString("es-AR")}</>
+                      )}
+                      <> · Total: ${formatPrice(c.totalComprado)}</>
                     </span>
                   </span>
                   {c.saldoNeto > 0 && (
