@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { avisarAdmin, clienteActual } from "@/lib/avisarAdmin";
 
 const CartContext = createContext(null);
 const STORAGE_KEY = "clic_soluciones_cart";
@@ -32,6 +33,15 @@ export function CartProvider({ children }) {
   }, [items, nota, loaded]);
 
   function addItem(producto, cantidad = 1) {
+    // Avisamos al negocio quién está agregando qué (no bloquea nada)
+    const cliente = clienteActual();
+    avisarAdmin({
+      tipo: "carrito",
+      telefono: cliente?.telefono,
+      nombre: cliente?.nombre || "Visitante sin cuenta",
+      detalle: `${cantidad}x ${producto.nombre}`
+    });
+
     const stockDisponible =
       producto.stock !== null && producto.stock !== undefined ? Number(producto.stock) : null;
 
@@ -77,7 +87,19 @@ export function CartProvider({ children }) {
   }
 
   function removeItem(id) {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    setItems((prev) => {
+      const item = prev.find((i) => i.id === id);
+      if (item) {
+        const cliente = clienteActual();
+        avisarAdmin({
+          tipo: "carrito_quitar",
+          telefono: cliente?.telefono,
+          nombre: cliente?.nombre || "Visitante sin cuenta",
+          detalle: item.nombre
+        });
+      }
+      return prev.filter((i) => i.id !== id);
+    });
   }
 
   function clearCart() {
