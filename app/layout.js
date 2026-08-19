@@ -4,6 +4,7 @@ import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { AdminProvider } from "@/context/AdminContext";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import AvisoSinConexion from "@/components/AvisoSinConexion";
 import WhatsAppFloatingButton from "@/components/WhatsAppFloatingButton";
 import BottomNav from "@/components/BottomNav";
 import ProtegerContenido from "@/components/ProtegerContenido";
@@ -41,6 +42,7 @@ export default function RootLayout({ children }) {
               <AuthGuard>
                 <ProtegerContenido />
                 <ServiceWorkerRegister />
+                <AvisoSinConexion />
                 <div className="container-app pb-24">{children}</div>
                 <WhatsAppFloatingButton />
                 <BottomNav />
