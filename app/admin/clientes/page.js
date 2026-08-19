@@ -161,18 +161,17 @@ function Clientes() {
     const nueva = prompt(`Nueva contraseña para ${c.nombre || c.telefono}:`);
     if (!nueva || !nueva.trim()) return;
 
-    const { data: actualizados, error: updateError } = await supabase
-      .from("clientes")
-      .update({ password: nueva.trim() })
-      .eq("id", c.id)
-      .select("id");
+    const { data: ok, error: updateError } = await supabase.rpc("admin_resetear_password", {
+      p_cliente_id: c.id,
+      p_password: nueva.trim()
+    });
 
-    if (updateError) {
-      alert("No se pudo cambiar la contraseña: " + updateError.message);
-      return;
-    }
-    if (!actualizados || actualizados.length === 0) {
-      alert("No se cambió la contraseña. Verificá que estés logueado como admin.");
+    if (updateError || !ok) {
+      alert(
+        updateError?.message?.includes("PASSWORD_CORTA")
+          ? "La contraseña tiene que tener al menos 4 caracteres."
+          : "No se pudo cambiar la contraseña. Verificá que estés logueado como admin."
+      );
       return;
     }
     alert("Contraseña actualizada. Avisale al cliente cuál es su nueva contraseña.");
