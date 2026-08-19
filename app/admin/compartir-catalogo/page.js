@@ -20,11 +20,15 @@ function ArmarCatalogo() {
   const [linkGenerado, setLinkGenerado] = useState("");
   const [copiado, setCopiado] = useState(false);
 
+  // Filtro por tipo: para armar catálogos separados de lo que tenés en mano
+  // y de lo que se trae a pedido.
+  const [filtroTipo, setFiltroTipo] = useState("todos");
+
   useEffect(() => {
     async function cargar() {
       const { data } = await supabase
         .from("Productos")
-        .select("id, nombre, imagen_url, precio, activo")
+        .select("id, nombre, imagen_url, precio, activo, stock, bajo_pedido")
         .order("nombre", { ascending: true });
       setProductos(data || []);
       setLoading(false);
@@ -39,8 +43,35 @@ function ArmarCatalogo() {
     setLinkGenerado("");
   }
 
+  // Un producto "en stock" es el que tenés físicamente disponible ahora.
+  // "A pedido" es el del proveedor, que se encarga cuando alguien lo pide.
+  function esAPedido(p) {
+    return !!p.bajo_pedido;
+  }
+  function tieneStock(p) {
+    return !p.bajo_pedido && p.stock !== null && Number(p.stock) > 0;
+  }
+  function sinStock(p) {
+    return !p.bajo_pedido && (p.stock === null || Number(p.stock) <= 0);
+  }
+
+  const productosFiltrados = productos.filter((p) => {
+    if (filtroTipo === "stock") return tieneStock(p);
+    if (filtroTipo === "pedido") return esAPedido(p);
+    if (filtroTipo === "sin_stock") return sinStock(p);
+    return true;
+  });
+
+  const contadores = {
+    todos: productos.length,
+    stock: productos.filter(tieneStock).length,
+    pedido: productos.filter(esAPedido).length,
+    sin_stock: productos.filter(sinStock).length
+  };
+
   function seleccionarTodos() {
-    setSeleccionados(productos.map((p) => p.id));
+    // Selecciona solo los que se ven con el filtro actual
+    setSeleccionados(productosFiltrados.map((p) => p.id));
     setLinkGenerado("");
   }
 
@@ -51,6 +82,7 @@ function ArmarCatalogo() {
 
   function generarLink() {
     if (seleccionados.length === 0) return;
+
 
     const params = new URLSearchParams();
     params.set("ids", seleccionados.join(","));
@@ -197,11 +229,37 @@ function ArmarCatalogo() {
             </div>
           </div>
 
+          <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-1 px-1">
+            {[
+              { id: "todos", label: `Todos (${contadores.todos})` },
+              { id: "stock", label: `Con stock (${contadores.stock})` },
+              { id: "pedido", label: `A pedido (${contadores.pedido})` },
+              { id: "sin_stock", label: `Sin stock (${contadores.sin_stock})` }
+            ].map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFiltroTipo(f.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border ${
+                  filtroTipo === f.id
+                    ? "bg-brand-blue text-white border-brand-blue"
+                    : "bg-white text-gray-600 border-gray-200"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {loading ? (
             <p className="text-center text-gray-400 text-sm py-6">Cargando productos...</p>
+          ) : productosFiltrados.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-6">
+              No hay productos en esta categoría.
+            </p>
           ) : (
             <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
-              {productos.map((p) => (
+              {productosFiltrados.map((p) => (
                 <label
                   key={p.id}
                   className={`flex items-center gap-3 p-2 rounded-xl border cursor-pointer ${
@@ -221,7 +279,22 @@ function ArmarCatalogo() {
                       <span className="text-sm">📦</span>
                     )}
                   </div>
-                  <span className="text-xs font-medium text-gray-700 line-clamp-2">{p.nombre}</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-medium text-gray-700 line-clamp-2 block">{p.nombre}</span>
+                    {esAPedido(p) ? (
+                      <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                        A pedido
+                      </span>
+                    ) : tieneStock(p) ? (
+                      <span className="text-[10px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                        Stock: {p.stock}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                        Sin stock
+                      </span>
+                    )}
+                  </div>
                 </label>
               ))}
             </div>
