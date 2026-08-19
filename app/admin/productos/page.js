@@ -18,22 +18,57 @@ function ListaProductos() {
   const [exportando, setExportando] = useState(false);
   const tabInicial = searchParams.get("tab") === "a-pedido" ? "a-pedido" : "tengo";
   const [tab, setTab] = useState(tabInicial); // "tengo" | "a-pedido"
+  const [busqueda, setBusqueda] = useState("");
+  const [hayMas, setHayMas] = useState(false);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [totalTab, setTotalTab] = useState(0);
+
+  const POR_TANDA = 100;
+
+  // Consulta filtrada en la base. Con casi 3000 productos no se pueden
+  // traer todos juntos: Supabase corta en 1000 filas y quedaban productos
+  // invisibles (por ejemplo, los propios, que son los más antiguos).
+  function consultaBase() {
+    let q = supabase.from("Productos").select("*", { count: "exact" });
+
+    if (tab === "tengo") {
+      q = q.or("bajo_pedido.is.null,bajo_pedido.eq.false");
+    } else {
+      q = q.eq("bajo_pedido", true);
+    }
+
+    if (busqueda.trim().length >= 2) {
+      q = q.ilike("nombre", `%${busqueda.trim()}%`);
+    }
+
+    return q.order("created_at", { ascending: false });
+  }
 
   async function cargarProductos() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("Productos")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error, count } = await consultaBase().range(0, POR_TANDA - 1);
 
     if (error) console.error(error.message);
     setProductos(data || []);
+    setTotalTab(count || 0);
+    setHayMas((data?.length || 0) === POR_TANDA);
     setLoading(false);
   }
 
+  async function cargarMas() {
+    setCargandoMas(true);
+    const desde = productos.length;
+    const { data } = await consultaBase().range(desde, desde + POR_TANDA - 1);
+    setProductos((prev) => [...prev, ...(data || [])]);
+    setHayMas((data?.length || 0) === POR_TANDA);
+    setCargandoMas(false);
+  }
+
   useEffect(() => {
-    cargarProductos();
-  }, []);
+    const t = setTimeout(cargarProductos, busqueda ? 400 : 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, busqueda]);
 
   async function handleEliminar(id) {
     if (!confirm("¿Seguro que querés eliminar este producto?")) return;
@@ -93,19 +128,14 @@ function ListaProductos() {
     }
   }
 
-  const productosTengo = productos.filter((p) => !p.bajo_pedido);
-  const productosAPedido = productos.filter((p) => p.bajo_pedido);
-
-  const conStockBajo = productosTengo.filter(
-    (p) => Number(p.stock || 0) <= Number(p.stock_minimo ?? 3)
+  const conStockBajo = productos.filter(
+    (p) => !p.bajo_pedido && Number(p.stock || 0) <= Number(p.stock_minimo ?? 3)
   ).length;
-
-  const listaBase = tab === "tengo" ? productosTengo : productosAPedido;
 
   const productosMostrados =
     filtro === "sin-stock"
-      ? productosTengo.filter((p) => p.stock !== null && Number(p.stock) <= 0)
-      : listaBase;
+      ? productos.filter((p) => !p.bajo_pedido && p.stock !== null && Number(p.stock) <= 0)
+      : productos;
 
   return (
     <main className="min-h-screen bg-brand-bg">
@@ -174,6 +204,13 @@ function ListaProductos() {
             Si les cargás stock (más de 0), se pasan solos a la pestaña "Tengo".
           </p>
         )}
+
+        <input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 mb-3"
+          placeholder={`Buscar entre ${totalTab} productos...`}
+        />
 
         {filtro === "sin-stock" && (
           <div className="flex items-center justify-between bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 mb-4 text-sm font-semibold">
@@ -257,6 +294,18 @@ function ListaProductos() {
                 </div>
               );
             })}
+
+            {hayMas && !filtro && (
+              <button
+                onClick={cargarMas}
+                disabled={cargandoMas}
+                className="w-full bg-white border border-gray-200 text-gray-700 text-sm font-bold py-3 rounded-xl mt-3 disabled:opacity-50"
+              >
+                {cargandoMas
+                  ? "Cargando..."
+                  : `Ver más (${productos.length} de ${totalTab})`}
+              </button>
+            )}
           </div>
         )}
       </div>
