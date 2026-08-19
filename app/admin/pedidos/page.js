@@ -6,6 +6,8 @@ import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabaseClient";
 import ComprobantePedido from "@/components/ComprobantePedido";
+import { guardarCatalogoOffline, leerCatalogoOffline, fechaCatalogoOffline } from "@/lib/catalogoOffline";
+import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
 
 const OPCIONES_ENTREGA = [
   { value: "pendiente", label: "Pendiente" },
@@ -86,6 +88,10 @@ function PanelVentas() {
     nota_cliente: "",
   });
   const [nuevoItems, setNuevoItems] = useState([]);
+  const [sinConexion, setSinConexion] = useState(false);
+  const [pendientes, setPendientes] = useState(0);
+  const [guardandoCatalogo, setGuardandoCatalogo] = useState(false);
+  const [fechaCatalogo, setFechaCatalogo] = useState(null);
   const [busquedaProductoNuevo, setBusquedaProductoNuevo] = useState("");
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
   const [errorNuevo, setErrorNuevo] = useState("");
@@ -136,10 +142,65 @@ function PanelVentas() {
         if (desde > 20000) break; // freno de seguridad
       }
 
-      setProductos(todos);
+      if (todos.length > 0) {
+        setProductos(todos);
+      } else {
+        // Sin internet: usamos la copia guardada en el celular
+        const guardados = leerCatalogoOffline();
+        if (guardados.length > 0) {
+          setProductos(guardados);
+          setSinConexion(true);
+        }
+      }
     }
     cargarProductos();
+    setFechaCatalogo(fechaCatalogoOffline());
+    setPendientes(cantidadPendientes());
   }, []);
+
+  // Detectamos si hay señal y mandamos los pedidos que quedaron pendientes
+  useEffect(() => {
+    function actualizarEstado() {
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      setSinConexion(offline);
+      if (!offline) intentarSincronizar();
+    }
+
+    async function intentarSincronizar() {
+      if (cantidadPendientes() === 0) return;
+      const { enviados } = await sincronizarCola();
+      setPendientes(cantidadPendientes());
+      if (enviados > 0) {
+        alert(`Se enviaron ${enviados} pedido(s) que habías armado sin internet.`);
+        window.location.reload();
+      }
+    }
+
+    actualizarEstado();
+    window.addEventListener("online", actualizarEstado);
+    window.addEventListener("offline", actualizarEstado);
+    return () => {
+      window.removeEventListener("online", actualizarEstado);
+      window.removeEventListener("offline", actualizarEstado);
+    };
+  }, []);
+
+  async function descargarCatalogo() {
+    setGuardandoCatalogo(true);
+    try {
+      const { total, parcial } = await guardarCatalogoOffline();
+      setFechaCatalogo(new Date());
+      alert(
+        parcial
+          ? `Se guardaron ${total} productos (los que tenés en stock). No entró todo el catálogo por espacio del celular.`
+          : `Listo: ${total} productos guardados para usar sin internet.`
+      );
+    } catch (e) {
+      alert("No se pudo guardar el catálogo: " + e.message);
+    } finally {
+      setGuardandoCatalogo(false);
+    }
+  }
 
   async function actualizarEstado(pedidoId, campo, valor) {
     setPedidos((prev) =>
@@ -510,35 +571,53 @@ function PanelVentas() {
     try {
       const numero_pedido = generarNumeroPedido();
 
+      const cuerpoPedido = {
+        pedido: {
+          numero_pedido,
+          usuario_id: null,
+          nombre_cliente: nuevoForm.nombre_cliente,
+          telefono_cliente: nuevoForm.telefono_cliente,
+          localidad: nuevoForm.localidad,
+          metodo_entrega: nuevoForm.metodo_entrega,
+          direccion_envio:
+            nuevoForm.metodo_entrega === "envio" ? nuevoForm.direccion_envio : null,
+          metodo_pago: nuevoForm.metodo_pago,
+          nota_cliente: nuevoForm.nota_cliente || null,
+          subtotal: subtotalNuevoPedido,
+          descuento_tipo: nuevoDescuentoTipo || null,
+          descuento_valor: Number(nuevoDescuentoValor) || 0,
+          total: totalNuevoPedido,
+          estado: "pendiente"
+        },
+        items: nuevoItems.map((i) => ({
+          producto_id: i.producto_id,
+          nombre_producto: i.nombre_producto,
+          precio_unitario: i.precio_unitario,
+          cantidad: i.cantidad,
+          subtotal: i.subtotal
+        }))
+      };
+
+      // Sin señal: el pedido queda guardado en el celular y se manda solo
+      // apenas vuelva el internet. Así no se pierde ninguna venta.
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        encolarPedido(cuerpoPedido);
+        setPendientes(cantidadPendientes());
+        setComprobantePedido({
+          ...cuerpoPedido.pedido,
+          items_pedido: nuevoItems,
+          _pendiente_envio: true
+        });
+        resetFormNuevo();
+        setMostrarFormNuevo(false);
+        setGuardandoNuevo(false);
+        return;
+      }
+
       const res = await fetch("/api/pedidos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pedido: {
-            numero_pedido,
-            usuario_id: null,
-            nombre_cliente: nuevoForm.nombre_cliente,
-            telefono_cliente: nuevoForm.telefono_cliente,
-            localidad: nuevoForm.localidad,
-            metodo_entrega: nuevoForm.metodo_entrega,
-            direccion_envio:
-              nuevoForm.metodo_entrega === "envio" ? nuevoForm.direccion_envio : null,
-            metodo_pago: nuevoForm.metodo_pago,
-            nota_cliente: nuevoForm.nota_cliente || null,
-            subtotal: subtotalNuevoPedido,
-            descuento_tipo: nuevoDescuentoTipo || null,
-            descuento_valor: Number(nuevoDescuentoValor) || 0,
-            total: totalNuevoPedido,
-            estado: "pendiente",
-          },
-          items: nuevoItems.map((i) => ({
-            producto_id: i.producto_id,
-            nombre_producto: i.nombre_producto,
-            precio_unitario: i.precio_unitario,
-            cantidad: i.cantidad,
-            subtotal: i.subtotal,
-          })),
-        }),
+        body: JSON.stringify(cuerpoPedido)
       });
 
       const result = await res.json();
@@ -555,7 +634,12 @@ function PanelVentas() {
       resetFormNuevo();
       setMostrarFormNuevo(false);
     } catch (err) {
-      setErrorNuevo(`Error: ${err.message || "Desconocido"}`);
+      // Si se cortó el internet justo al guardar, no perdemos el pedido
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setErrorNuevo("Se cortó el internet. El pedido quedó guardado y se envía solo cuando vuelva la señal.");
+      } else {
+        setErrorNuevo(`Error: ${err.message || "Desconocido"}`);
+      }
     } finally {
       setGuardandoNuevo(false);
     }
@@ -601,6 +685,64 @@ function PanelVentas() {
             {mostrarFormNuevo ? "Cancelar" : "+ Nuevo pedido"}
           </button>
         </div>
+
+        {/* MODO SIN INTERNET */}
+        {sinConexion && (
+          <div className="bg-gray-800 text-white rounded-2xl p-4 mb-4">
+            <p className="font-bold text-sm">📡 Estás sin internet</p>
+            <p className="text-xs text-gray-300 mt-1">
+              {productos.length > 0
+                ? `Podés armar pedidos igual: tenés ${productos.length} productos guardados. Se envían solos cuando vuelva la señal.`
+                : "No tenés el catálogo guardado en este celular. Conectate a internet y tocá \"Guardar catálogo\" para poder trabajar sin señal la próxima vez."}
+            </p>
+          </div>
+        )}
+
+        {pendientes > 0 && (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="font-bold text-amber-900 text-sm">
+                {pendientes} pedido{pendientes === 1 ? "" : "s"} esperando enviarse
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5">
+                Se mandan solos apenas haya internet.
+              </p>
+            </div>
+            {!sinConexion && (
+              <button
+                onClick={async () => {
+                  const { enviados } = await sincronizarCola();
+                  setPendientes(cantidadPendientes());
+                  if (enviados > 0) window.location.reload();
+                }}
+                className="text-xs font-bold text-white bg-amber-600 px-3 py-2 rounded-xl whitespace-nowrap"
+              >
+                Enviar ahora
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* GUARDAR CATÁLOGO PARA USAR SIN SEÑAL */}
+        {!sinConexion && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 mb-4 flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-gray-800 text-sm">📥 Trabajar sin internet</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {fechaCatalogo
+                  ? `Catálogo guardado el ${fechaCatalogo.toLocaleDateString("es-AR")} a las ${fechaCatalogo.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
+                  : "Guardá el catálogo en el celular para armar pedidos donde no hay señal"}
+              </p>
+            </div>
+            <button
+              onClick={descargarCatalogo}
+              disabled={guardandoCatalogo}
+              className="text-xs font-bold text-brand-blue border border-brand-blue px-3 py-2 rounded-xl whitespace-nowrap disabled:opacity-50"
+            >
+              {guardandoCatalogo ? "Guardando..." : fechaCatalogo ? "Actualizar" : "Guardar catálogo"}
+            </button>
+          </div>
+        )}
 
         {mostrarFormNuevo && (
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">
