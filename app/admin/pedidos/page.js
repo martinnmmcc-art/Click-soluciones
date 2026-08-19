@@ -683,15 +683,22 @@ function PanelVentas() {
     (p) => p.estado === "entregado" && p.estado_pago === "pagado"
   ).length;
 
+  // La lista de abajo muestra solo lo que falta atender...
   const pedidosFiltrados = filtrarPorFecha(pedidosAbiertos);
 
-  const balancePeriodo = pedidosFiltrados.reduce(
+  // ...pero el balance del período tiene que contar TODAS las ventas
+  // (abiertas y cerradas), si no los números del negocio quedan incompletos.
+  const pedidosDelPeriodo = filtrarPorFecha(
+    pedidosPorCliente.filter((p) => p.estado !== "cancelado")
+  );
+
+  const balancePeriodo = pedidosDelPeriodo.reduce(
     (acc, p) => {
       acc.totalVendido += Number(p.total || 0);
       acc.totalCobrado += Number(p.monto_pagado || 0);
       return acc;
     },
-    { totalVendido: 0, totalCobrado: 0 }
+    { totalVendido: 0, totalCobrado: 0, cantidad: pedidosDelPeriodo.length }
   );
   balancePeriodo.totalPendiente = balancePeriodo.totalVendido - balancePeriodo.totalCobrado;
 
@@ -1116,7 +1123,10 @@ function PanelVentas() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-[11px] text-gray-500 font-semibold uppercase">Pedidos</p>
-              <p className="text-lg font-extrabold text-gray-800">{pedidosFiltrados.length}</p>
+              <p className="text-lg font-extrabold text-gray-800">{pedidosDelPeriodo.length}</p>
+              <p className="text-[10px] text-gray-400">
+                {pedidosFiltrados.length} sin cerrar
+              </p>
             </div>
             <div className="bg-gray-50 rounded-xl p-3">
               <p className="text-[11px] text-gray-500 font-semibold uppercase">Total vendido</p>
