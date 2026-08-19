@@ -127,6 +127,14 @@ export async function GET() {
       return acc + costoUnitarioReal * stock;
     }, 0);
 
+    const unidadesEnStock = (productosRes.data || []).reduce(
+      (acc, p) => acc + Math.max(Number(p.stock || 0), 0),
+      0
+    );
+    const productosConStock = (productosRes.data || []).filter(
+      (p) => Number(p.stock || 0) > 0
+    ).length;
+
     // Cuentas por cobrar: plata que tus clientes todavía te deben, de TODOS
     // los pedidos activos (no solo los de este mes).
     const cuentasPorCobrar = todosPedidos.reduce((acc, p) => {
@@ -171,6 +179,8 @@ export async function GET() {
 
         // Bloque 3: foto actual
         valorInventario,
+        unidadesEnStock,
+        productosConStock,
         cuentasPorCobrar,
 
         masVendido: masVendido ? { nombre: masVendido[0], cantidad: masVendido[1] } : null,
