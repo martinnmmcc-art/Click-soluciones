@@ -198,6 +198,18 @@ export async function POST(request) {
 
     const mapaExistentes = new Map((existentes || []).map((e) => [e.proveedor_ref, e]));
 
+    // También comparamos por nombre: si el producto ya está cargado a mano
+    // (con stock y precio propio), no queremos crear una copia importada.
+    const nombresProveedor = productos.map((p) => p.name).filter(Boolean);
+    const { data: porNombre } = await supabase
+      .from("Productos")
+      .select("id, nombre")
+      .in("nombre", nombresProveedor.length ? nombresProveedor : ["_"]);
+
+    const yaExistePorNombre = new Set(
+      (porNombre || []).map((p) => (p.nombre || "").trim().toLowerCase())
+    );
+
     const aInsertar = [];
     let actualizados = 0;
     let omitidos = 0;
@@ -213,6 +225,13 @@ export async function POST(request) {
       }
 
       const { flete, precio } = calcularPrecios(costo);
+      // Si ya lo tenés cargado con ese nombre, lo salteamos: tu versión manda
+      // (tiene tu stock, tu precio y tus ofertas).
+      if (!mapaExistentes.get(ref) && yaExistePorNombre.has((p.name || "").trim().toLowerCase())) {
+        omitidos++;
+        continue;
+      }
+
       const yaExiste = mapaExistentes.get(ref);
 
       if (yaExiste) {
