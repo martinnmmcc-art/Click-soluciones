@@ -5,6 +5,15 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { useAdmin } from "@/context/AdminContext";
 
+// Muestra los importes siempre con 2 decimales, como en un resumen bancario.
+// Sin esto aparecían números como $483.169,055 que confunden al leerlos.
+function pesos(valor) {
+  return Number(valor || 0).toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
 function Dashboard() {
   const { logout } = useAdmin();
   const [m, setM] = useState(null);
@@ -69,7 +78,7 @@ function Dashboard() {
               <div className="card p-4">
                 <p className="text-gray-500 text-xs font-semibold">Ventas este mes</p>
                 <p className="text-green-600 text-xl font-extrabold mt-1">
-                  ${m.ventasMes.toLocaleString("es-AR")}
+                  ${pesos(m.ventasMes)}
                 </p>
                 <p className="text-gray-400 text-[11px] mt-0.5">{m.cantidadPedidosMes} pedidos</p>
               </div>
@@ -104,24 +113,24 @@ function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-500">Ventas</span>
-                  <span className="font-bold text-gray-800">${m.ventasMes.toLocaleString("es-AR")}</span>
+                  <span className="font-bold text-gray-800">${pesos(m.ventasMes)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-500">Costo de mercadería vendida</span>
-                  <span className="font-bold text-gray-700">-${m.costoMercaderiaVendida.toLocaleString("es-AR")}</span>
+                  <span className="font-bold text-gray-700">-${pesos(m.costoMercaderiaVendida)}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-500">Ganancia bruta</span>
-                  <span className="font-bold text-gray-700">${m.gananciaBruta.toLocaleString("es-AR")}</span>
+                  <span className="font-bold text-gray-700">${pesos(m.gananciaBruta)}</span>
                 </div>
                 <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
                   <span className="text-gray-500">Otros gastos</span>
-                  <span className="font-bold text-gray-700">-${m.otrosGastosReal.toLocaleString("es-AR")}</span>
+                  <span className="font-bold text-gray-700">-${pesos(m.otrosGastosReal)}</span>
                 </Link>
                 <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-1">
                   <span className="text-gray-800 font-semibold">Ganancia neta</span>
                   <span className={`font-extrabold ${m.gananciaNeta >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    ${m.gananciaNeta.toLocaleString("es-AR")}
+                    ${pesos(m.gananciaNeta)}
                   </span>
                 </div>
               </div>
@@ -136,24 +145,24 @@ function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-gray-500">Ventas</span>
-                  <span className="font-bold text-gray-800">${m.ventasMes.toLocaleString("es-AR")}</span>
+                  <span className="font-bold text-gray-800">${pesos(m.ventasMes)}</span>
                 </div>
                 <Link href="/admin/compras-proveedor" className="flex justify-between items-center text-sm hover:underline">
                   <span className="text-gray-500">Compras de mercadería</span>
-                  <span className="font-bold text-gray-700">-${m.gastoMaterialesCaja.toLocaleString("es-AR")}</span>
+                  <span className="font-bold text-gray-700">-${pesos(m.gastoMaterialesCaja)}</span>
                 </Link>
                 <Link href="/admin/compras-proveedor" className="flex justify-between items-center text-sm hover:underline">
                   <span className="text-gray-500">Transporte pagado</span>
-                  <span className="font-bold text-gray-700">-${m.gastoTransporteCaja.toLocaleString("es-AR")}</span>
+                  <span className="font-bold text-gray-700">-${pesos(m.gastoTransporteCaja)}</span>
                 </Link>
                 <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
                   <span className="text-gray-500">Otros gastos</span>
-                  <span className="font-bold text-gray-700">-${m.otrosGastosReal.toLocaleString("es-AR")}</span>
+                  <span className="font-bold text-gray-700">-${pesos(m.otrosGastosReal)}</span>
                 </Link>
                 <div className="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-1">
                   <span className="text-gray-800 font-semibold">Resultado de caja</span>
                   <span className={`font-extrabold ${m.resultadoCaja >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    ${m.resultadoCaja.toLocaleString("es-AR")}
+                    ${pesos(m.resultadoCaja)}
                   </span>
                 </div>
               </div>
@@ -167,7 +176,7 @@ function Dashboard() {
               <div className="card p-4">
                 <p className="text-gray-500 text-xs font-semibold">📦 Valor en stock</p>
                 <p className="text-gray-800 text-lg font-extrabold mt-1">
-                  ${m.valorInventario.toLocaleString("es-AR")}
+                  ${pesos(m.valorInventario)}
                 </p>
                 <p className="text-gray-400 text-[11px] mt-0.5">
                   {m.unidadesEnStock ?? 0} unidades · {m.productosConStock ?? 0} productos
@@ -176,7 +185,7 @@ function Dashboard() {
               <Link href="/admin/pedidos" className="card p-4 hover:shadow-md block">
                 <p className="text-gray-500 text-xs font-semibold">🤝 Te deben</p>
                 <p className="text-amber-600 text-lg font-extrabold mt-1">
-                  ${m.cuentasPorCobrar.toLocaleString("es-AR")}
+                  ${pesos(m.cuentasPorCobrar)}
                 </p>
                 <p className="text-brand-blue text-[11px] mt-0.5 font-semibold underline">Ver pedidos →</p>
               </Link>
