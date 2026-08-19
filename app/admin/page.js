@@ -169,7 +169,9 @@ function Dashboard() {
                 <p className="text-gray-800 text-lg font-extrabold mt-1">
                   ${m.valorInventario.toLocaleString("es-AR")}
                 </p>
-                <p className="text-gray-400 text-[11px] mt-0.5">Plata parada en mercadería</p>
+                <p className="text-gray-400 text-[11px] mt-0.5">
+                  {m.unidadesEnStock ?? 0} unidades · {m.productosConStock ?? 0} productos
+                </p>
               </div>
               <Link href="/admin/pedidos" className="card p-4 hover:shadow-md block">
                 <p className="text-gray-500 text-xs font-semibold">🤝 Te deben</p>
