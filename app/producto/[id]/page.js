@@ -191,6 +191,30 @@ export default function ProductoDetallePage() {
         )}
       </div>
 
+      {/* VIDEO DEL PRODUCTO */}
+      {producto.video_url && (
+        <div className="max-w-2xl mx-auto px-4 mt-4">
+          <p className="text-sm font-bold text-gray-800 mb-2">🎥 Mirá el producto en video</p>
+          {producto.video_url.includes("youtube.com/embed") ? (
+            <iframe
+              src={producto.video_url}
+              className="w-full aspect-video rounded-2xl border border-gray-100"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              title={`Video de ${producto.nombre}`}
+            />
+          ) : (
+            <video
+              src={producto.video_url}
+              controls
+              playsInline
+              preload="metadata"
+              className="w-full rounded-2xl border border-gray-100 bg-black"
+            />
+          )}
+        </div>
+      )}
+
       {/* INFORMACIÓN DEL PRODUCTO */}
       <div className="max-w-2xl mx-auto px-4 mt-6">
         <p className="text-xs uppercase tracking-wide text-brand-blue font-semibold">
