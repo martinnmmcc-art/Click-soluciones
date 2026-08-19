@@ -2,6 +2,19 @@
 
 import { useState } from "react";
 import { CATEGORIAS } from "@/lib/categorias";
+import { supabase } from "@/lib/supabaseClient";
+
+// Convierte un link de YouTube normal al formato que se puede incrustar,
+// para que el video se vea dentro de la ficha del producto.
+export function normalizarVideoUrl(url) {
+  if (!url) return "";
+  const u = url.trim();
+
+  const yt = u.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+
+  return u;
+}
 
 function calcularPrecio(costo, margen, envio) {
   const c = Number(costo) || 0;
@@ -30,10 +43,53 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
     costo: initialData?.costo ?? "",
     margen_porcentaje: initialData?.margen_porcentaje ?? "",
     costo_envio: initialData?.costo_envio ?? "",
+    video_url: initialData?.video_url || "",
   });
+  const [subiendoVideo, setSubiendoVideo] = useState(false);
+  const [errorVideo, setErrorVideo] = useState("");
   const [precioAutocalculado, setPrecioAutocalculado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
+
+  async function subirVideo(e) {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+
+    setErrorVideo("");
+
+    const MAX_MB = 25;
+    if (archivo.size > MAX_MB * 1024 * 1024) {
+      setErrorVideo(
+        `El video pesa ${(archivo.size / 1024 / 1024).toFixed(1)} MB y el máximo es ${MAX_MB} MB. ` +
+        `Grabá uno más corto o subilo a YouTube y pegá el link acá abajo.`
+      );
+      e.target.value = "";
+      return;
+    }
+
+    setSubiendoVideo(true);
+    try {
+      const extension = archivo.name.split(".").pop();
+      const nombreArchivo = `producto-${Date.now()}.${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("videos-productos")
+        .upload(nombreArchivo, archivo, { cacheControl: "3600", upsert: false });
+
+      if (uploadError) throw new Error(uploadError.message);
+
+      const { data } = supabase.storage
+        .from("videos-productos")
+        .getPublicUrl(nombreArchivo);
+
+      setForm((prev) => ({ ...prev, video_url: data.publicUrl }));
+    } catch (err) {
+      setErrorVideo("No se pudo subir el video: " + err.message);
+    } finally {
+      setSubiendoVideo(false);
+      e.target.value = "";
+    }
+  }
 
   function handleChange(e) {
     const { name, type, checked, value } = e.target;
@@ -91,6 +147,7 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         costo: form.costo !== "" ? Number(form.costo) : null,
         margen_porcentaje: form.margen_porcentaje !== "" ? Number(form.margen_porcentaje) : null,
         costo_envio: form.costo_envio !== "" ? Number(form.costo_envio) : 0,
+        video_url: form.video_url ? normalizarVideoUrl(form.video_url) : null,
       });
     } catch (err) {
       setError(err.message || "Ocurrió un error al guardar.");
@@ -274,6 +331,74 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
             />
           </div>
         </div>
+      </div>
+
+      {/* VIDEO DEL PRODUCTO */}
+      <div className="border border-gray-200 rounded-xl p-3">
+        <p className="text-sm font-semibold text-gray-700 mb-1">🎥 Video (opcional)</p>
+        <p className="text-[11px] text-gray-500 mb-3">
+          Un video mostrando el producto funcionando vende mucho más que una foto.
+        </p>
+
+        <div className="mb-3">
+          <label className="text-xs font-medium text-gray-600 block mb-1">
+            Subir un video desde el celular (hasta 25 MB)
+          </label>
+          <input
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime"
+            onChange={subirVideo}
+            disabled={subiendoVideo}
+            className="text-xs w-full file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-brand-blue file:text-white"
+          />
+          {subiendoVideo && (
+            <p className="text-xs text-brand-blue font-medium mt-1">Subiendo video, esperá...</p>
+          )}
+          {errorVideo && (
+            <p className="text-xs text-red-600 font-medium mt-1">{errorVideo}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-gray-600 block mb-1">
+            O pegá un link de YouTube
+          </label>
+          <input
+            name="video_url"
+            value={form.video_url}
+            onChange={handleChange}
+            className="input-field"
+            placeholder="https://youtube.com/... o link del video subido"
+          />
+          <p className="text-[11px] text-gray-400 mt-1">
+            Para videos largos conviene YouTube: no ocupa espacio de la app y carga más rápido.
+          </p>
+        </div>
+
+        {form.video_url && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold text-green-700">✓ Video cargado</p>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, video_url: "" })}
+                className="text-xs font-semibold text-red-500"
+              >
+                Quitar
+              </button>
+            </div>
+            {form.video_url.includes("youtube.com/embed") ? (
+              <iframe
+                src={form.video_url}
+                className="w-full aspect-video rounded-lg"
+                allowFullScreen
+                title="Vista previa"
+              />
+            ) : (
+              <video src={form.video_url} controls className="w-full rounded-lg max-h-52" />
+            )}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
