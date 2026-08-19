@@ -1,0 +1,14 @@
+/node_modules
+.env
+.env.local
+.env*.local
+*.pem
+*.key
+/.next/
+/out/
+/build
+.vercel
+*.log
+.DS_Store
+.vscode/
+.idea/
