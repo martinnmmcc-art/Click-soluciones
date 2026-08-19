@@ -31,14 +31,25 @@ export async function GET() {
       clientesTotalRes,
       productosRes,
       comprasProveedorRes,
-      gastosGeneralesRes
+      gastosGeneralesRes,
+      aPedidoRes
     ] = await Promise.all([
       supabaseAdmin.from("pedidos").select("id, total, estado, estado_pago, monto_pagado, created_at, items_pedido(nombre_producto, cantidad, producto_id)"),
       supabaseAdmin.from("clientes").select("id", { count: "exact", head: true }).gte("created_at", inicioMesISO),
       supabaseAdmin.from("clientes").select("id", { count: "exact", head: true }),
-      supabaseAdmin.from("Productos").select("id, costo, costo_envio, bajo_pedido, activo, stock"),
+      // Solo los productos propios: son los únicos que cuentan para el valor
+      // en stock. Los "a pedido" no son mercadería tuya, no están comprados.
+      supabaseAdmin
+        .from("Productos")
+        .select("id, costo, costo_envio, activo, stock")
+        .or("bajo_pedido.is.null,bajo_pedido.eq.false"),
       supabaseAdmin.from("compras_proveedor").select("subtotal, flete").gte("fecha", inicioMesFecha),
-      supabaseAdmin.from("gastos_generales").select("monto").gte("fecha", inicioMesFecha)
+      supabaseAdmin.from("gastos_generales").select("monto").gte("fecha", inicioMesFecha),
+      supabaseAdmin
+        .from("Productos")
+        .select("id", { count: "exact", head: true })
+        .eq("bajo_pedido", true)
+        .eq("activo", true)
     ]);
 
     if (pedidosRes.error) throw new Error(pedidosRes.error.message);
@@ -108,9 +119,10 @@ export async function GET() {
     // =====================================================================
     // Valor de inventario: plata que tenés "parada" en stock sin vender.
     // Usa el costo real (igual que el margen) por la cantidad que tenés hoy.
+    // Solo cuenta la mercadería que realmente tenés comprada y en tu poder.
     const valorInventario = (productosRes.data || []).reduce((acc, p) => {
       const stock = Number(p.stock || 0);
-      if (p.bajo_pedido || stock <= 0) return acc;
+      if (stock <= 0) return acc;
       const costoUnitarioReal = Number(p.costo || 0) * MULTIPLICADOR_COSTO_REAL + Number(p.costo_envio || 0);
       return acc + costoUnitarioReal * stock;
     }, 0);
@@ -131,9 +143,9 @@ export async function GET() {
       .map(([nombre, cantidad]) => ({ nombre, cantidad }));
 
     const productos = productosRes.data || [];
-    const productosActivos = productos.filter((p) => p.activo && !p.bajo_pedido).length;
-    const productosAPedido = productos.filter((p) => p.bajo_pedido).length;
-    const sinStock = productos.filter((p) => !p.bajo_pedido && p.stock !== null && Number(p.stock) <= 0).length;
+    const productosActivos = productos.filter((p) => p.activo).length;
+    const productosAPedido = aPedidoRes.count || 0;
+    const sinStock = productos.filter((p) => p.stock !== null && Number(p.stock) <= 0).length;
 
     return Response.json(
       {
