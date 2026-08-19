@@ -232,6 +232,16 @@ function Dashboard() {
             <span className="text-2xl">📊</span>
           </Link>
 
+          <Link href="/admin/importar-proveedor" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Importar de Next Cell</p>
+              <p className="text-sm text-gray-500">
+                Traer productos del proveedor como "a pedido", con precio calculado
+              </p>
+            </div>
+            <span className="text-2xl">⬇️</span>
+          </Link>
+
           <Link href="/admin/compras-proveedor" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Compras a proveedor</p>
