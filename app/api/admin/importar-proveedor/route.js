@@ -41,6 +41,43 @@ function precioDesdeApi(valor, decimales) {
   return n / div;
 }
 
+// El proveedor nombra sus categorías como "C. Hogar 家居，厨房用品".
+// Las traducimos a categorías simples y en castellano para la tienda.
+const MAPA_CATEGORIAS = {
+  A: "Juguetes y Niños",
+  B: "Belleza y Cuidado Personal",
+  C: "Hogar y Cocina",
+  D: "Audio y Sonido",
+  E: "Accesorios Celular",
+  F: "Computación y Gaming",
+  G: "Tecnología y Smart TV",
+  H: "Herramientas y Cargadores",
+  I: "Oficina y Memorias",
+  J: "Seguridad y Drones",
+  K: "Redes y Conectividad",
+  L: "Regalería y Extras",
+  M: "Hidrogel y Accesorios",
+  N: "Mascotas"
+};
+
+// Deja solo el texto en castellano, sin la letra inicial ni los caracteres chinos.
+function limpiarNombreCategoria(nombre) {
+  if (!nombre) return "Otros";
+  return nombre
+    .replace(/^[A-Z]\.\s*/, "")
+    .replace(/[\u4e00-\u9fff\uff00-\uffef\u3000-\u303f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function categoriaDeProducto(p) {
+  const original = p.categories?.[0]?.name || "";
+  const letra = original.match(/^([A-Z])\./)?.[1];
+  if (letra && MAPA_CATEGORIAS[letra]) return MAPA_CATEGORIAS[letra];
+  const limpia = limpiarNombreCategoria(original);
+  return limpia || "Otros";
+}
+
 // Limpia las etiquetas HTML de la descripción del proveedor.
 function limpiarHtml(html) {
   if (!html) return "";
@@ -155,7 +192,7 @@ export async function POST(request) {
     const refs = productos.map((p) => String(p.id));
     const { data: existentes } = await supabase
       .from("Productos")
-      .select("id, proveedor_ref, costo")
+      .select("id, proveedor_ref, costo, categoria")
       .eq("proveedor", PROVEEDOR)
       .in("proveedor_ref", refs);
 
@@ -180,16 +217,22 @@ export async function POST(request) {
 
       if (yaExiste) {
         // Solo actualizamos si el precio del proveedor cambió y así lo pidieron
-        if (actualizar_precios && Number(yaExiste.costo) !== costo) {
-          await supabase
-            .from("Productos")
-            .update({
-              costo,
-              costo_envio: flete,
-              precio,
-              precio_proveedor_actualizado: new Date().toISOString()
-            })
-            .eq("id", yaExiste.id);
+        const cambioPrecio = actualizar_precios && Number(yaExiste.costo) !== costo;
+        const categoriaCorrecta = categoriaDeProducto(p);
+        const cambioCategoria = yaExiste.categoria !== categoriaCorrecta;
+
+        if (cambioPrecio || cambioCategoria) {
+          const cambios = {
+            categoria: categoriaCorrecta,
+            categoria_proveedor: p.categories?.[0]?.name || null
+          };
+          if (cambioPrecio) {
+            cambios.costo = costo;
+            cambios.costo_envio = flete;
+            cambios.precio = precio;
+            cambios.precio_proveedor_actualizado = new Date().toISOString();
+          }
+          await supabase.from("Productos").update(cambios).eq("id", yaExiste.id);
           actualizados++;
         } else {
           omitidos++;
@@ -209,7 +252,8 @@ export async function POST(request) {
         stock: 0,
         bajo_pedido: true,
         activo: true,
-        categoria: p.categories?.[0]?.name?.replace(/^[A-Z]\.\s*/, "").split(" ")[0] || "Otros",
+        categoria: categoriaDeProducto(p),
+        categoria_proveedor: p.categories?.[0]?.name || null,
         proveedor: PROVEEDOR,
         proveedor_ref: ref,
         precio_proveedor_actualizado: new Date().toISOString()
