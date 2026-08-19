@@ -25,12 +25,30 @@ function ArmarCatalogo() {
   const [filtroTipo, setFiltroTipo] = useState("todos");
 
   useEffect(() => {
+    // Supabase devuelve máximo 1000 filas por consulta. Con casi 3000 productos
+    // hay que pedirlos en tandas, si no quedaban afuera casi todos los que
+    // tenés en stock (que alfabéticamente caen después del corte).
     async function cargar() {
-      const { data } = await supabase
-        .from("Productos")
-        .select("id, nombre, imagen_url, precio, activo, stock, bajo_pedido")
-        .order("nombre", { ascending: true });
-      setProductos(data || []);
+      const TANDA = 1000;
+      let todos = [];
+      let desde = 0;
+
+      while (true) {
+        const { data, error } = await supabase
+          .from("Productos")
+          .select("id, nombre, imagen_url, precio, activo, stock, bajo_pedido")
+          .order("nombre", { ascending: true })
+          .range(desde, desde + TANDA - 1);
+
+        if (error) break;
+        const tanda = data || [];
+        todos = todos.concat(tanda);
+        if (tanda.length < TANDA) break;
+        desde += TANDA;
+        if (desde > 20000) break; // freno de seguridad
+      }
+
+      setProductos(todos);
       setLoading(false);
     }
     cargar();
