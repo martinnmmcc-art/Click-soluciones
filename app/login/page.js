@@ -202,7 +202,10 @@ export default function LoginPage() {
       );
 
       if (loginError || !loginData || loginData.length === 0) {
-        setError("Contraseña incorrecta.");
+        setError(
+          "Contraseña incorrecta. Si te equivocaste varias veces, esperá 15 minutos " +
+          "o escribinos por WhatsApp para que te la restablezcamos."
+        );
         return;
       }
 
@@ -221,39 +224,44 @@ export default function LoginPage() {
       return;
     }
 
-    const nuevoCliente = {
-      telefono: telLimpio,
-      password: passLimpio,
-      nombre: nombre.trim(),
-      localidad: localidad.trim(),
-      email: "",
-      direccion: "",
-      referido_por: refCode || null
-    };
+    // El registro pasa por una función del servidor que cifra la contraseña
+    // antes de guardarla. La contraseña real nunca queda almacenada.
+    const { data: nuevoCliente, error: insertError } = await supabase.rpc("registrar_cliente", {
+      p_telefono: telLimpio,
+      p_password: passLimpio,
+      p_nombre: nombre.trim(),
+      p_localidad: localidad.trim(),
+      p_referido_por: refCode || null
+    });
 
-    const { error: insertError } = await supabase.from("clientes").insert([nuevoCliente]);
-    if (insertError) {
-      let mensaje = `Error al registrar: ${insertError.message}`;
-      if (insertError.message.includes("TELEFONO_BLOQUEADO")) {
+    if (insertError || !nuevoCliente || nuevoCliente.length === 0) {
+      const msg = insertError?.message || "";
+      let mensaje = "No se pudo completar el registro. Intentá de nuevo.";
+      if (msg.includes("TELEFONO_BLOQUEADO")) {
         mensaje = "Este número no puede acceder. Contactate con Bolson Click por WhatsApp.";
-      } else if (insertError.message.includes("clientes_telefono")) {
+      } else if (msg.includes("TELEFONO_YA_REGISTRADO")) {
         mensaje = "Este número ya está registrado. Iniciá sesión normalmente.";
+      } else if (msg.includes("TELEFONO_INVALIDO")) {
+        mensaje = "El celular debe tener 10 números (ej: 2944123456).";
+      } else if (msg.includes("PASSWORD_CORTA")) {
+        mensaje = "La contraseña tiene que tener al menos 4 caracteres.";
+      } else if (msg.includes("NOMBRE_INVALIDO")) {
+        mensaje = "Ingresá tu nombre y apellido.";
       }
       setError(mensaje);
       return;
     }
 
-    // No guardamos la contraseña en la sesión local (por seguridad)
-    const { password: _omit, ...clienteSinPassword } = nuevoCliente;
-    localStorage.setItem("cliente_sesion", JSON.stringify(clienteSinPassword));
-    setSesionActiva(clienteSinPassword);
+    const clienteRegistrado = nuevoCliente[0];
+    localStorage.setItem("cliente_sesion", JSON.stringify(clienteRegistrado));
+    setSesionActiva(clienteRegistrado);
 
     // Le avisamos al negocio que se sumó alguien nuevo
     avisarAdmin({
       tipo: "registro",
       telefono: telLimpio,
-      nombre: nombre.trim(),
-      detalle: localidad.trim() || null
+      nombre: clienteRegistrado.nombre,
+      detalle: clienteRegistrado.localidad || null
     });
 
     // Apenas se registra, le pedimos el permiso de notificaciones una sola vez (no bloqueante)
