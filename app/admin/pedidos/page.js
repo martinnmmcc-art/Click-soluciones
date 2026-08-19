@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Header from "@/components/Header";
 import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
@@ -673,8 +674,16 @@ function PanelVentas() {
     ? pedidos.filter((p) => (p.telefono_cliente || "Sin teléfono") === clienteSeleccionado)
     : pedidos;
 
-  const pedidosFiltrados = filtrarPorFecha(pedidosPorCliente);
-  const resumenClientes = calcularResumenClientes(pedidos);
+  // En este panel quedan solo los pedidos que todavía requieren acción:
+  // sin entregar o sin cobrar. Los cerrados van a "Ventas cerradas".
+  const pedidosAbiertos = pedidosPorCliente.filter(
+    (p) => !(p.estado === "entregado" && p.estado_pago === "pagado")
+  );
+  const pedidosCerradosCount = pedidos.filter(
+    (p) => p.estado === "entregado" && p.estado_pago === "pagado"
+  ).length;
+
+  const pedidosFiltrados = filtrarPorFecha(pedidosAbiertos);
 
   const balancePeriodo = pedidosFiltrados.reduce(
     (acc, p) => {
@@ -692,7 +701,10 @@ function PanelVentas() {
 
       <div className="max-w-4xl mx-auto px-4 mt-6">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-2">
-          <h1 className="text-2xl font-extrabold text-gray-800">Panel de Ventas (Admin)</h1>
+          <div>
+            <h1 className="text-2xl font-extrabold text-gray-800">Pedidos abiertos</h1>
+            <p className="text-xs text-gray-500">Sin entregar o sin cobrar</p>
+          </div>
           <button
             onClick={() => setMostrarFormNuevo(!mostrarFormNuevo)}
             className="text-sm font-bold text-white bg-brand-blue px-4 py-2 rounded-xl shadow-sm"
@@ -1127,70 +1139,28 @@ function PanelVentas() {
           </div>
         </div>
 
-        {resumenClientes.length > 0 && (
-          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
-                Resumen por cliente
-              </p>
-              <select
-                value={ordenResumen}
-                onChange={(e) => setOrdenResumen(e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600"
-              >
-                <option value="reciente">Compra más reciente</option>
-                <option value="deuda">Mayor deuda</option>
-                <option value="monto">Más compró</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              {resumenClientes.map((c) => (
-                <button
-                  key={c.telefono}
-                  onClick={() =>
-                    setClienteSeleccionado(
-                      clienteSeleccionado === c.telefono ? null : c.telefono
-                    )
-                  }
-                  className={`w-full flex justify-between items-center text-sm text-left p-2 rounded-xl transition-colors ${
-                    clienteSeleccionado === c.telefono ? "bg-blue-50" : "hover:bg-gray-50"
-                  }`}
-                >
-                  <span className="text-gray-700 font-medium">
-                    {c.nombre} ({c.telefono}){" "}
-                    <span className="text-gray-400 font-normal">
-                      · {c.cantidadPedidos} pedido{c.cantidadPedidos === 1 ? "" : "s"}
-                    </span>
-                    <span className="block text-[11px] text-gray-400 font-normal mt-0.5">
-                      {c.ultimaCompra && (
-                        <>Última compra: {c.ultimaCompra.toLocaleDateString("es-AR")}</>
-                      )}
-                      {c.primeraCompra && c.cantidadPedidos > 1 && (
-                        <> · Cliente desde: {c.primeraCompra.toLocaleDateString("es-AR")}</>
-                      )}
-                      <> · Total: ${formatPrice(c.totalComprado)}</>
-                    </span>
-                  </span>
-                  {c.saldoNeto > 0 && (
-                    <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg">
-                      Debe ${formatPrice(c.saldoNeto)}
-                    </span>
-                  )}
-                  {c.saldoNeto < 0 && (
-                    <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">
-                      A favor ${formatPrice(Math.abs(c.saldoNeto))}
-                    </span>
-                  )}
-                  {c.saldoNeto === 0 && (
-                    <span className="text-xs font-bold text-green-700 bg-green-50 border border-green-200 px-2.5 py-1 rounded-lg">
-                      Saldado
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* ACCESOS A LAS OTRAS VISTAS */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Link
+            href="/admin/ventas-cerradas"
+            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md"
+          >
+            <p className="text-2xl mb-1">✅</p>
+            <p className="font-bold text-sm text-gray-800">Ventas cerradas</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {pedidosCerradosCount} entregadas y cobradas
+            </p>
+          </Link>
+
+          <Link
+            href="/admin/resumen-clientes"
+            className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md"
+          >
+            <p className="text-2xl mb-1">👥</p>
+            <p className="font-bold text-sm text-gray-800">Resumen por cliente</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">Cuánto compró y cuánto debe</p>
+          </Link>
+        </div>
 
         {clienteSeleccionado && (
           <div className="flex items-center justify-between mb-4">
