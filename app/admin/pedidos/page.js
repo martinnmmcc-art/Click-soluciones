@@ -107,13 +107,36 @@ function PanelVentas() {
   }, []);
 
   useEffect(() => {
-    async function cargarProductos() {
+    async function traerTanda(desde, TANDA) {
       const { data, error } = await supabase
         .from("Productos")
-        .select("*")
-        .order("nombre", { ascending: true });
-      if (error) console.error(error.message);
-      if (data) setProductos(data);
+        .select("id, nombre, precio, precio_oferta, stock, bajo_pedido")
+        .order("nombre", { ascending: true })
+        .range(desde, desde + TANDA - 1);
+      if (error) {
+        console.error(error.message);
+        return [];
+      }
+      return data || [];
+    }
+
+    // Supabase devuelve como máximo 1000 filas por consulta. Con más de 2000
+    // productos, pedirlos de una sola vez dejaba afuera todo lo que caía
+    // después del corte alfabético (por ejemplo, lo que empieza con Z).
+    async function cargarProductos() {
+      const TANDA = 1000;
+      let todos = [];
+      let desde = 0;
+
+      while (true) {
+        const tanda = await traerTanda(desde, TANDA);
+        todos = todos.concat(tanda);
+        if (tanda.length < TANDA) break;
+        desde += TANDA;
+        if (desde > 20000) break; // freno de seguridad
+      }
+
+      setProductos(todos);
     }
     cargarProductos();
   }, []);
