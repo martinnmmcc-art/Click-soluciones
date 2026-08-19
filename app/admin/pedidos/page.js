@@ -88,6 +88,7 @@ function PanelVentas() {
     nota_cliente: "",
   });
   const [nuevoItems, setNuevoItems] = useState([]);
+  const [filtroStock, setFiltroStock] = useState("stock"); // "stock" | "pedido" | "todos"
   const [sinConexion, setSinConexion] = useState(false);
   const [pendientes, setPendientes] = useState(0);
   const [guardandoCatalogo, setGuardandoCatalogo] = useState(false);
@@ -486,6 +487,20 @@ function PanelVentas() {
     setNuevoForm({ ...nuevoForm, [e.target.name]: e.target.value });
   }
 
+  // Filtra el buscador por disponibilidad: con casi 3000 productos, ver todo
+  // junto hace imposible encontrar lo que tenés realmente para vender.
+  function filtrarProductos(texto) {
+    const q = (texto || "").toLowerCase().trim();
+    if (!q) return [];
+
+    return productos.filter((p) => {
+      if (!p.nombre?.toLowerCase().includes(q)) return false;
+      if (filtroStock === "stock") return !p.bajo_pedido && Number(p.stock || 0) > 0;
+      if (filtroStock === "pedido") return !!p.bajo_pedido;
+      return true;
+    });
+  }
+
   function agregarItemNuevo(producto) {
     const precioAUsar =
       producto.precio_oferta && Number(producto.precio_oferta) < Number(producto.precio)
@@ -859,12 +874,30 @@ function PanelVentas() {
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2"
               />
 
+              <div className="flex gap-1.5 mb-2">
+                {[
+                  { id: "stock", label: "🟢 Tengo" },
+                  { id: "pedido", label: "📦 A pedido" },
+                  { id: "todos", label: "Todo" }
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setFiltroStock(f.id)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold border ${
+                      filtroStock === f.id
+                        ? "bg-brand-blue text-white border-brand-blue"
+                        : "bg-white text-gray-600 border-gray-200"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
               {busquedaProductoNuevo.trim() && (
                 <div className="max-h-48 overflow-y-auto space-y-1.5 mb-3">
-                  {productos
-                    .filter((p) =>
-                      p.nombre?.toLowerCase().includes(busquedaProductoNuevo.toLowerCase())
-                    )
+                  {filtrarProductos(busquedaProductoNuevo)
                     .slice(0, 8)
                     .map((p) => (
                       <div
@@ -877,6 +910,11 @@ function PanelVentas() {
                             (${formatPrice(p.precio_oferta && Number(p.precio_oferta) < Number(p.precio) ? p.precio_oferta : p.precio || 0)}
                             {p.precio_oferta && Number(p.precio_oferta) < Number(p.precio) && " · oferta"})
                           </span>
+                          {p.bajo_pedido ? (
+                            <span className="ml-1 text-[10px] font-bold text-purple-700">a pedido</span>
+                          ) : (
+                            <span className="ml-1 text-[10px] font-bold text-green-700">stock {p.stock ?? 0}</span>
+                          )}
                         </span>
                         <button
                           onClick={() => agregarItemNuevo(p)}
@@ -886,10 +924,21 @@ function PanelVentas() {
                         </button>
                       </div>
                     ))}
-                  {productos.filter((p) =>
-                    p.nombre?.toLowerCase().includes(busquedaProductoNuevo.toLowerCase())
-                  ).length === 0 && (
-                    <p className="text-xs text-gray-400 py-2">Sin resultados.</p>
+                  {filtrarProductos(busquedaProductoNuevo).length === 0 && (
+                    <p className="text-xs text-gray-400 py-2">
+                      Sin resultados
+                      {filtroStock === "stock" && " entre los que tenés en stock"}
+                      {filtroStock === "pedido" && " entre los productos a pedido"}.
+                      {filtroStock !== "todos" && (
+                        <button
+                          type="button"
+                          onClick={() => setFiltroStock("todos")}
+                          className="ml-1 font-bold text-brand-blue underline"
+                        >
+                          Buscar en todo
+                        </button>
+                      )}
+                    </p>
                   )}
                 </div>
               )}
@@ -1426,11 +1475,30 @@ function PanelVentas() {
                       </div>
 
                       {busquedaProducto.trim() && (
+                        <>
+                        <div className="flex gap-1.5 mb-2">
+                          {[
+                            { id: "stock", label: "🟢 Tengo" },
+                            { id: "pedido", label: "📦 A pedido" },
+                            { id: "todos", label: "Todo" }
+                          ].map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setFiltroStock(f.id)}
+                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold border ${
+                                filtroStock === f.id
+                                  ? "bg-brand-blue text-white border-brand-blue"
+                                  : "bg-white text-gray-600 border-gray-200"
+                              }`}
+                            >
+                              {f.label}
+                            </button>
+                          ))}
+                        </div>
+
                         <div className="max-h-48 overflow-y-auto space-y-1.5">
-                          {productos
-                            .filter((p) =>
-                              p.nombre?.toLowerCase().includes(busquedaProducto.toLowerCase())
-                            )
+                          {filtrarProductos(busquedaProducto)
                             .slice(0, 8)
                             .map((p) => (
                               <div
@@ -1443,6 +1511,11 @@ function PanelVentas() {
                                     (${formatPrice(p.precio_oferta && Number(p.precio_oferta) < Number(p.precio) ? p.precio_oferta : p.precio || 0)}
                                     {p.precio_oferta && Number(p.precio_oferta) < Number(p.precio) && " · oferta"})
                                   </span>
+                                  {p.bajo_pedido ? (
+                                    <span className="ml-1 text-[10px] font-bold text-purple-700">a pedido</span>
+                                  ) : (
+                                    <span className="ml-1 text-[10px] font-bold text-green-700">stock {p.stock ?? 0}</span>
+                                  )}
                                 </span>
                                 <button
                                   onClick={() => agregarProductoAPedido(pedido.id, p)}
@@ -1452,12 +1525,24 @@ function PanelVentas() {
                                 </button>
                               </div>
                             ))}
-                          {productos.filter((p) =>
-                            p.nombre?.toLowerCase().includes(busquedaProducto.toLowerCase())
-                          ).length === 0 && (
-                            <p className="text-xs text-gray-400 py-2">Sin resultados.</p>
+                          {filtrarProductos(busquedaProducto).length === 0 && (
+                            <p className="text-xs text-gray-400 py-2">
+                              Sin resultados
+                              {filtroStock === "stock" && " entre los que tenés en stock"}
+                              {filtroStock === "pedido" && " entre los productos a pedido"}.
+                              {filtroStock !== "todos" && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFiltroStock("todos")}
+                                  className="ml-1 font-bold text-brand-blue underline"
+                                >
+                                  Buscar en todo
+                                </button>
+                              )}
+                            </p>
                           )}
                         </div>
+                        </>
                       )}
                     </div>
                   ) : (
