@@ -12,20 +12,77 @@ export default function APedidoPage() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [orden, setOrden] = useState("nombre-asc"); // nombre-asc | precio-asc | precio-desc
+  const [categorias, setCategorias] = useState([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
+  const [hayMas, setHayMas] = useState(false);
+  const [cargandoMas, setCargandoMas] = useState(false);
+  const [total, setTotal] = useState(0);
 
+  const POR_TANDA = 24;
+
+  // Categorías reales de los productos a pedido
   useEffect(() => {
-    async function cargar() {
+    async function cargarCategorias() {
       const { data } = await supabase
         .from("Productos")
-        .select("*")
+        .select("categoria")
         .eq("bajo_pedido", true)
         .eq("activo", true)
-        .order("nombre", { ascending: true });
+        .not("categoria", "is", null);
+      if (!data) return;
+      setCategorias([...new Set(data.map((p) => p.categoria).filter(Boolean))].sort());
+    }
+    cargarCategorias();
+  }, []);
+
+  // El filtrado y el orden los hace la base de datos: con miles de productos
+  // a pedido no se pueden traer todos al celular del cliente.
+  function consultaBase() {
+    let q = supabase
+      .from("Productos")
+      .select("id, nombre, precio, imagen_url, descripcion, categoria", { count: "exact" })
+      .eq("bajo_pedido", true)
+      .eq("activo", true);
+
+    if (categoriaSeleccionada !== "todas") {
+      q = q.eq("categoria", categoriaSeleccionada);
+    }
+    if (busqueda.trim().length >= 2) {
+      q = q.ilike("nombre", `%${busqueda.trim()}%`);
+    }
+
+    if (orden === "precio-asc") return q.order("precio", { ascending: true });
+    if (orden === "precio-desc") return q.order("precio", { ascending: false });
+    return q.order("nombre", { ascending: true });
+  }
+
+  useEffect(() => {
+    let cancelado = false;
+    async function cargar() {
+      setLoading(true);
+      const { data, count } = await consultaBase().range(0, POR_TANDA - 1);
+      if (cancelado) return;
       setProductos(data || []);
+      setTotal(count || 0);
+      setHayMas((data?.length || 0) === POR_TANDA);
       setLoading(false);
     }
-    cargar();
-  }, []);
+    const t = setTimeout(cargar, busqueda ? 400 : 0);
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busqueda, orden, categoriaSeleccionada]);
+
+  async function cargarMas() {
+    setCargandoMas(true);
+    const desde = productos.length;
+    const { data } = await consultaBase().range(desde, desde + POR_TANDA - 1);
+    setProductos((prev) => [...prev, ...(data || [])]);
+    setHayMas((data?.length || 0) === POR_TANDA);
+    setCargandoMas(false);
+  }
 
   function mensajeConsulta(nombre) {
     return buildWhatsAppLink(
@@ -33,13 +90,7 @@ export default function APedidoPage() {
     );
   }
 
-  const productosFiltrados = productos
-    .filter((p) => !busqueda.trim() || p.nombre?.toLowerCase().includes(busqueda.toLowerCase()))
-    .sort((a, b) => {
-      if (orden === "precio-asc") return (a.precio || 0) - (b.precio || 0);
-      if (orden === "precio-desc") return (b.precio || 0) - (a.precio || 0);
-      return (a.nombre || "").localeCompare(b.nombre || "");
-    });
+  const productosFiltrados = productos;
 
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
@@ -61,6 +112,34 @@ export default function APedidoPage() {
           placeholder="Buscar producto a pedido..."
         />
 
+        {categorias.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
+            <button
+              onClick={() => setCategoriaSeleccionada("todas")}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                categoriaSeleccionada === "todas"
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "bg-white text-gray-600 border border-gray-200"
+              }`}
+            >
+              Todas
+            </button>
+            {categorias.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategoriaSeleccionada(cat)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
+                  categoriaSeleccionada === cat
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "bg-white text-gray-600 border border-gray-200"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex gap-2 overflow-x-auto pb-3 mb-1 scrollbar-none">
           {[
             { key: "nombre-asc", label: "A-Z" },
@@ -78,6 +157,12 @@ export default function APedidoPage() {
             </button>
           ))}
         </div>
+
+        {!loading && (
+          <p className="text-[11px] text-gray-400 mb-2">
+            {total} producto{total === 1 ? "" : "s"} a pedido
+          </p>
+        )}
 
         {loading ? (
           <p className="text-center text-gray-400 text-sm py-10">Cargando...</p>
@@ -131,6 +216,16 @@ export default function APedidoPage() {
               </div>
             ))}
           </div>
+        )}
+
+        {!loading && hayMas && (
+          <button
+            onClick={cargarMas}
+            disabled={cargandoMas}
+            className="w-full bg-white border border-gray-200 text-gray-700 text-sm font-bold py-3 rounded-xl mt-4 disabled:opacity-50"
+          >
+            {cargandoMas ? "Cargando..." : "Ver más productos"}
+          </button>
         )}
       </div>
 
