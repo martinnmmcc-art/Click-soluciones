@@ -24,6 +24,7 @@ function ListaProductos() {
   const [totalTab, setTotalTab] = useState(0);
 
   const POR_TANDA = 100;
+  const [conteos, setConteos] = useState({ tengo: 0, aPedido: 0 });
 
   // Consulta filtrada en la base. Con casi 3000 productos no se pueden
   // traer todos juntos: Supabase corta en 1000 filas y quedaban productos
@@ -69,6 +70,24 @@ function ListaProductos() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, busqueda]);
+
+  // Cuántos productos hay de cada tipo, para mostrar en las pestañas
+  useEffect(() => {
+    async function contar() {
+      const [tengo, aPedido] = await Promise.all([
+        supabase
+          .from("Productos")
+          .select("id", { count: "exact", head: true })
+          .or("bajo_pedido.is.null,bajo_pedido.eq.false"),
+        supabase
+          .from("Productos")
+          .select("id", { count: "exact", head: true })
+          .eq("bajo_pedido", true)
+      ]);
+      setConteos({ tengo: tengo.count || 0, aPedido: aPedido.count || 0 });
+    }
+    contar();
+  }, []);
 
   async function handleEliminar(id) {
     if (!confirm("¿Seguro que querés eliminar este producto?")) return;
@@ -162,7 +181,7 @@ function ListaProductos() {
               tab === "tengo" ? "bg-brand-blue text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600"
             }`}
           >
-            📦 Tengo {productosTengo.length > 0 && `(${productosTengo.length})`}
+            📦 Tengo {conteos.tengo > 0 && `(${conteos.tengo})`}
           </button>
           <button
             onClick={() => setTab("a-pedido")}
@@ -170,7 +189,7 @@ function ListaProductos() {
               tab === "a-pedido" ? "bg-purple-600 text-white shadow-sm" : "bg-white border border-gray-200 text-gray-600"
             }`}
           >
-            🛍️ A pedido {productosAPedido.length > 0 && `(${productosAPedido.length})`}
+            🛍️ A pedido {conteos.aPedido > 0 && `(${conteos.aPedido})`}
           </button>
         </div>
 
