@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
+import { validarTelefonoArgentino, normalizarTelefono as normalizarTel } from "@/lib/telefono";
 
 const CAMPOS_CLIENTE = "id, telefono, nombre, localidad, created_at, email, direccion, referido_por";
 
@@ -61,6 +62,12 @@ function Clientes() {
 
     if (!form.nombre.trim() || !form.telefono.trim() || !form.password.trim()) {
       setError("Nombre, celular y contraseña son obligatorios.");
+      return;
+    }
+
+    const chequeoTel = validarTelefonoArgentino(form.telefono);
+    if (!chequeoTel.valido) {
+      setError(chequeoTel.motivo);
       return;
     }
 
@@ -122,6 +129,12 @@ function Clientes() {
       return;
     }
 
+    const chequeoEdit = validarTelefonoArgentino(formEdit.telefono);
+    if (!chequeoEdit.valido) {
+      setErrorEdit(chequeoEdit.motivo);
+      return;
+    }
+
     setGuardandoEdit(true);
     const { data: actualizados, error: updateError } = await supabase
       .from("clientes")
@@ -180,11 +193,10 @@ function Clientes() {
   // Deja el teléfono en el formato que usa toda la app (2944636224): sin +54,
   // sin el 9 de celular, sin espacios ni guiones. Así siempre coincide con el
   // teléfono que se guarda en los pedidos y el cliente ve "Mis pedidos" bien.
+  // Usa la misma validación que el registro público (lib/telefono.js),
+  // así un cliente cargado a mano queda igual que uno que se registró solo.
   function normalizarTelefono(tel) {
-    let limpio = (tel || "").replace(/\D/g, "");
-    if (limpio.startsWith("54")) limpio = limpio.slice(2);
-    if (limpio.startsWith("9")) limpio = limpio.slice(1);
-    return limpio;
+    return normalizarTel(tel);
   }
 
   // WhatsApp necesita el número en formato internacional (54 9 + número),
