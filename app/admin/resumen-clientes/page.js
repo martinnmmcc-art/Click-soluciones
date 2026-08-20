@@ -25,6 +25,7 @@ function ResumenClientes() {
   const [busqueda, setBusqueda] = useState("");
   const [orden, setOrden] = useState("reciente");
   const [soloDeudores, setSoloDeudores] = useState(false);
+  const [clienteAbierto, setClienteAbierto] = useState(null);
 
   useEffect(() => {
     async function cargar() {
@@ -54,10 +55,12 @@ function ResumenClientes() {
           saldoNeto: 0,
           pendientes: 0,
           primeraCompra: null,
-          ultimaCompra: null
+          ultimaCompra: null,
+          pedidos: []
         };
       }
       const g = grupos[clave];
+      g.pedidos.push(p);
       g.cantidadPedidos += 1;
       g.totalComprado += Number(p.total || 0);
       g.saldoNeto += Number(p.total || 0) - Number(p.monto_pagado || 0);
@@ -213,6 +216,91 @@ function ResumenClientes() {
                   >
                     💬 WhatsApp
                   </a>
+                )}
+
+                <button
+                  onClick={() =>
+                    setClienteAbierto(clienteAbierto === c.telefono ? null : c.telefono)
+                  }
+                  className="ml-2 text-xs font-bold text-brand-blue mt-2"
+                >
+                  {clienteAbierto === c.telefono ? "▲ Ocultar compras" : "▼ Ver qué compró"}
+                </button>
+
+                {clienteAbierto === c.telefono && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                    {c.pedidos
+                      .slice()
+                      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                      .map((p) => {
+                        const saldo =
+                          Number(p.total || 0) - Number(p.monto_pagado || 0);
+                        return (
+                          <div key={p.id} className="bg-gray-50 rounded-xl p-3">
+                            <div className="flex justify-between items-start mb-1">
+                              <div>
+                                <span className="text-xs font-bold text-brand-blue">
+                                  {p.numero_pedido || `#${p.id}`}
+                                </span>
+                                <p className="text-[11px] text-gray-400">
+                                  {p.created_at
+                                    ? new Date(p.created_at).toLocaleDateString("es-AR")
+                                    : ""}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-extrabold text-gray-800 text-sm">
+                                  ${formatPrice(p.total)}
+                                </p>
+                                {saldo > 0 ? (
+                                  <p className="text-[10px] font-bold text-red-600">
+                                    debe ${formatPrice(saldo)}
+                                  </p>
+                                ) : (
+                                  <p className="text-[10px] font-bold text-green-600">pagado</p>
+                                )}
+                              </div>
+                            </div>
+
+                            {p.items_pedido?.length > 0 ? (
+                              <div className="border-t border-gray-200 pt-1.5 mt-1.5 space-y-0.5">
+                                {p.items_pedido.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex justify-between text-[11px] text-gray-600 gap-2"
+                                  >
+                                    <span className="flex-1">
+                                      {item.cantidad}x {item.nombre_producto}
+                                    </span>
+                                    <span className="whitespace-nowrap text-gray-500">
+                                      ${formatPrice(item.precio_unitario)} c/u
+                                    </span>
+                                    <span className="whitespace-nowrap font-semibold">
+                                      ${formatPrice(item.precio_unitario * item.cantidad)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[11px] text-gray-400 mt-1">
+                                Sin detalle de productos.
+                              </p>
+                            )}
+
+                            {p.comprobante_url && (
+                              <a
+                                href={p.comprobante_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] font-semibold text-brand-blue underline mt-1.5 inline-block"
+                              >
+                                📎 Ver comprobante
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
                 )}
               </div>
             ))}
