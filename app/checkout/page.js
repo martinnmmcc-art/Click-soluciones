@@ -7,6 +7,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/whatsapp";
 import { avisarAdmin } from "@/lib/avisarAdmin";
+import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
 
 function generarNumeroPedido() {
   const fecha = new Date();
@@ -45,6 +46,14 @@ export default function CheckoutPage() {
       setError("Completá tu nombre y celular para poder contactarte.");
       return;
     }
+
+    // Si el celular está mal, no hay forma de coordinar la entrega:
+    // conviene frenarlo acá y no después de que el pedido ya entró.
+    const chequeoTel = validarTelefonoArgentino(form.telefono_cliente);
+    if (!chequeoTel.valido) {
+      setError(chequeoTel.motivo);
+      return;
+    }
     if (form.metodo_entrega === "envio" && !form.direccion_envio.trim()) {
       setError("Ingresá la dirección para el envío.");
       return;
@@ -66,7 +75,7 @@ export default function CheckoutPage() {
             numero_pedido,
             usuario_id: user?.id || null,
             nombre_cliente: form.nombre_cliente,
-            telefono_cliente: form.telefono_cliente,
+            telefono_cliente: normalizarTelefono(form.telefono_cliente),
             localidad: form.localidad,
             metodo_entrega: form.metodo_entrega,
             direccion_envio:
@@ -91,7 +100,7 @@ export default function CheckoutPage() {
 
       avisarAdmin({
         tipo: "pedido_nuevo",
-        telefono: form.telefono_cliente,
+        telefono: normalizarTelefono(form.telefono_cliente),
         nombre: form.nombre_cliente,
         detalle: `${items.length} producto(s)`,
         monto: total
