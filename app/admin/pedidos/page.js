@@ -89,6 +89,9 @@ function PanelVentas() {
     nota_cliente: "",
   });
   const [nuevoItems, setNuevoItems] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [sugerenciasCliente, setSugerenciasCliente] = useState([]);
+  const [clienteElegido, setClienteElegido] = useState(null);
   const [filtroStock, setFiltroStock] = useState("stock"); // "stock" | "pedido" | "todos"
   const [sinConexion, setSinConexion] = useState(false);
   const [pendientes, setPendientes] = useState(0);
@@ -156,6 +159,18 @@ function PanelVentas() {
       }
     }
     cargarProductos();
+
+    // Clientes ya registrados o que compraron antes, para autocompletar
+    // sus datos y no tener que escribirlos de nuevo en cada venta.
+    async function cargarClientes() {
+      const { data } = await supabase
+        .from("clientes")
+        .select("id, nombre, telefono, localidad, direccion, email")
+        .order("nombre", { ascending: true });
+      if (data) setClientes(data);
+    }
+    cargarClientes();
+
     setFechaCatalogo(fechaCatalogoOffline());
     setPendientes(cantidadPendientes());
   }, []);
@@ -485,7 +500,41 @@ function PanelVentas() {
   }
 
   function handleChangeNuevoForm(e) {
-    setNuevoForm({ ...nuevoForm, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setNuevoForm({ ...nuevoForm, [name]: value });
+
+    // Al escribir el nombre o el celular, buscamos clientes que ya tengas
+    // cargados para no volver a escribir todos los datos.
+    if (name === "nombre_cliente" || name === "telefono_cliente") {
+      setClienteElegido(null);
+      const q = value.trim().toLowerCase();
+      if (q.length < 2) {
+        setSugerenciasCliente([]);
+        return;
+      }
+      setSugerenciasCliente(
+        clientes
+          .filter(
+            (c) =>
+              c.nombre?.toLowerCase().includes(q) ||
+              (c.telefono || "").includes(q.replace(/\D/g, ""))
+          )
+          .slice(0, 6)
+      );
+    }
+  }
+
+  // Completa el formulario con los datos guardados de ese cliente.
+  function elegirCliente(c) {
+    setNuevoForm((prev) => ({
+      ...prev,
+      nombre_cliente: c.nombre || "",
+      telefono_cliente: c.telefono || "",
+      localidad: c.localidad || prev.localidad,
+      direccion_envio: c.direccion || prev.direccion_envio
+    }));
+    setClienteElegido(c);
+    setSugerenciasCliente([]);
   }
 
   // Filtra el buscador por disponibilidad: con casi 3000 productos, ver todo
@@ -555,6 +604,8 @@ function PanelVentas() {
   const montoDescuentoNuevo = subtotalNuevoPedido - totalNuevoPedido;
 
   function resetFormNuevo() {
+    setSugerenciasCliente([]);
+    setClienteElegido(null);
     setNuevoForm({
       nombre_cliente: "",
       telefono_cliente: "",
@@ -798,8 +849,34 @@ function PanelVentas() {
                   value={nuevoForm.nombre_cliente}
                   onChange={handleChangeNuevoForm}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
-                  placeholder="Ej: Martín Cáceres"
+                  placeholder="Escribí el nombre o el celular..."
+                  autoComplete="off"
                 />
+
+                {clienteElegido && (
+                  <p className="text-[11px] text-green-700 font-semibold mt-1">
+                    ✓ Cliente ya registrado, datos completados
+                  </p>
+                )}
+
+                {sugerenciasCliente.length > 0 && (
+                  <div className="border border-gray-200 rounded-lg mt-1 bg-white shadow-sm overflow-hidden">
+                    {sugerenciasCliente.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => elegirCliente(c)}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0"
+                      >
+                        <p className="text-xs font-semibold text-gray-800">{c.nombre}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {c.telefono}
+                          {c.localidad && ` · ${c.localidad}`}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
@@ -812,7 +889,24 @@ function PanelVentas() {
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2"
                   placeholder="Ej: 2944123456"
                   inputMode="tel"
+                  autoComplete="off"
                 />
+
+                {sugerenciasCliente.length > 0 && !clienteElegido && (
+                  <div className="border border-gray-200 rounded-lg mt-1 bg-white shadow-sm overflow-hidden">
+                    {sugerenciasCliente.map((c) => (
+                      <button
+                        key={`tel-${c.id}`}
+                        type="button"
+                        onClick={() => elegirCliente(c)}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0"
+                      >
+                        <p className="text-xs font-semibold text-gray-800">{c.nombre}</p>
+                        <p className="text-[11px] text-gray-500">{c.telefono}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">
