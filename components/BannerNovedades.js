@@ -33,13 +33,16 @@ export default function BannerNovedades() {
       // entregar ya, y lo que más rápido se convierte en venta.
       const { data } = await supabase
         .from("Productos")
-        .select("id, nombre, precio, precio_oferta, stock, imagen_url, descripcion, categoria")
+        .select("id, nombre, precio, precio_oferta, stock, imagen_url, descripcion, categoria, fecha_ingreso")
         .or("bajo_pedido.is.null,bajo_pedido.eq.false")
         .eq("activo", true)
         .gt("stock", 0)
         .not("imagen_url", "is", null)
-        .order("created_at", { ascending: false, nullsFirst: false })
-        .limit(6);
+        // fecha_ingreso = cuándo llegó la mercadería de verdad. No usamos
+        // created_at porque un producto puede estar cargado hace meses
+        // y haber recibido stock recién ahora.
+        .order("fecha_ingreso", { ascending: false, nullsFirst: false })
+        .limit(8);
 
       setProductos(data || []);
       setCargando(false);
@@ -122,11 +125,13 @@ export default function BannerNovedades() {
       >
         <div className="flex">
           {/* FOTO */}
-          <div className="relative w-2/5 flex-shrink-0 bg-gray-50">
+          <div className="relative w-2/5 flex-shrink-0 bg-white flex items-center justify-center aspect-square p-2">
             <img
               src={p.imagen_url}
               alt={p.nombre}
-              className="w-full h-full object-cover aspect-square"
+              // object-contain muestra el producto entero. Con object-cover
+              // se recortaban los bordes y quedaban productos cortados.
+              className="max-w-full max-h-full object-contain"
               loading="eager"
             />
             {enOferta && (
