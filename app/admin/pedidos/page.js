@@ -171,6 +171,20 @@ function PanelVentas() {
     }
     cargarClientes();
 
+    // Cada vez que se registra alguien nuevo, aparece acá sin recargar la app
+    const canal = supabase
+      .channel("clientes-nuevos")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "clientes" },
+        () => cargarClientes()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+
     setFechaCatalogo(fechaCatalogoOffline());
     setPendientes(cantidadPendientes());
   }, []);
@@ -508,20 +522,54 @@ function PanelVentas() {
     if (name === "nombre_cliente" || name === "telefono_cliente") {
       setClienteElegido(null);
       const q = value.trim().toLowerCase();
+
       if (q.length < 2) {
         setSugerenciasCliente([]);
         return;
       }
+
+      const soloNumeros = q.replace(/\D/g, "");
+
       setSugerenciasCliente(
-        clientes
-          .filter(
-            (c) =>
-              c.nombre?.toLowerCase().includes(q) ||
-              (c.telefono || "").includes(q.replace(/\D/g, ""))
-          )
+        todosLosClientes()
+          .filter((c) => {
+            const coincideNombre = (c.nombre || "").toLowerCase().includes(q);
+            // Solo comparamos teléfonos si el texto tiene números. Sin esto,
+            // al buscar por nombre el filtro daba positivo con TODOS los
+            // clientes (cualquier texto "contiene" al texto vacío).
+            const coincideTelefono =
+              soloNumeros.length >= 3 && (c.telefono || "").includes(soloNumeros);
+            return coincideNombre || coincideTelefono;
+          })
           .slice(0, 6)
       );
     }
+  }
+
+  // Junta los clientes registrados con los que compraron sin tener cuenta.
+  // Así al escribir un nombre aparecen todos los que ya te compraron alguna vez,
+  // estén registrados o no.
+  function todosLosClientes() {
+    const mapa = new Map();
+
+    clientes.forEach((c) => {
+      if (c.telefono) mapa.set(c.telefono, c);
+    });
+
+    pedidos.forEach((p) => {
+      const tel = p.telefono_cliente;
+      if (!tel || mapa.has(tel)) return;
+      mapa.set(tel, {
+        id: `pedido-${tel}`,
+        nombre: p.nombre_cliente || "Sin nombre",
+        telefono: tel,
+        localidad: p.localidad || "",
+        direccion: p.direccion_envio || "",
+        sinCuenta: true
+      });
+    });
+
+    return Array.from(mapa.values());
   }
 
   // Completa el formulario con los datos guardados de ese cliente.
@@ -868,7 +916,14 @@ function PanelVentas() {
                         onClick={() => elegirCliente(c)}
                         className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0"
                       >
-                        <p className="text-xs font-semibold text-gray-800">{c.nombre}</p>
+                        <p className="text-xs font-semibold text-gray-800">
+                          {c.nombre}
+                          {c.sinCuenta && (
+                            <span className="ml-1 text-[10px] font-normal text-gray-400">
+                              (sin cuenta)
+                            </span>
+                          )}
+                        </p>
                         <p className="text-[11px] text-gray-500">
                           {c.telefono}
                           {c.localidad && ` · ${c.localidad}`}
