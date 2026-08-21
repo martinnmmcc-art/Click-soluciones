@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
-import BannerOfertas from "@/components/BannerOfertas";
+import BannerNovedades from "@/components/BannerNovedades";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
@@ -107,7 +107,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <BannerOfertas />
+      <BannerNovedades />
 
       <div className="max-w-md mx-auto px-4 mt-3">
         <Link
