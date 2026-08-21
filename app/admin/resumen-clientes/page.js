@@ -13,6 +13,23 @@ function telefonoParaWhatsapp(tel) {
   return `549${limpio}`;
 }
 
+const OPCIONES_ENTREGA = [
+  { value: "pendiente", label: "Pendiente" },
+  { value: "entregado", label: "Entregado" },
+  { value: "demorado", label: "Demorado" },
+  { value: "esperando_stock", label: "Esperando stock" },
+  { value: "rechazado", label: "Rechazado" },
+  { value: "cancelado", label: "Cancelado" }
+];
+
+const OPCIONES_PAGO = [
+  { value: "falta_pagar", label: "Falta pagar" },
+  { value: "pagado", label: "Pagado" },
+  { value: "deuda_parcial", label: "Deuda parcial" },
+  { value: "senado", label: "Señado" },
+  { value: "a_favor", label: "A favor" }
+];
+
 const ORDENES = [
   { id: "reciente", label: "Compra más reciente" },
   { id: "deuda", label: "Mayor deuda" },
@@ -26,6 +43,34 @@ function ResumenClientes() {
   const [orden, setOrden] = useState("reciente");
   const [soloDeudores, setSoloDeudores] = useState(false);
   const [clienteAbierto, setClienteAbierto] = useState(null);
+  const [guardandoId, setGuardandoId] = useState(null);
+
+  // Cambia el estado de entrega o de pago de un pedido, sin salir de acá.
+  async function actualizarPedido(pedidoId, cambios) {
+    setGuardandoId(pedidoId);
+    try {
+      const res = await fetch("/api/admin/pedidos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pedidoId, ...cambios })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "No se pudo actualizar el pedido.");
+        return;
+      }
+
+      // Refrescamos con lo que devolvió el servidor, para que el saldo
+      // que se ve sea el real y no una cuenta hecha acá.
+      setPedidos((prev) =>
+        prev.map((p) => (p.id === pedidoId ? { ...p, ...data.pedido } : p))
+      );
+    } catch (e) {
+      alert("Ocurrió un error al actualizar.");
+    } finally {
+      setGuardandoId(null);
+    }
+  }
 
   useEffect(() => {
     async function cargar() {
@@ -296,6 +341,76 @@ function ResumenClientes() {
                               >
                                 📎 Ver comprobante
                               </a>
+                            )}
+
+                            {/* CAMBIAR ESTADOS SIN SALIR DE ACÁ */}
+                            <div className="border-t border-gray-200 pt-2 mt-2 grid grid-cols-2 gap-2">
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-500 block mb-0.5">
+                                  Entrega
+                                </label>
+                                <select
+                                  value={p.estado || "pendiente"}
+                                  disabled={guardandoId === p.id}
+                                  onChange={(e) =>
+                                    actualizarPedido(p.id, { estado: e.target.value })
+                                  }
+                                  className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white disabled:opacity-50"
+                                >
+                                  {OPCIONES_ENTREGA.map((op) => (
+                                    <option key={op.value} value={op.value}>
+                                      {op.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] font-bold text-gray-500 block mb-0.5">
+                                  Pago
+                                </label>
+                                <select
+                                  value={p.estado_pago || "falta_pagar"}
+                                  disabled={guardandoId === p.id}
+                                  onChange={(e) =>
+                                    actualizarPedido(p.id, { estado_pago: e.target.value })
+                                  }
+                                  className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 bg-white disabled:opacity-50"
+                                >
+                                  {OPCIONES_PAGO.map((op) => (
+                                    <option key={op.value} value={op.value}>
+                                      {op.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {(p.estado_pago === "deuda_parcial" ||
+                                p.estado_pago === "senado") && (
+                                <div className="col-span-2">
+                                  <label className="text-[10px] font-bold text-gray-500 block mb-0.5">
+                                    Cuánto pagó hasta ahora
+                                  </label>
+                                  <input
+                                    type="number"
+                                    defaultValue={p.monto_pagado || 0}
+                                    disabled={guardandoId === p.id}
+                                    onBlur={(e) => {
+                                      const valor = Number(e.target.value) || 0;
+                                      if (valor !== Number(p.monto_pagado || 0)) {
+                                        actualizarPedido(p.id, { monto_pagado: valor });
+                                      }
+                                    }}
+                                    className="w-full text-[11px] border border-gray-200 rounded-lg px-2 py-1.5 disabled:opacity-50"
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {guardandoId === p.id && (
+                              <p className="text-[10px] text-brand-blue font-bold mt-1">
+                                Guardando...
+                              </p>
                             )}
                           </div>
                         );
