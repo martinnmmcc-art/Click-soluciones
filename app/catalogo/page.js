@@ -6,6 +6,12 @@ import BottomNav from "@/components/BottomNav";
 import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import {
+  guardarCatalogoCliente,
+  leerCatalogoCliente,
+  filtrarCatalogoOffline,
+  estaSinConexion
+} from "@/lib/catalogoCliente";
 import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 
 // Cuántos productos traemos por tanda. Con más de 2000 productos no podemos
@@ -29,6 +35,7 @@ export default function CatalogoPage() {
   const [hayMas, setHayMas] = useState(true);
   const [totalResultados, setTotalResultados] = useState(0);
   const [restaurado, setRestaurado] = useState(false);
+  const [modoOffline, setModoOffline] = useState(false);
   // Guardamos acá lo que había al volver. Si lo releemos más tarde ya fue
   // pisado por el guardado automático con scroll 0.
   const estadoInicial = useRef(null);
@@ -138,15 +145,51 @@ export default function CatalogoPage() {
     async function cargarPrimeraTanda() {
       setLoading(true);
       const hasta = POR_TANDA * tandasCargadas - 1;
+
+      // Sin señal usamos la copia guardada en el celular
+      if (estaSinConexion()) {
+        const guardados = filtrarCatalogoOffline(leerCatalogoCliente(), {
+          disponibilidad,
+          categoria: categoriaSeleccionada,
+          busqueda
+        });
+        if (cancelado) return;
+        setProductos(guardados.slice(0, hasta + 1));
+        setTotalResultados(guardados.length);
+        setHayMas(guardados.length > hasta + 1);
+        setModoOffline(true);
+        setLoading(false);
+        return;
+      }
+
       const { data, count } = await construirConsulta()
         .order("id", { ascending: false })
         .range(0, hasta);
 
       if (cancelado) return;
-      setProductos(data || []);
+
+      // Si la consulta falla (señal intermitente), caemos a lo guardado
+      if (!data) {
+        const guardados = filtrarCatalogoOffline(leerCatalogoCliente(), {
+          disponibilidad,
+          categoria: categoriaSeleccionada,
+          busqueda
+        });
+        setProductos(guardados.slice(0, hasta + 1));
+        setTotalResultados(guardados.length);
+        setModoOffline(guardados.length > 0);
+        setLoading(false);
+        return;
+      }
+
+      setProductos(data);
       setTotalResultados(count || 0);
-      setHayMas((data?.length || 0) === POR_TANDA * tandasCargadas);
+      setHayMas(data.length === POR_TANDA * tandasCargadas);
+      setModoOffline(false);
       setLoading(false);
+
+      // Guardamos para la próxima vez que se quede sin señal
+      guardarCatalogoCliente(data);
 
       const scrollGuardado = estadoInicial.current?.scroll;
       if (scrollGuardado) restaurarScroll(scrollGuardado);
@@ -247,6 +290,16 @@ export default function CatalogoPage() {
         {avisoAgregado && (
           <div className="bg-green-600 text-white text-xs font-bold rounded-xl p-3 mb-3 text-center">
             {avisoAgregado}
+          </div>
+        )}
+
+        {modoOffline && (
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 mb-3">
+            <p className="text-xs font-bold text-amber-900">📡 Estás sin señal</p>
+            <p className="text-[11px] text-amber-800 mt-0.5">
+              Ves los productos guardados en tu celular. Los precios y el stock
+              pueden haber cambiado: se actualizan solos cuando vuelva la señal.
+            </p>
           </div>
         )}
 
