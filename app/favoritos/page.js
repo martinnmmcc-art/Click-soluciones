@@ -6,7 +6,7 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import BotonFavorito from "@/components/BotonFavorito";
 import { supabase } from "@/lib/supabaseClient";
-import { useRecordarPosicion } from "@/lib/useRecordarPosicion";
+import { useRecordarPosicion, useRestaurarAlDibujar } from "@/lib/useRecordarPosicion";
 import { formatPrice } from "@/lib/whatsapp";
 import { obtenerTelefonoCliente, listarFavoritos } from "@/lib/favoritos";
 
@@ -15,7 +15,9 @@ export default function FavoritosPage() {
   const [loading, setLoading] = useState(true);
 
   // Vuelve al mismo punto de la lista al regresar de un producto
-  const { alSalir, listaLista } = useRecordarPosicion("favoritos");
+  const posicion = useRecordarPosicion("favoritos");
+  const { alSalir } = posicion;
+  useRestaurarAlDibujar(posicion, productos.length);
   const [sinSesion, setSinSesion] = useState(false);
 
   useEffect(() => {
@@ -37,7 +39,6 @@ export default function FavoritosPage() {
       const { data } = await supabase.from("Productos").select("*").in("id", ids);
       setProductos(data || []);
       setLoading(false);
-      listaLista(data?.length || 0);
     }
     cargar();
   }, []);
