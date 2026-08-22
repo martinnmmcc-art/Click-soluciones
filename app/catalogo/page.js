@@ -6,7 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
-import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto } from "@/lib/estadoNavegacion";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll } from "@/lib/estadoNavegacion";
 
 // Cuántos productos traemos por tanda. Con más de 2000 productos no podemos
 // cargarlos todos juntos: el celular del cliente se traba y consume datos de más.
@@ -138,9 +138,7 @@ export default function CatalogoPage() {
       setLoading(false);
 
       const previo = leerEstado("catalogo");
-      if (previo?.scroll) {
-        setTimeout(() => window.scrollTo({ top: previo.scroll, behavior: "instant" }), 60);
-      }
+      if (previo?.scroll) restaurarScroll(previo.scroll);
     }
 
     // Pequeña espera al escribir, para no consultar en cada tecla
@@ -332,7 +330,18 @@ export default function CatalogoPage() {
               {productos.map((prod) => (
                 <div
                   key={prod.id}
-                  onClick={() => marcarSalidaAProducto("catalogo")}
+                  onClick={() => {
+                    // Guardamos la altura exacta en el momento de tocar el
+                    // producto: es la posición a la que hay que volver.
+                    guardarEstado("catalogo", {
+                      disponibilidad,
+                      categoria: categoriaSeleccionada,
+                      busqueda,
+                      tandas: tandasCargadas,
+                      scroll: window.scrollY
+                    });
+                    marcarSalidaAProducto("catalogo");
+                  }}
                 >
                   <ProductCard producto={prod} />
                   {agregarAPedido && (
