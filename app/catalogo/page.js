@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import ProductCard from "@/components/ProductCard";
@@ -29,11 +29,20 @@ export default function CatalogoPage() {
   const [hayMas, setHayMas] = useState(true);
   const [totalResultados, setTotalResultados] = useState(0);
   const [restaurado, setRestaurado] = useState(false);
+  // Guardamos acá lo que había al volver. Si lo releemos más tarde ya fue
+  // pisado por el guardado automático con scroll 0.
+  const estadoInicial = useRef(null);
   const [tandasCargadas, setTandasCargadas] = useState(1);
 
   // Al volver de un producto devolvemos al cliente a donde estaba:
   // misma pestaña, misma categoría, misma búsqueda y mismo scroll.
   useEffect(() => {
+    // El navegador también intenta restaurar el scroll por su cuenta y pelea
+    // con el nuestro. Lo pasamos a manual para tener el control.
+    if (typeof history !== "undefined" && "scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+
     // Si no viene de un producto, arranca limpio
     if (!vieneDeUnProducto("catalogo")) {
       limpiarEstado("catalogo");
@@ -42,6 +51,7 @@ export default function CatalogoPage() {
     }
 
     const previo = leerEstado("catalogo");
+    estadoInicial.current = previo;
     if (previo) {
       if (previo.disponibilidad) setDisponibilidad(previo.disponibilidad);
       if (previo.categoria) setCategoriaSeleccionada(previo.categoria);
@@ -137,8 +147,8 @@ export default function CatalogoPage() {
       setHayMas((data?.length || 0) === POR_TANDA * tandasCargadas);
       setLoading(false);
 
-      const previo = leerEstado("catalogo");
-      if (previo?.scroll) restaurarScroll(previo.scroll);
+      const scrollGuardado = estadoInicial.current?.scroll;
+      if (scrollGuardado) restaurarScroll(scrollGuardado);
     }
 
     // Pequeña espera al escribir, para no consultar en cada tecla
@@ -164,6 +174,9 @@ export default function CatalogoPage() {
     guardarEstado("catalogo", estado);
 
     function guardarScroll() {
+      // Mientras se está restaurando la posición, no guardamos: si no,
+      // pisaríamos el valor bueno con el scroll intermedio de la animación.
+      if (window.__bolsonRestaurando) return;
       guardarEstado("catalogo", { ...estado, scroll: window.scrollY });
     }
     window.addEventListener("scroll", guardarScroll, { passive: true });
