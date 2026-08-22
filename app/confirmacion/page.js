@@ -15,6 +15,7 @@ import { avisarAdmin, clienteActual } from "@/lib/avisarAdmin";
 function ConfirmacionContent() {
   const searchParams = useSearchParams();
   const numero = searchParams.get("numero");
+  const esPendiente = searchParams.get("pendiente") === "1";
 
   const [pedido, setPedido] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -89,14 +90,31 @@ function ConfirmacionContent() {
     <main className="pb-6">
       <Header showSearch={false} />
       <div className="px-4 mt-8 flex flex-col items-center text-center">
-        <div className="text-6xl mb-4">✅</div>
+        <div className="text-6xl mb-4">{esPendiente ? "📡" : "✅"}</div>
         <h1 className="text-2xl font-extrabold text-gray-800">
-          ¡Pedido recibido!
+          {esPendiente ? "¡Pedido guardado!" : "¡Pedido recibido!"}
         </h1>
-        <p className="text-gray-500 mt-2 max-w-xs">
-          Gracias por tu compra en Bolson Click. Nos pondremos en contacto
-          para coordinar {pedido?.metodo_entrega === "envio" ? "el envío" : "el retiro"}.
-        </p>
+
+        {esPendiente ? (
+          <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 mt-3 max-w-xs">
+            <p className="text-sm text-amber-900 font-semibold">
+              Estás sin señal, pero tu pedido está a salvo
+            </p>
+            <p className="text-xs text-amber-800 mt-1.5">
+              Quedó guardado en tu celular y se va a enviar solo apenas vuelva
+              internet. No hace falta que hagas nada: cuando llegue, te
+              escribimos por WhatsApp para coordinar.
+            </p>
+            <p className="text-[11px] text-amber-700 mt-2">
+              Anotá tu número de pedido por las dudas: <b>{numero}</b>
+            </p>
+          </div>
+        ) : (
+          <p className="text-gray-500 mt-2 max-w-xs">
+            Gracias por tu compra en Bolson Click. Nos pondremos en contacto
+            para coordinar {pedido?.metodo_entrega === "envio" ? "el envío" : "el retiro"}.
+          </p>
+        )}
 
         {loading ? (
           <p className="text-gray-400 text-sm mt-6">Cargando datos del pedido...</p>
