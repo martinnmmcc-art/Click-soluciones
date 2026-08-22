@@ -6,7 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
-import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll } from "@/lib/estadoNavegacion";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 
 // Cuántos productos traemos por tanda. Con más de 2000 productos no podemos
 // cargarlos todos juntos: el celular del cliente se traba y consume datos de más.
@@ -42,6 +42,7 @@ export default function CatalogoPage() {
     if (typeof history !== "undefined" && "scrollRestoration" in history) {
       history.scrollRestoration = "manual";
     }
+    limpiarBanderaRestauracion();
 
     // Si no viene de un producto, arranca limpio
     if (!vieneDeUnProducto("catalogo")) {
