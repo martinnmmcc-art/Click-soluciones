@@ -5,6 +5,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto } from "@/lib/estadoNavegacion";
 import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
 
 export default function APedidoPage() {
@@ -19,6 +20,28 @@ export default function APedidoPage() {
   const [total, setTotal] = useState(0);
 
   const POR_TANDA = 24;
+  const [restaurado, setRestaurado] = useState(false);
+  const [tandasCargadas, setTandasCargadas] = useState(1);
+
+  // Al volver de un producto recuperamos dónde estaba el cliente:
+  // qué categoría miraba, qué buscaba y cuánto había bajado.
+  useEffect(() => {
+    // Si no viene de un producto, arranca limpio
+    if (!vieneDeUnProducto()) {
+      limpiarEstado("a-pedido");
+      setRestaurado(true);
+      return;
+    }
+
+    const previo = leerEstado("a-pedido");
+    if (previo) {
+      if (previo.categoria) setCategoriaSeleccionada(previo.categoria);
+      if (previo.busqueda) setBusqueda(previo.busqueda);
+      if (previo.orden) setOrden(previo.orden);
+      if (previo.tandas) setTandasCargadas(previo.tandas);
+    }
+    setRestaurado(true);
+  }, []);
 
   // Categorías reales de los productos a pedido
   useEffect(() => {
@@ -60,20 +83,58 @@ export default function APedidoPage() {
     let cancelado = false;
     async function cargar() {
       setLoading(true);
-      const { data, count } = await consultaBase().range(0, POR_TANDA - 1);
+      // Si el cliente había cargado varias tandas antes de entrar a un
+      // producto, las traemos todas de nuevo para dejarlo donde estaba.
+      const hasta = POR_TANDA * tandasCargadas - 1;
+      const { data, count } = await consultaBase().range(0, hasta);
       if (cancelado) return;
       setProductos(data || []);
       setTotal(count || 0);
-      setHayMas((data?.length || 0) === POR_TANDA);
+      setHayMas((data?.length || 0) === POR_TANDA * tandasCargadas);
       setLoading(false);
+
+      // Devolvemos el scroll a donde estaba, una vez que ya se dibujó la lista
+      const previo = leerEstado("a-pedido");
+      if (previo?.scroll) {
+        setTimeout(() => window.scrollTo({ top: previo.scroll, behavior: "instant" }), 60);
+      }
     }
+    if (!restaurado) return; // evitamos una consulta con los filtros vacíos
+
     const t = setTimeout(cargar, busqueda ? 400 : 0);
     return () => {
       cancelado = true;
       clearTimeout(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [busqueda, orden, categoriaSeleccionada]);
+  }, [busqueda, orden, categoriaSeleccionada, restaurado, tandasCargadas]);
+
+  // Guardamos el estado cada vez que cambia algo, y también al salir
+  useEffect(() => {
+    if (!restaurado) return;
+    guardarEstado("a-pedido", {
+      categoria: categoriaSeleccionada,
+      busqueda,
+      orden,
+      tandas: tandasCargadas,
+      scroll: window.scrollY
+    });
+  }, [categoriaSeleccionada, busqueda, orden, tandasCargadas, restaurado]);
+
+  useEffect(() => {
+    function guardarScroll() {
+      if (!restaurado) return;
+      guardarEstado("a-pedido", {
+        categoria: categoriaSeleccionada,
+        busqueda,
+        orden,
+        tandas: tandasCargadas,
+        scroll: window.scrollY
+      });
+    }
+    window.addEventListener("scroll", guardarScroll, { passive: true });
+    return () => window.removeEventListener("scroll", guardarScroll);
+  }, [categoriaSeleccionada, busqueda, orden, tandasCargadas, restaurado]);
 
   async function cargarMas() {
     setCargandoMas(true);
@@ -81,6 +142,7 @@ export default function APedidoPage() {
     const { data } = await consultaBase().range(desde, desde + POR_TANDA - 1);
     setProductos((prev) => [...prev, ...(data || [])]);
     setHayMas((data?.length || 0) === POR_TANDA);
+    setTandasCargadas((t) => t + 1);
     setCargandoMas(false);
   }
 
@@ -115,7 +177,10 @@ export default function APedidoPage() {
         {categorias.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
             <button
-              onClick={() => setCategoriaSeleccionada("todas")}
+              onClick={() => {
+                setCategoriaSeleccionada("todas");
+                setTandasCargadas(1);
+              }}
               className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
                 categoriaSeleccionada === "todas"
                   ? "bg-purple-600 text-white shadow-sm"
@@ -127,7 +192,10 @@ export default function APedidoPage() {
             {categorias.map((cat) => (
               <button
                 key={cat}
-                onClick={() => setCategoriaSeleccionada(cat)}
+                onClick={() => {
+                  setCategoriaSeleccionada(cat);
+                  setTandasCargadas(1);
+                }}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
                   categoriaSeleccionada === cat
                     ? "bg-purple-600 text-white shadow-sm"
