@@ -19,7 +19,7 @@ import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSali
 const POR_TANDA = 24;
 
 const DISPONIBILIDADES = [
-  { id: "stock", label: "🟢 Disponible ya", ayuda: "Lo tengo acá, entrega rápida" },
+  { id: "stock", label: "🟢 Lo que tengo", ayuda: "Mis productos. Los agotados los podés consultar" },
   { id: "pedido", label: "📦 A pedido", ayuda: "Lo encargo al proveedor" },
   { id: "todos", label: "Ver todo", ayuda: "" }
 ];
@@ -122,7 +122,10 @@ export default function CatalogoPage() {
       .eq("activo", true);
 
     if (disponibilidad === "stock") {
-      q = q.or("bajo_pedido.is.null,bajo_pedido.eq.false").gt("stock", 0);
+      // Incluimos también los que se quedaron sin stock: siguen siendo
+      // productos tuyos y los podés reponer. Se muestran con "Consultar
+      // stock" en vez de desaparecer, así el cliente igual los ve y pregunta.
+      q = q.or("bajo_pedido.is.null,bajo_pedido.eq.false");
     } else if (disponibilidad === "pedido") {
       q = q.eq("bajo_pedido", true);
     }
@@ -163,6 +166,9 @@ export default function CatalogoPage() {
       }
 
       const { data, count } = await construirConsulta()
+        // Los que tenés disponibles van primero; los agotados al final,
+        // para que el cliente vea lo que puede llevarse ya.
+        .order("stock", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false })
         .range(0, hasta);
 
@@ -231,6 +237,7 @@ export default function CatalogoPage() {
     setCargandoMas(true);
     const desde = productos.length;
     const { data } = await construirConsulta()
+      .order("stock", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false })
       .range(desde, desde + POR_TANDA - 1);
 
