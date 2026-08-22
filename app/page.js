@@ -10,6 +10,7 @@ import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSali
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
 import BotonFavorito from "@/components/BotonFavorito";
+import FotoRotativa from "@/components/FotoRotativa";
 
 export default function HomePage() {
   const { addItem } = useCart();
@@ -199,11 +200,12 @@ export default function HomePage() {
                   className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-amber-200 shadow-sm"
                 >
                   <div className="relative">
-                    {prod.imagen_url ? (
-                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
-                    ) : (
-                      <div className="w-full h-24 bg-gray-100 rounded-xl mb-1.5 flex items-center justify-center text-gray-400 text-xl">📦</div>
-                    )}
+                    <FotoRotativa
+                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      alt={prod.nombre}
+                      className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50"
+                      mostrarIndicadores={false}
+                    />
                     <span className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
                       ⭐ DESTACADO
                     </span>
@@ -236,11 +238,12 @@ export default function HomePage() {
                   className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm"
                 >
                   <div className="relative">
-                    {prod.imagen_url ? (
-                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
-                    ) : (
-                      <div className="w-full h-24 bg-gray-100 rounded-xl mb-1.5 flex items-center justify-center text-gray-400 text-xl">📦</div>
-                    )}
+                    <FotoRotativa
+                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      alt={prod.nombre}
+                      className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50"
+                      mostrarIndicadores={false}
+                    />
                     <span className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
                       🔥 TOP
                     </span>
@@ -296,11 +299,11 @@ export default function HomePage() {
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>
                   <Link href={`/producto/${prod.id}`} onClick={salirAProducto} className="block relative">
-                    {prod.imagen_url ? (
-                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
-                    ) : (
-                      <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">📦</div>
-                    )}
+                    <FotoRotativa
+                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      alt={prod.nombre}
+                      className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
+                    />
                     {prod.precio_oferta && prod.precio_oferta < prod.precio && (
                       <span className="absolute top-1.5 left-1.5 bg-brand-orange text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
                         OFERTA
