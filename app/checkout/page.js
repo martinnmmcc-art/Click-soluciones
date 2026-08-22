@@ -8,6 +8,11 @@ import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/whatsapp";
 import { avisarAdmin } from "@/lib/avisarAdmin";
 import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
+import {
+  encolarPedidoCliente,
+  sincronizarColaCliente,
+  cantidadPendientesCliente
+} from "@/lib/colaPedidosCliente";
 
 function generarNumeroPedido() {
   const fecha = new Date();
@@ -34,6 +39,35 @@ export default function CheckoutPage() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
   const [datosPrecargados, setDatosPrecargados] = useState(false);
+  const [sinConexion, setSinConexion] = useState(false);
+  const [pendientes, setPendientes] = useState(0);
+
+  // Si vuelve la señal, mandamos los pedidos que quedaron guardados
+  useEffect(() => {
+    function actualizar() {
+      const offline = typeof navigator !== "undefined" && !navigator.onLine;
+      setSinConexion(offline);
+      setPendientes(cantidadPendientesCliente());
+      if (!offline && cantidadPendientesCliente() > 0) {
+        sincronizarColaCliente().then(({ enviados }) => {
+          setPendientes(cantidadPendientesCliente());
+          if (enviados > 0) {
+            alert(
+              `¡Listo! Se envió tu pedido que había quedado esperando señal. ` +
+              `Te contactamos en breve por WhatsApp.`
+            );
+          }
+        });
+      }
+    }
+    actualizar();
+    window.addEventListener("online", actualizar);
+    window.addEventListener("offline", actualizar);
+    return () => {
+      window.removeEventListener("online", actualizar);
+      window.removeEventListener("offline", actualizar);
+    };
+  }, []);
 
   // Si el cliente ya inició sesión, completamos sus datos automáticamente.
   // Puede editarlos igual: a veces el envío va a otra dirección.
@@ -90,10 +124,7 @@ export default function CheckoutPage() {
     try {
       const numero_pedido = generarNumeroPedido();
 
-      const res = await fetch("/api/pedidos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const cuerpoPedido = {
           pedido: {
             numero_pedido,
             usuario_id: user?.id || null,
@@ -115,7 +146,23 @@ export default function CheckoutPage() {
             cantidad: i.cantidad,
             subtotal: i.precio * i.cantidad
           }))
-        })
+      };
+
+      // Sin señal: el pedido queda guardado en el celular y se manda solo
+      // apenas vuelva internet. Así el cliente no pierde la compra por estar
+      // en una zona sin cobertura.
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        encolarPedidoCliente(cuerpoPedido);
+        setPendientes(cantidadPendientesCliente());
+        clearCart();
+        router.push(`/confirmacion?numero=${numero_pedido}&pendiente=1`);
+        return;
+      }
+
+      const res = await fetch("/api/pedidos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cuerpoPedido)
       });
 
       const result = await res.json();
@@ -133,7 +180,15 @@ export default function CheckoutPage() {
       router.push(`/confirmacion?numero=${numero_pedido}`);
     } catch (err) {
       console.error("Error completo:", err);
-      setError(`Error: ${err.message || JSON.stringify(err)}`);
+
+      // Si se cortó la señal justo al confirmar, no perdemos el pedido
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        setError(
+          "Se cortó la señal. Tu pedido quedó guardado y se envía solo cuando vuelva internet."
+        );
+      } else {
+        setError(`Error: ${err.message || JSON.stringify(err)}`);
+      }
     } finally {
       setEnviando(false);
     }
@@ -166,6 +221,24 @@ export default function CheckoutPage() {
 
         <form onSubmit={handleConfirmar} className="flex flex-col gap-5">
           <div className="card p-4">
+            {sinConexion && (
+              <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 mb-3">
+                <p className="text-xs font-bold text-amber-900">📡 Estás sin señal</p>
+                <p className="text-[11px] text-amber-800 mt-0.5">
+                  Podés confirmar igual: tu pedido queda guardado y se envía solo
+                  cuando vuelva internet. Los precios se confirman en ese momento.
+                </p>
+              </div>
+            )}
+
+            {pendientes > 0 && !sinConexion && (
+              <div className="bg-blue-50 border border-blue-300 rounded-xl p-3 mb-3">
+                <p className="text-xs font-bold text-blue-900">
+                  Enviando {pendientes} pedido{pendientes === 1 ? "" : "s"} que había quedado esperando...
+                </p>
+              </div>
+            )}
+
             <h2 className="font-semibold text-gray-800 mb-1">Tus datos</h2>
             {datosPrecargados && (
               <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-2 py-1.5 mb-3">
