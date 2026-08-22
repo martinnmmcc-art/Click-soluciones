@@ -319,8 +319,8 @@ export default function HomePage() {
                       </span>
                     )}
                     {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) <= 0 && (
-                      <span className="absolute top-1.5 right-1.5 bg-gray-700 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                        Sin stock
+                      <span className="absolute top-1.5 right-1.5 bg-amber-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        Consultar stock
                       </span>
                     )}
                     {prod.stock !== null && prod.stock !== undefined && Number(prod.stock) === 1 && (
@@ -358,9 +358,9 @@ export default function HomePage() {
                       href={buildWhatsAppLink(whatsappProductMessage(prod))}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full bg-gray-600 text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition text-center"
+                      className="w-full bg-amber-600 text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition text-center"
                     >
-                      Consultar al vendedor
+                      💬 Consultar stock
                     </a>
                   ) : (
                     <button onClick={() => agregarAlCarrito(prod)} className="w-full bg-brand-blue text-white text-[11px] font-bold py-2 rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition">+ Agregar</button>
