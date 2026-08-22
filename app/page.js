@@ -203,6 +203,7 @@ export default function HomePage() {
                   <div className="relative">
                     <FotoRotativa
                       fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50"
                       mostrarIndicadores={false}
@@ -241,6 +242,7 @@ export default function HomePage() {
                   <div className="relative">
                     <FotoRotativa
                       fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50"
                       mostrarIndicadores={false}
@@ -302,6 +304,7 @@ export default function HomePage() {
                   <Link href={`/producto/${prod.id}`} onClick={salirAProducto} className="block relative">
                     <FotoRotativa
                       fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
                     />
