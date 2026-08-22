@@ -8,7 +8,7 @@
 //     actualiza en segundo plano. Son inmutables, no hay riesgo de versión vieja.
 //   - Datos de productos: primero la red; sin internet, la última copia guardada.
 
-const VERSION = "v4";
+const VERSION = "v5";
 const CACHE_APP = `bolsonclick-app-${VERSION}`;
 const CACHE_DATOS = `bolsonclick-datos-${VERSION}`;
 const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
@@ -26,7 +26,12 @@ const RUTAS_BASE = [
   "/admin",
   "/admin/pedidos",
   "/admin/productos",
-  "/admin/clientes"
+  "/admin/clientes",
+  // Pantallas del cliente: en la Comarca la señal se corta seguido y tiene
+  // que poder mirar, armar el carrito y confirmar igual.
+  "/checkout",
+  "/confirmacion",
+  "/favoritos"
 ];
 
 self.addEventListener("install", (event) => {
