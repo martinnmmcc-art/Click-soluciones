@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
+import { useRecordarPosicion } from "@/lib/useRecordarPosicion";
 import { formatPrice } from "@/lib/whatsapp";
 import { nombreCategoria } from "@/lib/categorias";
 
@@ -25,6 +26,12 @@ function ListaProductos() {
 
   const POR_TANDA = 100;
   const [conteos, setConteos] = useState({ tengo: 0, aPedido: 0 });
+
+  // Recuerda en qué parte de la lista estaba antes de entrar a editar
+  const { alSalir, listaLista } = useRecordarPosicion("admin-productos", {
+    tab,
+    busqueda
+  });
 
   // Consulta filtrada en la base. Con casi 3000 productos no se pueden
   // traer todos juntos: Supabase corta en 1000 filas y quedaban productos
@@ -54,6 +61,7 @@ function ListaProductos() {
     setTotalTab(count || 0);
     setHayMas((data?.length || 0) === POR_TANDA);
     setLoading(false);
+    listaLista(data?.length || 0);
   }
 
   async function cargarMas() {
@@ -292,6 +300,7 @@ function ListaProductos() {
                   <div className="flex flex-col gap-1 items-end">
                     <Link
                       href={`/admin/productos/${p.id}`}
+                      onClick={alSalir}
                       className="text-xs font-semibold text-brand-blue"
                     >
                       Editar
