@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage, formatPrice } from "@/lib/whatsapp";
 import BotonFavorito from "@/components/BotonFavorito";
+import FotoRotativa from "@/components/FotoRotativa";
 
 export default function ProductCard({ producto }) {
   const { addItem } = useCart();
@@ -29,17 +30,11 @@ export default function ProductCard({ producto }) {
     <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
       <div>
         <Link href={`/producto/${idProducto}`} className="block relative">
-          {producto.imagen_url ? (
-            <img
-              src={producto.imagen_url}
-              alt={nombre}
-              className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
-            />
-          ) : (
-            <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">
-              📦
-            </div>
-          )}
+          <FotoRotativa
+            fotos={[producto.imagen_url, producto.imagen_url_2, producto.imagen_url_3]}
+            alt={nombre}
+            className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
+          />
 
           {tieneOferta && (
             <span className="absolute top-1.5 left-1.5 bg-brand-orange text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
