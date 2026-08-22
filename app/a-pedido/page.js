@@ -5,7 +5,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
-import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll } from "@/lib/estadoNavegacion";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
 
 export default function APedidoPage() {
@@ -34,6 +34,7 @@ export default function APedidoPage() {
     if (typeof history !== "undefined" && "scrollRestoration" in history) {
       history.scrollRestoration = "manual";
     }
+    limpiarBanderaRestauracion();
 
     // Si no viene de un producto, arranca limpio
     if (!vieneDeUnProducto("a-pedido")) {
