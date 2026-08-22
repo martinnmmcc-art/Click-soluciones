@@ -7,6 +7,7 @@ import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
 import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
+import FotoRotativa from "@/components/FotoRotativa";
 
 export default function APedidoPage() {
   const [productos, setProductos] = useState([]);
@@ -74,7 +75,7 @@ export default function APedidoPage() {
   function consultaBase() {
     let q = supabase
       .from("Productos")
-      .select("id, nombre, precio, imagen_url, descripcion, categoria", { count: "exact" })
+      .select("id, nombre, precio, imagen_url, imagen_url_2, imagen_url_3, video_url, descripcion, categoria", { count: "exact" })
       .eq("bajo_pedido", true)
       .eq("activo", true);
 
@@ -268,11 +269,12 @@ export default function APedidoPage() {
                       });
                       marcarSalidaAProducto("a-pedido");
                     }} className="block relative">
-                    {prod.imagen_url ? (
-                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
-                    ) : (
-                      <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-gray-400 text-2xl">📦</div>
-                    )}
+                    <FotoRotativa
+                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      video={prod.video_url}
+                      alt={prod.nombre}
+                      className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
+                    />
                     <span className="absolute top-1.5 left-1.5 bg-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
                       A PEDIDO
                     </span>
