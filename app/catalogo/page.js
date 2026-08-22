@@ -6,7 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
-import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto } from "@/lib/estadoNavegacion";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto } from "@/lib/estadoNavegacion";
 
 // Cuántos productos traemos por tanda. Con más de 2000 productos no podemos
 // cargarlos todos juntos: el celular del cliente se traba y consume datos de más.
@@ -35,7 +35,7 @@ export default function CatalogoPage() {
   // misma pestaña, misma categoría, misma búsqueda y mismo scroll.
   useEffect(() => {
     // Si no viene de un producto, arranca limpio
-    if (!vieneDeUnProducto()) {
+    if (!vieneDeUnProducto("catalogo")) {
       limpiarEstado("catalogo");
       setRestaurado(true);
       return;
@@ -330,7 +330,10 @@ export default function CatalogoPage() {
           <>
             <div className="grid grid-cols-2 gap-3 mt-2">
               {productos.map((prod) => (
-                <div key={prod.id}>
+                <div
+                  key={prod.id}
+                  onClick={() => marcarSalidaAProducto("catalogo")}
+                >
                   <ProductCard producto={prod} />
                   {agregarAPedido && (
                     <button
