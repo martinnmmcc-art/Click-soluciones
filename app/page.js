@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import BannerNovedades from "@/components/BannerNovedades";
 import { supabase } from "@/lib/supabaseClient";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll } from "@/lib/estadoNavegacion";
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
 import BotonFavorito from "@/components/BotonFavorito";
@@ -19,6 +20,52 @@ export default function HomePage() {
   const [busqueda, setBusqueda] = useState("");
   const [loadingData, setLoadingData] = useState(true);
   const [mensajeCarrito, setMensajeCarrito] = useState("");
+  const [restaurado, setRestaurado] = useState(false);
+  // Guardamos acá la posición que traía al volver, antes de que el guardado
+  // automático la pise con el scroll 0 de la página recién montada.
+  const estadoInicial = useRef(null);
+
+  useEffect(() => {
+    if (typeof history !== "undefined" && "scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+
+    if (!vieneDeUnProducto("inicio")) {
+      limpiarEstado("inicio");
+      estadoInicial.current = null;
+      setRestaurado(true);
+      return;
+    }
+
+    const previo = leerEstado("inicio");
+    estadoInicial.current = previo;
+    if (previo?.categoria) setCategoriaSeleccionada(previo.categoria);
+    setRestaurado(true);
+  }, []);
+
+  // Guardamos dónde está parado el cliente mientras navega la home
+  useEffect(() => {
+    if (!restaurado) return;
+
+    function guardarScroll() {
+      if (window.__bolsonRestaurando) return;
+      guardarEstado("inicio", {
+        categoria: categoriaSeleccionada,
+        scroll: window.scrollY
+      });
+    }
+    window.addEventListener("scroll", guardarScroll, { passive: true });
+    return () => window.removeEventListener("scroll", guardarScroll);
+  }, [categoriaSeleccionada, restaurado]);
+
+  // Función que usan los enlaces a productos: deja marcada la posición exacta
+  function salirAProducto() {
+    guardarEstado("inicio", {
+      categoria: categoriaSeleccionada,
+      scroll: window.scrollY
+    });
+    marcarSalidaAProducto("inicio");
+  }
 
   useEffect(() => {
     async function cargarMasVendidos() {
@@ -63,6 +110,10 @@ export default function HomePage() {
         console.error("Error general de red:", err);
       } finally {
         setLoadingData(false);
+
+        // Devolvemos al cliente a la altura donde estaba mirando
+        const scrollGuardado = estadoInicial.current?.scroll;
+        if (scrollGuardado) restaurarScroll(scrollGuardado);
       }
     }
 
@@ -144,6 +195,7 @@ export default function HomePage() {
                 <Link
                   key={prod.id}
                   href={`/producto/${prod.id}`}
+                  onClick={salirAProducto}
                   className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-amber-200 shadow-sm"
                 >
                   <div className="relative">
@@ -180,6 +232,7 @@ export default function HomePage() {
                 <Link
                   key={prod.id}
                   href={`/producto/${prod.id}`}
+                  onClick={salirAProducto}
                   className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm"
                 >
                   <div className="relative">
@@ -242,7 +295,7 @@ export default function HomePage() {
             {productosFiltrados.map((prod) => (
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>
-                  <Link href={`/producto/${prod.id}`} className="block relative">
+                  <Link href={`/producto/${prod.id}`} onClick={salirAProducto} className="block relative">
                     {prod.imagen_url ? (
                       <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
                     ) : (
@@ -272,7 +325,7 @@ export default function HomePage() {
                   </Link>
 
                   <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
-                    <Link href={`/producto/${prod.id}`} className="block">
+                    <Link href={`/producto/${prod.id}`} onClick={salirAProducto} className="block">
                       {prod.nombre}
                     </Link>
                   </h3>
