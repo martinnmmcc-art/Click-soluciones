@@ -6,7 +6,7 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import BannerNovedades from "@/components/BannerNovedades";
 import { supabase } from "@/lib/supabaseClient";
-import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll } from "@/lib/estadoNavegacion";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
 import BotonFavorito from "@/components/BotonFavorito";
@@ -30,6 +30,7 @@ export default function HomePage() {
     if (typeof history !== "undefined" && "scrollRestoration" in history) {
       history.scrollRestoration = "manual";
     }
+    limpiarBanderaRestauracion();
 
     if (!vieneDeUnProducto("inicio")) {
       limpiarEstado("inicio");
