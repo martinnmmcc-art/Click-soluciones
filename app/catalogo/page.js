@@ -6,6 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto } from "@/lib/estadoNavegacion";
 
 // Cuántos productos traemos por tanda. Con más de 2000 productos no podemos
 // cargarlos todos juntos: el celular del cliente se traba y consume datos de más.
@@ -27,6 +28,28 @@ export default function CatalogoPage() {
   const [cargandoMas, setCargandoMas] = useState(false);
   const [hayMas, setHayMas] = useState(true);
   const [totalResultados, setTotalResultados] = useState(0);
+  const [restaurado, setRestaurado] = useState(false);
+  const [tandasCargadas, setTandasCargadas] = useState(1);
+
+  // Al volver de un producto devolvemos al cliente a donde estaba:
+  // misma pestaña, misma categoría, misma búsqueda y mismo scroll.
+  useEffect(() => {
+    // Si no viene de un producto, arranca limpio
+    if (!vieneDeUnProducto()) {
+      limpiarEstado("catalogo");
+      setRestaurado(true);
+      return;
+    }
+
+    const previo = leerEstado("catalogo");
+    if (previo) {
+      if (previo.disponibilidad) setDisponibilidad(previo.disponibilidad);
+      if (previo.categoria) setCategoriaSeleccionada(previo.categoria);
+      if (previo.busqueda) setBusqueda(previo.busqueda);
+      if (previo.tandas) setTandasCargadas(previo.tandas);
+    }
+    setRestaurado(true);
+  }, []);
 
   // Modo "agregar a un pedido existente": se activa cuando el cliente llega
   // desde Mis pedidos con ?agregar_a=ID
@@ -103,24 +126,51 @@ export default function CatalogoPage() {
 
     async function cargarPrimeraTanda() {
       setLoading(true);
+      const hasta = POR_TANDA * tandasCargadas - 1;
       const { data, count } = await construirConsulta()
         .order("id", { ascending: false })
-        .range(0, POR_TANDA - 1);
+        .range(0, hasta);
 
       if (cancelado) return;
       setProductos(data || []);
       setTotalResultados(count || 0);
-      setHayMas((data?.length || 0) === POR_TANDA);
+      setHayMas((data?.length || 0) === POR_TANDA * tandasCargadas);
       setLoading(false);
+
+      const previo = leerEstado("catalogo");
+      if (previo?.scroll) {
+        setTimeout(() => window.scrollTo({ top: previo.scroll, behavior: "instant" }), 60);
+      }
     }
 
     // Pequeña espera al escribir, para no consultar en cada tecla
+    if (!restaurado) return;
+
     const temporizador = setTimeout(cargarPrimeraTanda, busqueda ? 400 : 0);
     return () => {
       cancelado = true;
       clearTimeout(temporizador);
     };
-  }, [construirConsulta, busqueda]);
+  }, [construirConsulta, busqueda, restaurado, tandasCargadas]);
+
+  // Guardamos dónde está parado el cliente
+  useEffect(() => {
+    if (!restaurado) return;
+    const estado = {
+      disponibilidad,
+      categoria: categoriaSeleccionada,
+      busqueda,
+      tandas: tandasCargadas,
+      scroll: window.scrollY
+    };
+    guardarEstado("catalogo", estado);
+
+    function guardarScroll() {
+      guardarEstado("catalogo", { ...estado, scroll: window.scrollY });
+    }
+    window.addEventListener("scroll", guardarScroll, { passive: true });
+    return () => window.removeEventListener("scroll", guardarScroll);
+  }, [disponibilidad, categoriaSeleccionada, busqueda, tandasCargadas, restaurado]);
 
   async function cargarMas() {
     setCargandoMas(true);
@@ -131,6 +181,7 @@ export default function CatalogoPage() {
 
     setProductos((prev) => [...prev, ...(data || [])]);
     setHayMas((data?.length || 0) === POR_TANDA);
+    setTandasCargadas((t) => t + 1);
     setCargandoMas(false);
   }
 
@@ -194,7 +245,11 @@ export default function CatalogoPage() {
           {DISPONIBILIDADES.map((d) => (
             <button
               key={d.id}
-              onClick={() => setDisponibilidad(d.id)}
+              onClick={() => {
+                setDisponibilidad(d.id);
+                setTandasCargadas(1);
+                window.scrollTo({ top: 0 });
+              }}
               className={`flex-1 px-2 py-2 rounded-xl text-xs font-bold transition ${
                 disponibilidad === d.id
                   ? "bg-brand-blue text-white shadow-sm"
@@ -214,7 +269,10 @@ export default function CatalogoPage() {
         {categorias.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
             <button
-              onClick={() => setCategoriaSeleccionada("todas")}
+              onClick={() => {
+                setCategoriaSeleccionada("todas");
+                setTandasCargadas(1);
+              }}
               className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
                 categoriaSeleccionada === "todas"
                   ? "bg-gray-800 text-white shadow-sm"
@@ -226,7 +284,10 @@ export default function CatalogoPage() {
             {categorias.map((cat) => (
               <button
                 key={cat}
-                onClick={() => setCategoriaSeleccionada(cat)}
+                onClick={() => {
+                  setCategoriaSeleccionada(cat);
+                  setTandasCargadas(1);
+                }}
                 className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition ${
                   categoriaSeleccionada === cat
                     ? "bg-gray-800 text-white shadow-sm"
