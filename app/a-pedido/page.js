@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
@@ -21,11 +21,20 @@ export default function APedidoPage() {
 
   const POR_TANDA = 24;
   const [restaurado, setRestaurado] = useState(false);
+  // Guardamos acá lo que había al volver. Si lo releemos más tarde ya fue
+  // pisado por el guardado automático con scroll 0.
+  const estadoInicial = useRef(null);
   const [tandasCargadas, setTandasCargadas] = useState(1);
 
   // Al volver de un producto recuperamos dónde estaba el cliente:
   // qué categoría miraba, qué buscaba y cuánto había bajado.
   useEffect(() => {
+    // El navegador también intenta restaurar el scroll por su cuenta y pelea
+    // con el nuestro. Lo pasamos a manual para tener el control.
+    if (typeof history !== "undefined" && "scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
+    }
+
     // Si no viene de un producto, arranca limpio
     if (!vieneDeUnProducto("a-pedido")) {
       limpiarEstado("a-pedido");
@@ -34,6 +43,7 @@ export default function APedidoPage() {
     }
 
     const previo = leerEstado("a-pedido");
+    estadoInicial.current = previo;
     if (previo) {
       if (previo.categoria) setCategoriaSeleccionada(previo.categoria);
       if (previo.busqueda) setBusqueda(previo.busqueda);
@@ -94,8 +104,8 @@ export default function APedidoPage() {
       setLoading(false);
 
       // Devolvemos el scroll a donde estaba, una vez que ya se dibujó la lista
-      const previo = leerEstado("a-pedido");
-      if (previo?.scroll) restaurarScroll(previo.scroll);
+      const scrollGuardado = estadoInicial.current?.scroll;
+      if (scrollGuardado) restaurarScroll(scrollGuardado);
     }
     if (!restaurado) return; // evitamos una consulta con los filtros vacíos
 
@@ -121,6 +131,9 @@ export default function APedidoPage() {
 
   useEffect(() => {
     function guardarScroll() {
+      // Mientras se está restaurando la posición, no guardamos: si no,
+      // pisaríamos el valor bueno con el scroll intermedio de la animación.
+      if (window.__bolsonRestaurando) return;
       if (!restaurado) return;
       guardarEstado("a-pedido", {
         categoria: categoriaSeleccionada,
