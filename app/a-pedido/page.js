@@ -5,7 +5,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
-import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto } from "@/lib/estadoNavegacion";
+import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll } from "@/lib/estadoNavegacion";
 import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
 
 export default function APedidoPage() {
@@ -95,9 +95,7 @@ export default function APedidoPage() {
 
       // Devolvemos el scroll a donde estaba, una vez que ya se dibujó la lista
       const previo = leerEstado("a-pedido");
-      if (previo?.scroll) {
-        setTimeout(() => window.scrollTo({ top: previo.scroll, behavior: "instant" }), 60);
-      }
+      if (previo?.scroll) restaurarScroll(previo.scroll);
     }
     if (!restaurado) return; // evitamos una consulta con los filtros vacíos
 
@@ -246,7 +244,16 @@ export default function APedidoPage() {
             {productosFiltrados.map((prod) => (
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>
-                  <Link href={`/a-pedido/${prod.id}`} onClick={() => marcarSalidaAProducto("a-pedido")} className="block relative">
+                  <Link href={`/a-pedido/${prod.id}`} onClick={() => {
+                      guardarEstado("a-pedido", {
+                        categoria: categoriaSeleccionada,
+                        busqueda,
+                        orden,
+                        tandas: tandasCargadas,
+                        scroll: window.scrollY
+                      });
+                      marcarSalidaAProducto("a-pedido");
+                    }} className="block relative">
                     {prod.imagen_url ? (
                       <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
                     ) : (
@@ -258,7 +265,16 @@ export default function APedidoPage() {
                   </Link>
 
                   <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
-                    <Link href={`/a-pedido/${prod.id}`} onClick={() => marcarSalidaAProducto("a-pedido")}>{prod.nombre}</Link>
+                    <Link href={`/a-pedido/${prod.id}`} onClick={() => {
+                      guardarEstado("a-pedido", {
+                        categoria: categoriaSeleccionada,
+                        busqueda,
+                        orden,
+                        tandas: tandasCargadas,
+                        scroll: window.scrollY
+                      });
+                      marcarSalidaAProducto("a-pedido");
+                    }}>{prod.nombre}</Link>
                   </h3>
 
                   {prod.descripcion && (
