@@ -6,12 +6,16 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import BotonFavorito from "@/components/BotonFavorito";
 import { supabase } from "@/lib/supabaseClient";
+import { useRecordarPosicion } from "@/lib/useRecordarPosicion";
 import { formatPrice } from "@/lib/whatsapp";
 import { obtenerTelefonoCliente, listarFavoritos } from "@/lib/favoritos";
 
 export default function FavoritosPage() {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Vuelve al mismo punto de la lista al regresar de un producto
+  const { alSalir, listaLista } = useRecordarPosicion("favoritos");
   const [sinSesion, setSinSesion] = useState(false);
 
   useEffect(() => {
@@ -33,6 +37,7 @@ export default function FavoritosPage() {
       const { data } = await supabase.from("Productos").select("*").in("id", ids);
       setProductos(data || []);
       setLoading(false);
+      listaLista(data?.length || 0);
     }
     cargar();
   }, []);
@@ -64,7 +69,7 @@ export default function FavoritosPage() {
               return (
                 <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm relative">
                   <BotonFavorito productoId={prod.id} className="absolute top-4 right-4 w-8 h-8 z-10" />
-                  <Link href={`/producto/${prod.id}`}>
+                  <Link href={`/producto/${prod.id}`} onClick={alSalir}>
                     {prod.imagen_url ? (
                       <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
                     ) : (
