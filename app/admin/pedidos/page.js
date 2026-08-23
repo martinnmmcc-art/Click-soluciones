@@ -7,8 +7,9 @@ import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabaseClient";
 import ComprobantePedido from "@/components/ComprobantePedido";
-import { guardarCatalogoOffline, leerCatalogoOffline, fechaCatalogoOffline } from "@/lib/catalogoOffline";
+import { leerCatalogoOffline } from "@/lib/catalogoOffline";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
+import DescargarOffline from "@/components/DescargarOffline";
 
 const OPCIONES_ENTREGA = [
   { value: "pendiente", label: "Pendiente" },
@@ -95,8 +96,6 @@ function PanelVentas() {
   const [filtroStock, setFiltroStock] = useState("stock"); // "stock" | "pedido" | "todos"
   const [sinConexion, setSinConexion] = useState(false);
   const [pendientes, setPendientes] = useState(0);
-  const [guardandoCatalogo, setGuardandoCatalogo] = useState(false);
-  const [fechaCatalogo, setFechaCatalogo] = useState(null);
   const [busquedaProductoNuevo, setBusquedaProductoNuevo] = useState("");
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
   const [errorNuevo, setErrorNuevo] = useState("");
@@ -185,7 +184,6 @@ function PanelVentas() {
       supabase.removeChannel(canal);
     };
 
-    setFechaCatalogo(fechaCatalogoOffline());
     setPendientes(cantidadPendientes());
   }, []);
 
@@ -216,22 +214,6 @@ function PanelVentas() {
     };
   }, []);
 
-  async function descargarCatalogo() {
-    setGuardandoCatalogo(true);
-    try {
-      const { total, parcial } = await guardarCatalogoOffline();
-      setFechaCatalogo(new Date());
-      alert(
-        parcial
-          ? `Se guardaron ${total} productos (los que tenés en stock). No entró todo el catálogo por espacio del celular.`
-          : `Listo: ${total} productos guardados para usar sin internet.`
-      );
-    } catch (e) {
-      alert("No se pudo guardar el catálogo: " + e.message);
-    } finally {
-      setGuardandoCatalogo(false);
-    }
-  }
 
   async function actualizarEstado(pedidoId, campo, valor) {
     setPedidos((prev) =>
@@ -856,24 +838,10 @@ function PanelVentas() {
           </div>
         )}
 
-        {/* GUARDAR CATÁLOGO PARA USAR SIN SEÑAL */}
+        {/* USAR LA APP SIN SEÑAL */}
         {!sinConexion && (
-          <div className="bg-white border border-gray-200 rounded-2xl p-4 mb-4 flex items-center justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-gray-800 text-sm">📥 Trabajar sin internet</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {fechaCatalogo
-                  ? `Catálogo guardado el ${fechaCatalogo.toLocaleDateString("es-AR")} a las ${fechaCatalogo.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
-                  : "Guardá el catálogo en el celular para armar pedidos donde no hay señal"}
-              </p>
-            </div>
-            <button
-              onClick={descargarCatalogo}
-              disabled={guardandoCatalogo}
-              className="text-xs font-bold text-brand-blue border border-brand-blue px-3 py-2 rounded-xl whitespace-nowrap disabled:opacity-50"
-            >
-              {guardandoCatalogo ? "Guardando..." : fechaCatalogo ? "Actualizar" : "Guardar catálogo"}
-            </button>
+          <div className="mb-4">
+            <DescargarOffline esAdmin={true} />
           </div>
         )}
 
