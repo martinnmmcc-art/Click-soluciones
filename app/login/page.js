@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import ActivarNotificaciones from "@/components/ActivarNotificaciones";
 import PedirNotificaciones from "@/components/PedirNotificaciones";
+import DescargarOffline from "@/components/DescargarOffline";
 import { useAuth } from "@/context/AuthContext";
 import { ADMIN_EMAILS } from "@/context/AdminContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -613,6 +614,10 @@ export default function LoginPage() {
 
           <div className="mb-4">
             <ActivarNotificaciones telefono={user?.telefono || sesionActiva?.telefono} />
+          </div>
+
+          <div className="mb-4">
+            <DescargarOffline telefono={user?.telefono || sesionActiva?.telefono} />
           </div>
 
           <div className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4">
