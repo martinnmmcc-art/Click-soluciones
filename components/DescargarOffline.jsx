@@ -62,8 +62,9 @@ export default function DescargarOffline({ telefono = null, esAdmin = false }) {
         <div className="flex-1 min-w-0">
           <p className="font-bold text-sm text-gray-800">Usar la app sin internet</p>
           <p className="text-xs text-gray-500 mt-0.5">
-            Guardá los productos y sus fotos en el celular. Después podés mirar
-            {esAdmin ? " y armar pedidos" : " y armar tu carrito"} aunque no tengas señal.
+            La app guarda sola tus productos cuando estás con wifi, así podés
+            {esAdmin ? " armar pedidos" : " comprar"} aunque te quedes sin señal.
+            Desde acá podés forzar la actualización o incluir los productos a pedido.
           </p>
 
           {fecha && !descargando && (
@@ -125,8 +126,8 @@ export default function DescargarOffline({ telefono = null, esAdmin = false }) {
             {descargando
               ? "Descargando..."
               : fecha
-              ? "Actualizar lo guardado"
-              : "Guardar para usar sin internet"}
+              ? "Actualizar ahora"
+              : "Guardar ahora"}
           </button>
 
           {espacio && (
@@ -136,7 +137,8 @@ export default function DescargarOffline({ telefono = null, esAdmin = false }) {
           )}
 
           <p className="text-[10px] text-gray-400 mt-2">
-            Conviene hacerlo con wifi: la primera vez baja todas las fotos.
+            Se actualiza sola una vez por día con wifi. Usá el botón solo si
+            querés hacerlo ahora o sumar los productos a pedido.
           </p>
         </div>
       </div>
