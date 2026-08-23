@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import ActivarNotificaciones from "@/components/ActivarNotificaciones";
+import PedirNotificaciones from "@/components/PedirNotificaciones";
 import { useAuth } from "@/context/AuthContext";
 import { ADMIN_EMAILS } from "@/context/AdminContext";
 import { supabase } from "@/lib/supabaseClient";
@@ -644,6 +645,15 @@ export default function LoginPage() {
               </a>
             </div>
           </div>
+
+          {misPedidos.some((p) => !p.estado || p.estado === "pendiente") && (
+            <div className="mb-4">
+              <PedirNotificaciones
+                telefono={user?.telefono || sesionActiva?.telefono}
+                motivo="compra"
+              />
+            </div>
+          )}
 
           <div className="mb-4">
             <h2 className="font-bold text-sm text-gray-800 mb-3">📦 Mis Pedidos</h2>
