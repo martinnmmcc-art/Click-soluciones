@@ -11,6 +11,7 @@ import {
   formatPrice
 } from "@/lib/whatsapp";
 import { avisarAdmin, clienteActual } from "@/lib/avisarAdmin";
+import PedirNotificaciones from "@/components/PedirNotificaciones";
 
 function ConfirmacionContent() {
   const searchParams = useSearchParams();
@@ -115,6 +116,13 @@ function ConfirmacionContent() {
             para coordinar {pedido?.metodo_entrega === "envio" ? "el envío" : "el retiro"}.
           </p>
         )}
+
+        <div className="w-full max-w-xs mt-5">
+          <PedirNotificaciones
+            telefono={pedido?.telefono_cliente || clienteActual()?.telefono}
+            motivo="compra"
+          />
+        </div>
 
         {loading ? (
           <p className="text-gray-400 text-sm mt-6">Cargando datos del pedido...</p>
