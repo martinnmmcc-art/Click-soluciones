@@ -17,6 +17,7 @@ function ConfirmacionContent() {
   const searchParams = useSearchParams();
   const numero = searchParams.get("numero");
   const esPendiente = searchParams.get("pendiente") === "1";
+  const cuentaCreada = searchParams.get("cuenta") === "1";
 
   const [pedido, setPedido] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +116,22 @@ function ConfirmacionContent() {
             Gracias por tu compra en Bolson Click. Nos pondremos en contacto
             para coordinar {pedido?.metodo_entrega === "envio" ? "el envío" : "el retiro"}.
           </p>
+        )}
+
+        {cuentaCreada && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mt-4 w-full max-w-xs">
+            <p className="text-sm font-bold text-blue-900">✓ Ya tenés tu cuenta lista</p>
+            <p className="text-xs text-blue-800 mt-1">
+              Quedaste dentro de la app. Desde &quot;Cuenta&quot; podés ver este
+              pedido y los que hagas más adelante, sin cargar tus datos de nuevo.
+            </p>
+            <Link
+              href="/login"
+              className="inline-block bg-brand-blue text-white text-xs font-bold px-3 py-2 rounded-xl mt-2"
+            >
+              Ver mi pedido →
+            </Link>
+          </div>
         )}
 
         <div className="w-full max-w-xs mt-5">
