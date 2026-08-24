@@ -1,7 +1,7 @@
 {
   "name": "Bolson Click",
   "short_name": "Bolson Click",
-  "description": "Productos para el hogar: iluminación, cocina y organización.",
+  "description": "Productos importados en El Bolsón y la Comarca Andina. Entrega local.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F7F9FC",
@@ -25,6 +25,45 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "shopping"
+  ],
+  "lang": "es-AR",
+  "shortcuts": [
+    {
+      "name": "Ver catálogo",
+      "short_name": "Catálogo",
+      "url": "/catalogo",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Mi carrito",
+      "short_name": "Carrito",
+      "url": "/carrito",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Mis pedidos",
+      "short_name": "Pedidos",
+      "url": "/login",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
