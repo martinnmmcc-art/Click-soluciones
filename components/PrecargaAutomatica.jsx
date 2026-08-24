@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { descargarTodoOffline, fechaDescargaOffline } from "@/lib/descargaOffline";
+import { descargarTodoOffline, fechaDescargaOffline, sincronizarCambios } from "@/lib/descargaOffline";
 
 // Guarda automáticamente los productos y sus fotos en el celular, sin que
 // nadie tenga que apretar nada. Un botón de "descargar" no lo usa casi nadie,
@@ -45,7 +45,34 @@ function tocaDescargar() {
   return horas >= HORAS_ENTRE_DESCARGAS;
 }
 
-export default function PrecargaAutomatica({ telefono = null }) {
+export default function PrecargaAutomatica({ telefono = null, alSincronizar = null }) {
+  // Cuando vuelve la señal, actualizamos lo que cambió mientras no había:
+  // precios nuevos, productos que llegaron, cosas que se agotaron.
+  useEffect(() => {
+    async function alVolverLaSeñal() {
+      try {
+        const res = await sincronizarCambios();
+        if (res?.cambios > 0 && alSincronizar) alSincronizar(res);
+      } catch (e) {
+        // En silencio: se reintenta la próxima vez
+      }
+    }
+
+    window.addEventListener("online", alVolverLaSeñal);
+
+    // También al abrir la app: puede haber cambiado algo desde la última vez
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      const t = setTimeout(alVolverLaSeñal, 3000);
+      return () => {
+        clearTimeout(t);
+        window.removeEventListener("online", alVolverLaSeñal);
+      };
+    }
+
+    return () => window.removeEventListener("online", alVolverLaSeñal);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!conexionBuena() || !tocaDescargar()) return;
 
