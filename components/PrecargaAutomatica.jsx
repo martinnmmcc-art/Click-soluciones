@@ -46,6 +46,41 @@ function tocaDescargar() {
 }
 
 export default function PrecargaAutomatica({ telefono = null, alSincronizar = null }) {
+  // Pedimos permiso para que la app se actualice sola aunque esté cerrada.
+  // Solo Android lo permite (y con la app instalada); en iPhone se ignora
+  // sin dar error, y todo sigue funcionando al abrir la app.
+  useEffect(() => {
+    async function pedirActualizacionEnSegundoPlano() {
+      try {
+        if (!("serviceWorker" in navigator)) return;
+        const reg = await navigator.serviceWorker.ready;
+
+        // Actualización periódica (el navegador elige el momento, en general
+        // con wifi y el celular cargando)
+        if ("periodicSync" in reg) {
+          const permiso = await navigator.permissions.query({
+            name: "periodic-background-sync"
+          });
+          if (permiso.state === "granted") {
+            await reg.periodicSync.register("actualizar-catalogo", {
+              minInterval: 12 * 60 * 60 * 1000 // como mucho, dos veces al día
+            });
+          }
+        }
+
+        // Y una sincronización apenas vuelva la señal, aunque esté cerrada
+        if ("sync" in reg) {
+          await reg.sync.register("sincronizar-al-volver");
+        }
+      } catch (e) {
+        // Si el celular no lo soporta seguimos igual: la app se actualiza
+        // al abrirse, que es el comportamiento de siempre.
+      }
+    }
+
+    pedirActualizacionEnSegundoPlano();
+  }, []);
+
   // Cuando vuelve la señal, actualizamos lo que cambió mientras no había:
   // precios nuevos, productos que llegaron, cosas que se agotaron.
   useEffect(() => {
