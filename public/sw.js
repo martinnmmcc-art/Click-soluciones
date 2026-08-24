@@ -8,7 +8,7 @@
 //     actualiza en segundo plano. Son inmutables, no hay riesgo de versión vieja.
 //   - Datos de productos: primero la red; sin internet, la última copia guardada.
 
-const VERSION = "v5";
+const VERSION = "v6";
 const CACHE_APP = `bolsonclick-app-${VERSION}`;
 const CACHE_DATOS = `bolsonclick-datos-${VERSION}`;
 const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
@@ -202,4 +202,68 @@ self.addEventListener("notificationclick", (event) => {
       if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
+});
+
+
+// ---------- ACTUALIZACIÓN EN SEGUNDO PLANO ----------
+// Permite que la app se actualice sola aunque esté cerrada, para que el
+// cliente encuentre precios y stock al día cuando la abre (o cuando se
+// queda sin señal). Solo funciona en Android con la app instalada:
+// iPhone no permite que las apps web trabajen en segundo plano.
+
+const SUPABASE_URL = "https://kmkprbnwcbavonfnyput.supabase.co";
+const CACHE_DATOS_BG = `bolsonclick-datos-${VERSION}`;
+
+// Trae los productos propios y guarda sus fotos, sin que nadie abra la app.
+async function actualizarEnSegundoPlano() {
+  try {
+    // La clave pública viaja en la propia página; la leemos del último
+    // pedido guardado para no tener que repetirla acá.
+    const cache = await caches.open(CACHE_DATOS_BG);
+    const guardadas = await cache.keys();
+    const previa = guardadas.find((r) => r.url.includes("/rest/v1/Productos"));
+    if (!previa) return; // todavía no se usó la app con señal: nada que refrescar
+
+    const res = await fetch(previa, { cache: "no-store" });
+    if (!res || !res.ok) return;
+
+    const copia = res.clone();
+    await cache.put(previa, copia);
+
+    // Guardamos las fotos de los productos que vinieron
+    const productos = await res.json();
+    const cacheImg = await caches.open(`bolsonclick-img-${VERSION}`);
+
+    const urls = (Array.isArray(productos) ? productos : [])
+      .map((p) => p.imagen_url)
+      .filter(Boolean)
+      .slice(0, 60);
+
+    for (const url of urls) {
+      try {
+        const yaEsta = await cacheImg.match(url);
+        if (yaEsta) continue;
+        const img = await fetch(url, { mode: "no-cors" });
+        await cacheImg.put(url, img);
+      } catch (e) {
+        // Una foto que falla no debe cortar la actualización
+      }
+    }
+  } catch (e) {
+    // En segundo plano fallamos en silencio: se reintenta la próxima vez
+  }
+}
+
+// El navegador decide cuándo conviene (suele ser con wifi y cargando)
+self.addEventListener("periodicsync", (event) => {
+  if (event.tag === "actualizar-catalogo") {
+    event.waitUntil(actualizarEnSegundoPlano());
+  }
+});
+
+// Se dispara cuando vuelve la señal, aunque la app esté cerrada
+self.addEventListener("sync", (event) => {
+  if (event.tag === "sincronizar-al-volver") {
+    event.waitUntil(actualizarEnSegundoPlano());
+  }
 });
