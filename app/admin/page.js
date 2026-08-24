@@ -323,6 +323,16 @@ function Dashboard() {
             <span className="text-2xl">🛍️</span>
           </Link>
 
+          <Link href="/admin/promocionar" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Promocionar producto</p>
+              <p className="text-sm text-gray-500">
+                Placa lista para tu estado de WhatsApp, Instagram o Facebook
+              </p>
+            </div>
+            <span className="text-2xl">📣</span>
+          </Link>
+
           <Link href="/admin/compartir-catalogo" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Compartir catálogo</p>
