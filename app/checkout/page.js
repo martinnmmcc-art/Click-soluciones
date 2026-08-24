@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/whatsapp";
+import { supabase } from "@/lib/supabaseClient";
 import { avisarAdmin } from "@/lib/avisarAdmin";
 import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
 import {
@@ -39,6 +40,10 @@ export default function CheckoutPage() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
   const [datosPrecargados, setDatosPrecargados] = useState(false);
+  // Por defecto le creamos la cuenta: es lo que le conviene al cliente
+  // (puede seguir su pedido) y a nosotros (podemos avisarle de novedades).
+  const [crearCuenta, setCrearCuenta] = useState(true);
+  const [yaTieneCuenta, setYaTieneCuenta] = useState(false);
   const [sinConexion, setSinConexion] = useState(false);
   const [pendientes, setPendientes] = useState(0);
 
@@ -86,6 +91,7 @@ export default function CheckoutPage() {
         direccion_envio: prev.direccion_envio || sesion.direccion || ""
       }));
       setDatosPrecargados(true);
+      setYaTieneCuenta(true); // ya está registrado, no hace falta ofrecerle nada
     } catch (e) {
       console.error(e);
     }
@@ -176,8 +182,43 @@ export default function CheckoutPage() {
         monto: total
       });
 
+      // Le creamos la cuenta con los datos que ya completó, así puede seguir
+      // su pedido y recibir avisos. No tiene que inventar ninguna contraseña.
+      if (crearCuenta && !yaTieneCuenta) {
+        try {
+          const { data: cuenta } = await supabase.rpc("crear_cuenta_al_comprar", {
+            p_telefono: normalizarTelefono(form.telefono_cliente),
+            p_nombre: form.nombre_cliente,
+            p_localidad: form.localidad || "",
+            p_direccion: form.direccion_envio || ""
+          });
+
+          if (cuenta && cuenta.length > 0) {
+            // Lo dejamos con la sesión iniciada: puede ver su pedido enseguida
+            localStorage.setItem(
+              "cliente_sesion",
+              JSON.stringify({
+                id: cuenta[0].cliente_id,
+                telefono: normalizarTelefono(form.telefono_cliente),
+                nombre: form.nombre_cliente,
+                localidad: form.localidad || "",
+                direccion: form.direccion_envio || "",
+                email: ""
+              })
+            );
+          }
+        } catch (e) {
+          // Si falla la cuenta no arruinamos la compra: el pedido ya entró
+          console.error("No se pudo crear la cuenta:", e);
+        }
+      }
+
       clearCart();
-      router.push(`/confirmacion?numero=${numero_pedido}`);
+      router.push(
+        `/confirmacion?numero=${numero_pedido}${
+          crearCuenta && !yaTieneCuenta ? "&cuenta=1" : ""
+        }`
+      );
     } catch (err) {
       console.error("Error completo:", err);
 
@@ -412,6 +453,45 @@ export default function CheckoutPage() {
               ${formatPrice(total)}
             </span>
           </div>
+
+          {/* CREAR CUENTA: sin fricción, con los datos que ya completó */}
+          {!yaTieneCuenta && (
+            <div
+              className={`card p-4 border-2 transition-colors ${
+                crearCuenta ? "border-brand-blue bg-blue-50/40" : "border-gray-200"
+              }`}
+            >
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={crearCuenta}
+                  onChange={(e) => setCrearCuenta(e.target.checked)}
+                  className="mt-0.5 w-5 h-5 flex-shrink-0"
+                />
+                <span className="flex-1">
+                  <span className="font-bold text-sm text-gray-800 block">
+                    Crear mi cuenta (recomendado)
+                  </span>
+                  <span className="text-xs text-gray-600 block mt-1">
+                    Con los datos que ya pusiste. <b>No hace falta contraseña</b>:
+                    entrás desde el celular directo.
+                  </span>
+
+                  <span className="block mt-2 space-y-1">
+                    <span className="flex items-center gap-1.5 text-[11px] text-gray-700">
+                      <span>📦</span> Seguí tu pedido sin tener que preguntar
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-gray-700">
+                      <span>🔁</span> La próxima compra, sin volver a cargar tus datos
+                    </span>
+                    <span className="flex items-center gap-1.5 text-[11px] text-gray-700">
+                      <span>✨</span> Te avisamos cuando llega mercadería nueva
+                    </span>
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
 
           <button disabled={enviando} className="btn-primary">
             {enviando ? "Confirmando pedido..." : "Confirmar pedido"}
