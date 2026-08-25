@@ -5,6 +5,12 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import Header from "@/components/Header";
 import { formatPrice } from "@/lib/whatsapp";
+import {
+  ESTADOS_ENTREGA,
+  ESTADOS_PAGO,
+  OPCIONES_ENTREGA as LISTA_ENTREGA,
+  OPCIONES_PAGO as LISTA_PAGO
+} from "@/lib/estadosPedido";
 
 function telefonoParaWhatsapp(tel) {
   let limpio = (tel || "").replace(/\D/g, "");
@@ -13,22 +19,15 @@ function telefonoParaWhatsapp(tel) {
   return `549${limpio}`;
 }
 
-const OPCIONES_ENTREGA = [
-  { value: "pendiente", label: "Pendiente" },
-  { value: "entregado", label: "Entregado" },
-  { value: "demorado", label: "Demorado" },
-  { value: "esperando_stock", label: "Esperando stock" },
-  { value: "rechazado", label: "Rechazado" },
-  { value: "cancelado", label: "Cancelado" }
-];
+const OPCIONES_ENTREGA = LISTA_ENTREGA.map((v) => ({
+  value: v,
+  label: `${ESTADOS_ENTREGA[v].icono} ${ESTADOS_ENTREGA[v].label}`
+}));
 
-const OPCIONES_PAGO = [
-  { value: "falta_pagar", label: "Falta pagar" },
-  { value: "pagado", label: "Pagado" },
-  { value: "deuda_parcial", label: "Deuda parcial" },
-  { value: "senado", label: "Señado" },
-  { value: "a_favor", label: "A favor" }
-];
+const OPCIONES_PAGO = LISTA_PAGO.map((v) => ({
+  value: v,
+  label: `${ESTADOS_PAGO[v].icono} ${ESTADOS_PAGO[v].label}`
+}));
 
 const ORDENES = [
   { id: "reciente", label: "Compra más reciente" },
