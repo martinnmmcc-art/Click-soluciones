@@ -53,6 +53,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // Si llega desde un catálogo compartido, le abrimos el registro directo
+    if (params.get("registro") === "1") {
+      setEsRegistro(true);
+    }
+
     const ref = params.get("ref");
     if (!ref) return;
     setRefCode(ref);
