@@ -10,40 +10,32 @@ import ComprobantePedido from "@/components/ComprobantePedido";
 import { leerCatalogoOffline } from "@/lib/catalogoOffline";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
 import DescargarOffline from "@/components/DescargarOffline";
+import {
+  ESTADOS_ENTREGA,
+  ESTADOS_PAGO,
+  OPCIONES_ENTREGA as LISTA_ENTREGA,
+  OPCIONES_PAGO as LISTA_PAGO
+} from "@/lib/estadosPedido";
 
-const OPCIONES_ENTREGA = [
-  { value: "pendiente", label: "Pendiente" },
-  { value: "entregado", label: "Entregado" },
-  { value: "demorado", label: "Demorado" },
-  { value: "rechazado", label: "Rechazado" },
-  { value: "esperando_stock", label: "Esperando stock" },
-  { value: "cancelado", label: "Cancelado (cliente)" },
-];
+// Los estados viven en lib/estadosPedido.js para que el panel y lo que ve
+// el cliente digan siempre lo mismo.
+const OPCIONES_ENTREGA = LISTA_ENTREGA.map((v) => ({
+  value: v,
+  label: `${ESTADOS_ENTREGA[v].icono} ${ESTADOS_ENTREGA[v].label}`
+}));
 
-const OPCIONES_PAGO = [
-  { value: "falta_pagar", label: "Falta pagar" },
-  { value: "pagado", label: "Pagado" },
-  { value: "deuda_parcial", label: "Deuda parcial" },
-  { value: "a_favor", label: "A favor" },
-  { value: "señado", label: "Señado" },
-];
+const OPCIONES_PAGO = LISTA_PAGO.map((v) => ({
+  value: v,
+  label: `${ESTADOS_PAGO[v].icono} ${ESTADOS_PAGO[v].label}`
+}));
 
-const COLOR_ENTREGA = {
-  pendiente: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  entregado: "bg-green-50 text-green-700 border-green-200",
-  demorado: "bg-orange-50 text-orange-700 border-orange-200",
-  rechazado: "bg-red-50 text-red-700 border-red-200",
-  esperando_stock: "bg-purple-50 text-purple-700 border-purple-200",
-  cancelado: "bg-gray-100 text-gray-500 border-gray-200",
-};
+const COLOR_ENTREGA = Object.fromEntries(
+  Object.entries(ESTADOS_ENTREGA).map(([k, v]) => [k, v.color])
+);
 
-const COLOR_PAGO = {
-  falta_pagar: "bg-red-50 text-red-700 border-red-200",
-  pagado: "bg-green-50 text-green-700 border-green-200",
-  deuda_parcial: "bg-orange-50 text-orange-700 border-orange-200",
-  a_favor: "bg-blue-50 text-blue-700 border-blue-200",
-  señado: "bg-purple-50 text-purple-700 border-purple-200",
-};
+const COLOR_PAGO = Object.fromEntries(
+  Object.entries(ESTADOS_PAGO).map(([k, v]) => [k, v.color])
+);
 
 function generarNumeroPedido() {
   const fecha = new Date();
