@@ -123,7 +123,17 @@ function Dashboard() {
                   <span className="text-gray-500">Ganancia bruta</span>
                   <span className="font-bold text-gray-700">${pesos(m.gananciaBruta)}</span>
                 </div>
-                <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
+                <Link href="/admin/metodos-pago" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Formas de pago</p>
+              <p className="text-sm text-gray-500">
+                Alias, CBU y medios que ve el cliente al comprar
+              </p>
+            </div>
+            <span className="text-2xl">💳</span>
+          </Link>
+
+          <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
                   <span className="text-gray-500">Otros gastos</span>
                   <span className="font-bold text-gray-700">-${pesos(m.otrosGastosReal)}</span>
                 </Link>
@@ -155,7 +165,17 @@ function Dashboard() {
                   <span className="text-gray-500">Transporte pagado</span>
                   <span className="font-bold text-gray-700">-${pesos(m.gastoTransporteCaja)}</span>
                 </Link>
-                <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
+                <Link href="/admin/metodos-pago" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Formas de pago</p>
+              <p className="text-sm text-gray-500">
+                Alias, CBU y medios que ve el cliente al comprar
+              </p>
+            </div>
+            <span className="text-2xl">💳</span>
+          </Link>
+
+          <Link href="/admin/gastos-generales" className="flex justify-between items-center text-sm hover:underline">
                   <span className="text-gray-500">Otros gastos</span>
                   <span className="font-bold text-gray-700">-${pesos(m.otrosGastosReal)}</span>
                 </Link>
@@ -261,6 +281,16 @@ function Dashboard() {
               </p>
             </div>
             <span className="text-2xl">🚚</span>
+          </Link>
+
+          <Link href="/admin/metodos-pago" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Formas de pago</p>
+              <p className="text-sm text-gray-500">
+                Alias, CBU y medios que ve el cliente al comprar
+              </p>
+            </div>
+            <span className="text-2xl">💳</span>
           </Link>
 
           <Link href="/admin/gastos-generales" className="card p-5 flex items-center justify-between hover:shadow-md">
