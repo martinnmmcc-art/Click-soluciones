@@ -11,40 +11,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import { suscribirPush } from "@/lib/push";
 import { avisarAdmin } from "@/lib/avisarAdmin";
+import { estadoEntrega, estadoPago, PASOS_SEGUIMIENTO, pasoActual } from "@/lib/estadosPedido";
 
-const OPCIONES_ENTREGA_LABEL = {
-  pendiente: "Pendiente",
-  entregado: "Entregado",
-  demorado: "Demorado",
-  rechazado: "Rechazado",
-  esperando_stock: "Esperando stock",
-  cancelado: "Cancelado por vos"
-};
-
-const OPCIONES_PAGO_LABEL = {
-  falta_pagar: "Falta pagar",
-  pagado: "Pagado",
-  deuda_parcial: "Deuda parcial",
-  a_favor: "A favor",
-  señado: "Señado"
-};
-
-const COLOR_ENTREGA = {
-  pendiente: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  entregado: "bg-green-50 text-green-700 border-green-200",
-  demorado: "bg-orange-50 text-orange-700 border-orange-200",
-  rechazado: "bg-red-50 text-red-700 border-red-200",
-  esperando_stock: "bg-purple-50 text-purple-700 border-purple-200",
-  cancelado: "bg-gray-100 text-gray-500 border-gray-200"
-};
-
-const COLOR_PAGO = {
-  falta_pagar: "bg-red-50 text-red-700 border-red-200",
-  pagado: "bg-green-50 text-green-700 border-green-200",
-  deuda_parcial: "bg-orange-50 text-orange-700 border-orange-200",
-  a_favor: "bg-blue-50 text-blue-700 border-blue-200",
-  señado: "bg-purple-50 text-purple-700 border-purple-200"
-};
 
 export default function LoginPage() {
   const { user, logout } = useAuth();
@@ -693,14 +661,64 @@ export default function LoginPage() {
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        <span className={`text-[11px] font-semibold border rounded-lg px-2 py-1 ${COLOR_ENTREGA[pedido.estado] || "bg-gray-50 text-gray-700 border-gray-200"}`}>
-                          {OPCIONES_ENTREGA_LABEL[pedido.estado] || "Pendiente"}
-                        </span>
-                        <span className={`text-[11px] font-semibold border rounded-lg px-2 py-1 ${COLOR_PAGO[pedido.estado_pago] || "bg-gray-50 text-gray-700 border-gray-200"}`}>
-                          {OPCIONES_PAGO_LABEL[pedido.estado_pago] || "Falta pagar"}
-                        </span>
-                      </div>
+                      {(() => {
+                        const entrega = estadoEntrega(pedido.estado);
+                        const pago = estadoPago(pedido.estado_pago);
+                        const cancelado =
+                          pedido.estado === "cancelado" || pedido.estado === "rechazado";
+
+                        return (
+                          <>
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              <span
+                                className={`text-[11px] font-semibold border rounded-lg px-2 py-1 ${entrega.color}`}
+                              >
+                                {entrega.icono} {entrega.labelCliente}
+                              </span>
+                              <span
+                                className={`text-[11px] font-semibold border rounded-lg px-2 py-1 ${pago.color}`}
+                              >
+                                {pago.icono} {pago.labelCliente}
+                              </span>
+                            </div>
+
+                            {/* Explicación en palabras: evita que tenga que preguntar */}
+                            {pago.ayuda && (
+                              <p className="text-[11px] text-gray-500 mb-1">{pago.ayuda}</p>
+                            )}
+
+                            {/* Barra de seguimiento, como la de una encomienda */}
+                            {!cancelado && (
+                              <div className="flex items-center gap-1 my-2.5">
+                                {PASOS_SEGUIMIENTO.map((paso, i) => {
+                                  const actual = pasoActual(pedido.estado);
+                                  const alcanzado = i <= actual;
+                                  return (
+                                    <div key={paso} className="flex-1 flex items-center gap-1">
+                                      <div
+                                        className={`h-1.5 flex-1 rounded-full transition-colors ${
+                                          alcanzado ? "bg-brand-blue" : "bg-gray-200"
+                                        }`}
+                                      />
+                                      {i === PASOS_SEGUIMIENTO.length - 1 && (
+                                        <span className="text-[10px]">
+                                          {alcanzado ? "🎉" : "🏁"}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {!cancelado && entrega.ayuda && (
+                              <p className="text-[11px] text-gray-600 font-medium mb-2">
+                                {entrega.ayuda}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
 
                       {saldo > 0 && (
                         <p className="text-xs font-bold text-red-700 mb-2">Debés ${formatPrice(saldo)}</p>
