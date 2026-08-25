@@ -23,6 +23,7 @@ function ArmarCatalogo() {
   // Filtro por tipo: para armar catálogos separados de lo que tenés en mano
   // y de lo que se trae a pedido.
   const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
     // Supabase devuelve máximo 1000 filas por consulta. Con casi 3000 productos
@@ -74,6 +75,11 @@ function ArmarCatalogo() {
   }
 
   const productosFiltrados = productos.filter((p) => {
+    // Con casi 3000 productos, buscar por nombre es la única forma práctica
+    // de armar un catálogo sin ir uno por uno.
+    const q = busqueda.trim().toLowerCase();
+    if (q.length >= 2 && !(p.nombre || "").toLowerCase().includes(q)) return false;
+
     if (filtroTipo === "stock") return tieneStock(p);
     if (filtroTipo === "pedido") return esAPedido(p);
     if (filtroTipo === "sin_stock") return sinStock(p);
@@ -239,13 +245,22 @@ function ArmarCatalogo() {
             </p>
             <div className="flex gap-3">
               <button type="button" onClick={seleccionarTodos} className="text-xs font-bold text-brand-blue">
-                Todos
+                {busqueda.trim() || filtroTipo !== "todos"
+                  ? `Estos ${productosFiltrados.length}`
+                  : "Todos"}
               </button>
               <button type="button" onClick={limpiarSeleccion} className="text-xs font-bold text-red-500">
                 Ninguno
               </button>
             </div>
           </div>
+
+          <input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="input-field mb-2"
+            placeholder="🔍 Buscar producto por nombre..."
+          />
 
           <div className="flex gap-1.5 overflow-x-auto pb-3 -mx-1 px-1">
             {[
@@ -273,7 +288,20 @@ function ArmarCatalogo() {
             <p className="text-center text-gray-400 text-sm py-6">Cargando productos...</p>
           ) : productosFiltrados.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-6">
-              No hay productos en esta categoría.
+              {busqueda.trim()
+                ? `No hay resultados para "${busqueda}"${
+                    filtroTipo !== "todos" ? " en esta categoría" : ""
+                  }.`
+                : "No hay productos en esta categoría."}
+              {busqueda.trim() && filtroTipo !== "todos" && (
+                <button
+                  type="button"
+                  onClick={() => setFiltroTipo("todos")}
+                  className="block mx-auto mt-1 font-bold text-brand-blue underline text-xs"
+                >
+                  Buscar en todas
+                </button>
+              )}
             </p>
           ) : (
             <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
