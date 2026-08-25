@@ -18,6 +18,11 @@ function CatalogoCompartirContent() {
   const mostrarDescripcion = searchParams.get("desc") !== "0";
 
   const [productos, setProductos] = useState([]);
+  // Producto abierto en la ventana de detalle: sin esto el cliente solo ve
+  // el nombre cortado y una foto chica, y termina preguntando por WhatsApp
+  // cosas que ya están en la descripción.
+  const [verProducto, setVerProducto] = useState(null);
+  const [fotoActiva, setFotoActiva] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -127,7 +132,14 @@ function CatalogoCompartirContent() {
               const tieneOferta = prod.precio_oferta && prod.precio_oferta < prod.precio;
 
               return (
-                <div key={prod.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex flex-col">
+                <div
+                  key={prod.id}
+                  onClick={() => {
+                    setVerProducto({ ...prod, imagenes });
+                    setFotoActiva(0);
+                  }}
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 flex flex-col cursor-pointer active:scale-[0.98] transition-transform"
+                >
                   <div className="relative w-full aspect-square bg-gray-50 rounded-xl overflow-hidden mb-2">
                     {imagenes[0] ? (
                       <img src={imagenes[0]} alt={prod.nombre} className="w-full h-full object-cover" />
@@ -163,6 +175,10 @@ function CatalogoCompartirContent() {
                     {prod.nombre}
                   </h3>
 
+                  <p className="text-[9px] text-brand-blue font-semibold mt-0.5">
+                    Tocá para ver más →
+                  </p>
+
                   {mostrarDescripcion && prod.descripcion && (
                     <p className="text-[10px] text-gray-500 line-clamp-2 mt-0.5">{prod.descripcion}</p>
                   )}
@@ -195,17 +211,160 @@ function CatalogoCompartirContent() {
         )}
       </div>
 
-      <div className="max-w-md mx-auto px-4 mt-8 text-center">
-        <p className="text-xs text-gray-400 mb-3">
-          Ver todo el catálogo y comprar online en{" "}
-          <a href="https://www.bolsonclick.com.ar" target="_blank" rel="noopener noreferrer" className="text-brand-blue font-semibold underline">
-            www.bolsonclick.com.ar
+      {/* INVITACIÓN A REGISTRARSE */}
+      <div className="max-w-md mx-auto px-4 mt-8">
+        <div className="bg-gradient-to-br from-brand-blue to-brand-blueDark rounded-2xl p-5 text-white text-center">
+          <p className="text-3xl mb-1">🛍️</p>
+          <p className="font-extrabold text-base">Creá tu cuenta en Bolson Click</p>
+          <p className="text-xs text-blue-100 mt-1.5 mb-4">
+            Es gratis y sin contraseña. Comprás desde el celular y seguís tu
+            pedido sin tener que preguntar.
+          </p>
+
+          <div className="space-y-1.5 text-left mb-4">
+            <p className="text-[11px] text-blue-50 flex items-center gap-1.5">
+              <span>✨</span> Te avisamos cuando llega mercadería nueva
+            </p>
+            <p className="text-[11px] text-blue-50 flex items-center gap-1.5">
+              <span>📦</span> Seguí el estado de tus pedidos
+            </p>
+            <p className="text-[11px] text-blue-50 flex items-center gap-1.5">
+              <span>🔁</span> La próxima compra, sin cargar tus datos de nuevo
+            </p>
+          </div>
+
+          <Link
+            href="/login?registro=1"
+            className="block w-full bg-white text-brand-blue text-sm font-extrabold py-3 rounded-xl"
+          >
+            Crear mi cuenta
+          </Link>
+
+          <a
+            href="https://www.bolsonclick.com.ar"
+            className="block text-[11px] text-blue-100 underline mt-3"
+          >
+            O mirá todo el catálogo en bolsonclick.com.ar
           </a>
-        </p>
-        <Link href="/login" className="inline-block text-sm font-bold text-white bg-brand-blue px-5 py-2.5 rounded-xl">
-          Registrarme y comprar
-        </Link>
+        </div>
       </div>
+
+      {/* DETALLE DEL PRODUCTO */}
+      {verProducto && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/60 flex items-end sm:items-center sm:justify-center"
+          onClick={() => setVerProducto(null)}
+        >
+          <div
+            className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl max-h-[92vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-white pt-3 pb-2 px-4 border-b border-gray-100 z-10">
+              <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-2 sm:hidden" />
+              <div className="flex justify-between items-start gap-2">
+                <h2 className="font-extrabold text-sm text-gray-800 flex-1 leading-tight">
+                  {verProducto.nombre}
+                </h2>
+                <button
+                  onClick={() => setVerProducto(null)}
+                  className="text-gray-400 text-xl leading-none px-1"
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4">
+              {/* Foto grande */}
+              {verProducto.imagenes?.length > 0 && (
+                <>
+                  <div className="w-full aspect-square bg-gray-50 rounded-2xl overflow-hidden mb-2">
+                    <img
+                      src={verProducto.imagenes[fotoActiva]}
+                      alt={verProducto.nombre}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+
+                  {verProducto.imagenes.length > 1 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
+                      {verProducto.imagenes.map((img, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setFotoActiva(i)}
+                          className={`w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 border-2 ${
+                            i === fotoActiva ? "border-brand-blue" : "border-gray-200"
+                          }`}
+                        >
+                          <img src={img} alt="" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Precio */}
+              {mostrarPrecio && (
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className="font-black text-2xl text-brand-blue">
+                    ${formatPrice(
+                      verProducto.precio_oferta &&
+                        verProducto.precio_oferta < verProducto.precio
+                        ? verProducto.precio_oferta
+                        : verProducto.precio
+                    )}
+                  </span>
+                  {verProducto.precio_oferta &&
+                    verProducto.precio_oferta < verProducto.precio && (
+                      <span className="text-sm text-gray-400 line-through">
+                        ${formatPrice(verProducto.precio)}
+                      </span>
+                    )}
+                </div>
+              )}
+
+              {/* Descripción completa, sin recortar */}
+              {verProducto.descripcion && (
+                <div className="mb-4">
+                  <p className="text-xs font-bold text-gray-700 mb-1">Descripción</p>
+                  <p className="text-xs text-gray-600 whitespace-pre-line leading-relaxed">
+                    {verProducto.descripcion}
+                  </p>
+                </div>
+              )}
+
+              <a
+                href={buildWhatsAppLink(
+                  `¡Hola! 👋 Me interesa este producto de Bolson Click:\n\n*${verProducto.nombre}*\n` +
+                    (mostrarPrecio
+                      ? `Precio: $${formatPrice(
+                          verProducto.precio_oferta &&
+                            verProducto.precio_oferta < verProducto.precio
+                            ? verProducto.precio_oferta
+                            : verProducto.precio
+                        )}\n`
+                      : "") +
+                    `\n¿Está disponible?`
+                )}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full bg-[#25D366] text-white text-sm font-bold py-3 rounded-xl text-center"
+              >
+                💬 Consultar por WhatsApp
+              </a>
+
+              <Link
+                href="/login?registro=1"
+                className="block w-full bg-brand-blue text-white text-xs font-bold py-2.5 rounded-xl text-center mt-2"
+              >
+                Crear mi cuenta y comprar online
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
