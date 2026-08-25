@@ -44,6 +44,36 @@ export default function CheckoutPage() {
   // (puede seguir su pedido) y a nosotros (podemos avisarle de novedades).
   const [crearCuenta, setCrearCuenta] = useState(true);
   const [yaTieneCuenta, setYaTieneCuenta] = useState(false);
+  const [metodosPago, setMetodosPago] = useState([]);
+  const [copiado, setCopiado] = useState("");
+
+  // Las formas de pago se configuran desde el panel, así podés sumar
+  // Naranja X o Mercado Pago sin tocar la app.
+  useEffect(() => {
+    async function cargarMetodos() {
+      const { data } = await supabase
+        .from("metodos_pago")
+        .select("*")
+        .eq("activo", true)
+        .order("orden");
+
+      if (data && data.length > 0) {
+        setMetodosPago(data);
+        setForm((prev) => ({ ...prev, metodo_pago: data[0].clave }));
+      }
+    }
+    cargarMetodos();
+  }, []);
+
+  async function copiar(texto, cual) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(cual);
+      setTimeout(() => setCopiado(""), 2000);
+    } catch (e) {
+      alert("No se pudo copiar: " + texto);
+    }
+  }
   const [sinConexion, setSinConexion] = useState(false);
   const [pendientes, setPendientes] = useState(0);
 
@@ -395,56 +425,122 @@ export default function CheckoutPage() {
           </div>
 
           <div className="card p-4">
-            <h2 className="font-semibold text-gray-800 mb-3">Pago</h2>
+            <h2 className="font-semibold text-gray-800 mb-3">¿Cómo querés pagar?</h2>
+
             <div className="flex flex-col gap-2">
-              <label
-                className={`flex items-center gap-3 border rounded-xl p-3 cursor-pointer ${
-                  form.metodo_pago === "transferencia"
-                    ? "border-brand-blue bg-blue-50"
-                    : "border-gray-200"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="metodo_pago"
-                  value="transferencia"
-                  checked={form.metodo_pago === "transferencia"}
-                  onChange={handleChange}
-                />
-                <span className="text-sm font-semibold text-gray-800">
-                  Transferencia bancaria
-                </span>
-              </label>
-              <label
-                className={`flex items-center gap-3 border rounded-xl p-3 cursor-pointer ${
-                  form.metodo_pago === "efectivo"
-                    ? "border-brand-blue bg-blue-50"
-                    : "border-gray-200"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="metodo_pago"
-                  value="efectivo"
-                  checked={form.metodo_pago === "efectivo"}
-                  onChange={handleChange}
-                />
-                <span className="text-sm font-semibold text-gray-800">
-                  Efectivo al retirar
-                </span>
-              </label>
+              {metodosPago.map((m) => (
+                <label
+                  key={m.id}
+                  className={`flex items-start gap-3 border rounded-xl p-3 cursor-pointer transition-colors ${
+                    form.metodo_pago === m.clave
+                      ? "border-brand-blue bg-blue-50"
+                      : "border-gray-200"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="metodo_pago"
+                    value={m.clave}
+                    checked={form.metodo_pago === m.clave}
+                    onChange={handleChange}
+                    className="mt-0.5"
+                  />
+                  <span className="flex-1">
+                    <span className="text-sm font-semibold text-gray-800 block">
+                      {m.icono} {m.nombre}
+                    </span>
+                    {m.descripcion && (
+                      <span className="text-[11px] text-gray-500 block mt-0.5">
+                        {m.descripcion}
+                      </span>
+                    )}
+                  </span>
+                </label>
+              ))}
             </div>
 
-            {form.metodo_pago === "transferencia" && (
-              <div className="mt-3 bg-orange-50 border border-orange-200 rounded-xl p-3 text-center">
-                <p className="text-[11px] text-orange-700 font-semibold">TRANSFERIR A ESTE ALIAS</p>
-                <p className="text-lg font-black text-orange-900 mt-0.5">bolsonclick</p>
-                <p className="text-xs text-orange-700">Tarjeta Naranja</p>
-                <p className="text-[11px] text-orange-600 mt-1.5">
-                  Te vamos a pedir el comprobante por WhatsApp para confirmar el pedido.
-                </p>
-              </div>
-            )}
+            {/* DATOS DEL MÉTODO ELEGIDO */}
+            {metodosPago
+              .filter((m) => m.clave === form.metodo_pago)
+              .map((m) => {
+                const tieneDatosTransferencia = m.alias || m.cvu;
+
+                if (!tieneDatosTransferencia && !m.link_pago && !m.instrucciones) {
+                  return null;
+                }
+
+                return (
+                  <div
+                    key={`datos-${m.id}`}
+                    className="mt-3 bg-orange-50 border border-orange-200 rounded-xl p-3"
+                  >
+                    {tieneDatosTransferencia && (
+                      <>
+                        <p className="text-[11px] text-orange-700 font-bold text-center">
+                          TRANSFERIR A
+                        </p>
+
+                        {m.alias && (
+                          <button
+                            type="button"
+                            onClick={() => copiar(m.alias, "alias")}
+                            className="w-full bg-white border border-orange-300 rounded-lg py-2 mt-1.5"
+                          >
+                            <span className="text-[10px] text-orange-600 block">Alias</span>
+                            <span className="text-base font-black text-orange-900">
+                              {m.alias}
+                            </span>
+                            <span className="text-[10px] text-orange-600 block">
+                              {copiado === "alias" ? "✓ Copiado" : "Tocá para copiar"}
+                            </span>
+                          </button>
+                        )}
+
+                        {m.cvu && (
+                          <button
+                            type="button"
+                            onClick={() => copiar(m.cvu, "cvu")}
+                            className="w-full bg-white border border-orange-300 rounded-lg py-2 mt-1.5"
+                          >
+                            <span className="text-[10px] text-orange-600 block">CBU / CVU</span>
+                            <span className="text-sm font-bold text-orange-900 break-all px-2">
+                              {m.cvu}
+                            </span>
+                            <span className="text-[10px] text-orange-600 block">
+                              {copiado === "cvu" ? "✓ Copiado" : "Tocá para copiar"}
+                            </span>
+                          </button>
+                        )}
+
+                        {(m.titular || m.banco) && (
+                          <p className="text-[11px] text-orange-800 text-center mt-1.5">
+                            {m.titular}
+                            {m.titular && m.banco && " · "}
+                            {m.banco}
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {m.link_pago && (
+                      <a
+                        href={m.link_pago}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full bg-orange-600 text-white text-xs font-bold py-2.5 rounded-xl text-center mt-1"
+                      >
+                        Ir a pagar →
+                      </a>
+                    )}
+
+                    {m.instrucciones && (
+                      <p className="text-[11px] text-orange-700 mt-2 text-center">
+                        {m.instrucciones}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
           </div>
 
           <div className="card p-4 flex items-center justify-between">
