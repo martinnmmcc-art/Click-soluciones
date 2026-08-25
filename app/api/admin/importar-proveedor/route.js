@@ -184,6 +184,11 @@ export async function POST(request) {
 
     const { productos, totalPaginas } = await traerPagina(pagina, categoria);
 
+    // Categorías que decidiste no tener en la tienda: si no las filtramos,
+    // los productos que borraste vuelven a aparecer en cada importación.
+    const { data: excluidas } = await supabase.from("categorias_excluidas").select("categoria");
+    const listaExcluidas = new Set((excluidas || []).map((e) => e.categoria));
+
     if (!productos.length) {
       return NextResponse.json({ ok: true, importados: 0, actualizados: 0, omitidos: 0, total_paginas: totalPaginas });
     }
@@ -225,6 +230,12 @@ export async function POST(request) {
       }
 
       const { flete, precio } = calcularPrecios(costo);
+      // Si su categoría está excluida, no lo traemos
+      if (listaExcluidas.has(categoriaDeProducto(p))) {
+        omitidos++;
+        continue;
+      }
+
       // Si ya lo tenés cargado con ese nombre, lo salteamos: tu versión manda
       // (tiene tu stock, tu precio y tus ofertas).
       if (!mapaExistentes.get(ref) && yaExistePorNombre.has((p.name || "").trim().toLowerCase())) {
