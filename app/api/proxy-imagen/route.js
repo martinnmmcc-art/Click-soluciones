@@ -5,11 +5,26 @@ export const dynamic = "force-dynamic";
 // otros sitios para armar una placa nueva (por seguridad), y sin esto la
 // promoción saldría con el espacio de la foto en blanco.
 
+// Sitios desde donde aceptamos traer fotos de productos. Si falta uno, las
+// promociones de esos productos salen sin imagen.
 const DOMINIOS_PERMITIDOS = [
   "nextcell.com.ar",
   "mzstore.com.ar",
   "supabase.co",
-  "supabase.in"
+  "supabase.in",
+  // Tiendanube: varios productos propios tienen las fotos alojadas ahí
+  "mitiendanube.com",
+  "tiendanube.com",
+  // Imágenes que vienen de búsquedas de Google
+  "gstatic.com",
+  "googleusercontent.com",
+  // Plataformas habituales de fotos de productos
+  "mlstatic.com",
+  "cloudinary.com",
+  "imgur.com",
+  "wixstatic.com",
+  "shopify.com",
+  "cdn.shopify.com"
 ];
 
 export async function GET(request) {
