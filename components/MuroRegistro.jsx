@@ -33,7 +33,7 @@ export default function MuroRegistro() {
       return RUTAS_LIBRES.some((r) => ruta.startsWith(r));
     }
 
-    function yaTieneCuenta() {
+    function tieneSesionCliente() {
       try {
         const s = localStorage.getItem("cliente_sesion");
         if (!s) return false;
@@ -43,15 +43,53 @@ export default function MuroRegistro() {
       }
     }
 
-    if (estaLibre() || yaTieneCuenta()) return;
+    // El admin entra con correo y contraseña (Supabase Auth), no con la
+    // sesión de cliente. Sin esta comprobación, al navegar el catálogo le
+    // aparecía el muro y tenía que salir y volver a entrar.
+    async function esAdminLogueado() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        return !!data?.session?.user;
+      } catch (e) {
+        return false;
+      }
+    }
 
-    const t = setTimeout(() => {
-      // Revisamos de nuevo: puede haberse registrado mientras tanto
-      if (!estaLibre() && !yaTieneCuenta()) setMostrar(true);
-    }, SEGUNDOS_ANTES_DE_PEDIR * 1000);
+    async function decidir() {
+      if (estaLibre() || tieneSesionCliente()) return;
+      if (await esAdminLogueado()) return;
 
+      // Volvemos a revisar recién al momento de mostrar: en esos 20 segundos
+      // el usuario pudo haberse registrado o iniciado sesión.
+      if (estaLibre() || tieneSesionCliente()) return;
+      if (await esAdminLogueado()) return;
+
+      setMostrar(true);
+    }
+
+    const t = setTimeout(decidir, SEGUNDOS_ANTES_DE_PEDIR * 1000);
     return () => clearTimeout(t);
   }, []);
+
+  // Si mientras el muro está abierto aparece una sesión (por ejemplo, el
+  // admin entró en otra pestaña), lo cerramos solo en vez de dejarlo trabado.
+  useEffect(() => {
+    if (!mostrar) return;
+
+    const revisar = setInterval(async () => {
+      try {
+        const s = localStorage.getItem("cliente_sesion");
+        if (s && JSON.parse(s)?.telefono) {
+          setMostrar(false);
+          return;
+        }
+        const { data } = await supabase.auth.getSession();
+        if (data?.session?.user) setMostrar(false);
+      } catch (e) {}
+    }, 3000);
+
+    return () => clearInterval(revisar);
+  }, [mostrar]);
 
   // Mientras está el muro, no se puede desplazar la página de atrás
   useEffect(() => {
