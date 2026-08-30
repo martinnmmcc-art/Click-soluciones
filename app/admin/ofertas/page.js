@@ -18,27 +18,32 @@ const PORCENTAJES = [10, 15, 20, 25, 30];
 function Ofertas() {
   const [campana, setCampana] = useState(null);
   const [productos, setProductos] = useState([]);
+  const [productosEnOferta, setProductosEnOferta] = useState([]);
   const [loading, setLoading] = useState(true);
   const [procesando, setProcesando] = useState(false);
 
   const [porcentaje, setPorcentaje] = useState(20);
   const [preset, setPreset] = useState(PRESETS[0]);
-  const [soloConStock, setSoloConStock] = useState(true);
   const [mensaje, setMensaje] = useState("");
+  const [alcance, setAlcance] = useState("parados"); // parados | todos | elegidos
+  const [elegidos, setElegidos] = useState([]);
+  const [busqueda, setBusqueda] = useState("");
 
   async function cargar() {
     setLoading(true);
 
-    const [{ data: vigente }, { data: prods }] = await Promise.all([
+    // Traemos también cuánto se vendió cada uno: es lo que permite
+    // detectar la mercadería parada, que es la que más conviene liquidar.
+    const [{ data: vigente }, { data: prods }, { data: enOferta }] = await Promise.all([
       supabase.rpc("campana_vigente"),
+      supabase.rpc("productos_para_oferta"),
       supabase
         .from("Productos")
-        .select("id, nombre, precio, precio_oferta, stock, campana_id")
-        .or("bajo_pedido.is.null,bajo_pedido.eq.false")
-        .eq("activo", true)
-        .gt("precio", 0)
-        .order("stock", { ascending: false })
+        .select("id, nombre, precio, precio_oferta, campana_id")
+        .not("campana_id", "is", null)
     ]);
+
+    setProductosEnOferta(enOferta || []);
 
     setCampana(vigente?.[0] || null);
     setProductos(prods || []);
@@ -50,7 +55,27 @@ function Ofertas() {
   }, []);
 
   const conStock = productos.filter((p) => Number(p.stock || 0) > 0);
-  const afectados = soloConStock ? conStock : productos;
+
+  // Productos parados: tienen stock pero nunca se vendieron. Son los que
+  // más conviene mover: ocupan plata sin generar nada.
+  const parados = conStock.filter((p) => Number(p.vendidos || 0) === 0);
+
+  const afectados =
+    alcance === "todos"
+      ? conStock
+      : alcance === "parados"
+      ? parados
+      : conStock.filter((p) => elegidos.includes(p.id));
+
+  const listaVisible = conStock.filter(
+    (p) => !busqueda.trim() || p.nombre?.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  function alternar(id) {
+    setElegidos((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
 
   // Cuánto resignás en total si se vendiera todo lo que está en oferta
   const resignado = afectados.reduce(
@@ -73,7 +98,10 @@ function Ofertas() {
         p_porcentaje: porcentaje,
         p_horas: preset.horas,
         p_mensaje: mensaje.trim() || null,
-        p_solo_con_stock: soloConStock
+        p_solo_con_stock: true,
+        // Si es "todos" mandamos null y la base los toma a todos;
+        // si no, mandamos exactamente los que elegiste.
+        p_ids: alcance === "todos" ? null : afectados.map((p) => p.id)
       });
 
       if (error) throw new Error(error.message);
@@ -135,7 +163,7 @@ function Ofertas() {
                 ⏰ Termina en {tiempoRestante(campana.termina)}
               </p>
               <p className="text-[11px] opacity-80 mt-1">
-                {productos.filter((p) => p.campana_id).length} productos con precio rebajado
+                {productosEnOferta.length} productos con precio rebajado
               </p>
 
               <button
@@ -150,9 +178,7 @@ function Ofertas() {
             <div className="bg-white rounded-2xl border border-gray-100 p-4">
               <p className="font-bold text-sm text-gray-800 mb-2">Productos en oferta</p>
               <div className="space-y-1.5 max-h-80 overflow-y-auto">
-                {productos
-                  .filter((p) => p.campana_id)
-                  .map((p) => (
+                {productosEnOferta.map((p) => (
                     <div
                       key={p.id}
                       className="flex justify-between items-center text-xs border-b border-gray-50 pb-1.5"
@@ -167,7 +193,7 @@ function Ofertas() {
                         <b className="text-red-600">${formatPrice(p.precio_oferta)}</b>
                       </span>
                     </div>
-                  ))}
+                ))}
               </div>
             </div>
           </>
@@ -212,14 +238,125 @@ function Ofertas() {
                 ))}
               </div>
 
-              <label className="flex items-center gap-2 text-xs text-gray-600 mb-3">
-                <input
-                  type="checkbox"
-                  checked={soloConStock}
-                  onChange={(e) => setSoloConStock(e.target.checked)}
-                />
-                Solo los que tengo en stock ({conStock.length} productos)
-              </label>
+              <p className="text-xs font-bold text-gray-500 uppercase mb-2">
+                3. A qué productos
+              </p>
+
+              <div className="space-y-2 mb-3">
+                <button
+                  onClick={() => setAlcance("parados")}
+                  className={`w-full text-left p-3 rounded-xl border-2 ${
+                    alcance === "parados"
+                      ? "border-brand-blue bg-blue-50"
+                      : "border-gray-200 bg-white"
+                  }`}
+                >
+                  <p className="text-sm font-bold text-gray-800">
+                    😴 Los que no se venden ({parados.length})
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Tienen stock pero nunca se vendieron. Son los que más
+                    conviene mover: ocupan plata sin generar nada.
+                  </p>
+                </button>
+
+                <button
+                  onClick={() => setAlcance("elegidos")}
+                  className={`w-full text-left p-3 rounded-xl border-2 ${
+                    alcance === "elegidos"
+                      ? "border-brand-blue bg-blue-50"
+                      : "border-gray-200 bg-white"
+                  }`}
+                >
+                  <p className="text-sm font-bold text-gray-800">
+                    ✋ Elijo yo ({elegidos.length} elegidos)
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Marcás uno por uno cuáles entran en la oferta
+                  </p>
+                </button>
+
+                <button
+                  onClick={() => setAlcance("todos")}
+                  className={`w-full text-left p-3 rounded-xl border-2 ${
+                    alcance === "todos"
+                      ? "border-brand-blue bg-blue-50"
+                      : "border-gray-200 bg-white"
+                  }`}
+                >
+                  <p className="text-sm font-bold text-gray-800">
+                    🏷️ Todos los que tengo ({conStock.length})
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Para liquidaciones o fechas especiales
+                  </p>
+                </button>
+              </div>
+
+              {/* LISTA PARA ELEGIR */}
+              {alcance === "elegidos" && (
+                <div className="border border-gray-200 rounded-xl p-3 mb-3">
+                  <input
+                    value={busqueda}
+                    onChange={(e) => setBusqueda(e.target.value)}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 mb-2"
+                    placeholder="🔍 Buscar producto..."
+                  />
+
+                  <div className="flex gap-3 mb-2">
+                    <button
+                      onClick={() => setElegidos(parados.map((p) => p.id))}
+                      className="text-[11px] font-bold text-brand-blue"
+                    >
+                      Marcar los {parados.length} parados
+                    </button>
+                    <button
+                      onClick={() => setElegidos([])}
+                      className="text-[11px] font-bold text-red-500"
+                    >
+                      Ninguno
+                    </button>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto space-y-1">
+                    {listaVisible.map((p) => {
+                      const parado = Number(p.vendidos || 0) === 0;
+                      return (
+                        <label
+                          key={p.id}
+                          className={`flex items-start gap-2 p-2 rounded-lg cursor-pointer ${
+                            elegidos.includes(p.id) ? "bg-blue-50" : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={elegidos.includes(p.id)}
+                            onChange={() => alternar(p.id)}
+                            className="mt-0.5 flex-shrink-0"
+                          />
+                          <span className="flex-1 min-w-0">
+                            <span className="text-xs text-gray-800 block line-clamp-2 leading-tight">
+                              {p.nombre}
+                            </span>
+                            <span className="text-[10px] text-gray-500">
+                              ${formatPrice(p.precio)} · stock {p.stock}
+                              {parado ? (
+                                <span className="text-amber-700 font-bold">
+                                  {" "}· 😴 nunca se vendió
+                                </span>
+                              ) : (
+                                <span className="text-green-700">
+                                  {" "}· vendidos {p.vendidos}
+                                </span>
+                              )}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <div className="mb-3">
                 <label className="text-xs font-bold text-gray-600 block mb-1">
@@ -235,12 +372,24 @@ function Ofertas() {
 
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3">
                 <p className="text-xs font-bold text-amber-900">
-                  Se aplica a {afectados.length} productos
+                  Se aplica a {afectados.length} producto{afectados.length === 1 ? "" : "s"}
                 </p>
                 <p className="text-[11px] text-amber-800 mt-1">
                   Si vendieras todo ese stock con el descuento, resignás{" "}
                   <b>${formatPrice(resignado)}</b> de facturación.
                 </p>
+                {alcance === "parados" && parados.length > 0 && (
+                  <p className="text-[11px] text-amber-800 mt-1">
+                    Hoy tenés{" "}
+                    <b>
+                      $
+                      {formatPrice(
+                        parados.reduce((a, p) => a + Number(p.plata_parada || 0), 0)
+                      )}
+                    </b>{" "}
+                    inmovilizados en esta mercadería.
+                  </p>
+                )}
               </div>
 
               <button
