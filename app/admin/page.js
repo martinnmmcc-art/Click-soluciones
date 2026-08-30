@@ -363,6 +363,16 @@ function Dashboard() {
             <span className="text-2xl">🛍️</span>
           </Link>
 
+          <Link href="/admin/ofertas" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-red-200">
+            <div>
+              <p className="font-semibold text-gray-800">Ofertas</p>
+              <p className="text-sm text-gray-500">
+                Descuento por tiempo limitado en todos tus productos
+              </p>
+            </div>
+            <span className="text-2xl">🏷️</span>
+          </Link>
+
           <Link href="/admin/promocionar" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Promocionar producto</p>
