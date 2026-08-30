@@ -5,6 +5,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import BannerNovedades from "@/components/BannerNovedades";
+import BannerOferta from "@/components/BannerOferta";
 import { supabase } from "@/lib/supabaseClient";
 import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 import { useCart } from "@/context/CartContext";
@@ -160,6 +161,7 @@ export default function HomePage() {
         </div>
       )}
 
+      <BannerOferta />
       <BannerNovedades />
 
       <div className="max-w-md mx-auto px-4 mt-3">
