@@ -65,17 +65,20 @@ export default function CatalogoPage() {
     }
     limpiarBanderaRestauracion();
 
-    // Si no viene de un producto, arranca limpio
-    if (!vieneDeUnProducto("catalogo")) {
+    // Esto va PRIMERO: si viene del cartel de oferta hay que abrir esa
+    // pestaña sí o sí. Antes estaba después del chequeo de abajo, que corta
+    // la función, y por eso el cartel terminaba en "Lo que tengo".
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("oferta") === "1") {
       limpiarEstado("catalogo");
+      setDisponibilidad("oferta");
       setRestaurado(true);
       return;
     }
 
-    // Si viene del cartel de oferta, abrimos directo esa pestaña
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("oferta") === "1") {
-      setDisponibilidad("oferta");
+    // Si no viene de un producto, arranca limpio
+    if (!vieneDeUnProducto("catalogo")) {
+      limpiarEstado("catalogo");
       setRestaurado(true);
       return;
     }
