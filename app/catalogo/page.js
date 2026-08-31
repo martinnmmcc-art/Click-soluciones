@@ -19,6 +19,7 @@ import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSali
 const POR_TANDA = 24;
 
 const DISPONIBILIDADES = [
+  { id: "oferta", label: "🏷️ En oferta", ayuda: "Productos con descuento por tiempo limitado", soloConOferta: true },
   { id: "stock", label: "🟢 Lo que tengo", ayuda: "Mis productos. Los agotados los podés consultar" },
   { id: "pedido", label: "📦 A pedido", ayuda: "Lo encargo al proveedor" },
   { id: "todos", label: "Ver todo", ayuda: "" }
@@ -36,6 +37,19 @@ export default function CatalogoPage() {
   const [totalResultados, setTotalResultados] = useState(0);
   const [restaurado, setRestaurado] = useState(false);
   const [modoOffline, setModoOffline] = useState(false);
+  const [hayOfertas, setHayOfertas] = useState(false);
+
+  // La pestaña de ofertas solo aparece si realmente hay una campaña activa
+  useEffect(() => {
+    async function chequear() {
+      const { count } = await supabase
+        .from("Productos")
+        .select("id", { count: "exact", head: true })
+        .not("campana_id", "is", null);
+      setHayOfertas((count || 0) > 0);
+    }
+    chequear();
+  }, []);
   // Guardamos acá lo que había al volver. Si lo releemos más tarde ya fue
   // pisado por el guardado automático con scroll 0.
   const estadoInicial = useRef(null);
@@ -54,6 +68,14 @@ export default function CatalogoPage() {
     // Si no viene de un producto, arranca limpio
     if (!vieneDeUnProducto("catalogo")) {
       limpiarEstado("catalogo");
+      setRestaurado(true);
+      return;
+    }
+
+    // Si viene del cartel de oferta, abrimos directo esa pestaña
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("oferta") === "1") {
+      setDisponibilidad("oferta");
       setRestaurado(true);
       return;
     }
@@ -121,7 +143,9 @@ export default function CatalogoPage() {
       )
       .eq("activo", true);
 
-    if (disponibilidad === "stock") {
+    if (disponibilidad === "oferta") {
+      q = q.not("campana_id", "is", null);
+    } else if (disponibilidad === "stock") {
       // Incluimos también los que se quedaron sin stock: siguen siendo
       // productos tuyos y los podés reponer. Se muestran con "Consultar
       // stock" en vez de desaparecer, así el cliente igual los ve y pregunta.
@@ -314,7 +338,7 @@ export default function CatalogoPage() {
 
         {/* DISPONIBLE AHORA vs A PEDIDO */}
         <div className="flex gap-2 mb-2">
-          {DISPONIBILIDADES.map((d) => (
+          {DISPONIBILIDADES.filter((d) => !d.soloConOferta || hayOfertas).map((d) => (
             <button
               key={d.id}
               onClick={() => {
