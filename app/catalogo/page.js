@@ -19,7 +19,7 @@ import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSali
 const POR_TANDA = 24;
 
 const DISPONIBILIDADES = [
-  { id: "oferta", label: "🏷️ En oferta", ayuda: "Productos con descuento por tiempo limitado", soloConOferta: true },
+  { id: "oferta", label: "🏷️ Oferta limitada", ayuda: "Descuento por tiempo limitado, aprovechá", soloConOferta: true },
   { id: "stock", label: "🟢 Lo que tengo", ayuda: "Mis productos. Los agotados los podés consultar" },
   { id: "pedido", label: "📦 A pedido", ayuda: "Lo encargo al proveedor" },
   { id: "todos", label: "Ver todo", ayuda: "" }
@@ -29,7 +29,15 @@ export default function CatalogoPage() {
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
-  const [disponibilidad, setDisponibilidad] = useState("stock");
+  // Leemos la dirección acá mismo, antes de dibujar. Si lo hacíamos en un
+  // efecto posterior, la pestaña ya se había pintado en "Lo que tengo" y a
+  // veces no llegaba a cambiar.
+  const [disponibilidad, setDisponibilidad] = useState(() => {
+    if (typeof window === "undefined") return "stock";
+    return new URLSearchParams(window.location.search).get("oferta") === "1"
+      ? "oferta"
+      : "stock";
+  });
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
   const [cargandoMas, setCargandoMas] = useState(false);
@@ -37,7 +45,11 @@ export default function CatalogoPage() {
   const [totalResultados, setTotalResultados] = useState(0);
   const [restaurado, setRestaurado] = useState(false);
   const [modoOffline, setModoOffline] = useState(false);
-  const [hayOfertas, setHayOfertas] = useState(false);
+  const [hayOfertas, setHayOfertas] = useState(() => {
+    if (typeof window === "undefined") return false;
+    // Si venimos del cartel, la mostramos de entrada sin esperar la consulta
+    return new URLSearchParams(window.location.search).get("oferta") === "1";
+  });
 
   // La pestaña de ofertas solo aparece si realmente hay una campaña activa
   useEffect(() => {
@@ -46,7 +58,8 @@ export default function CatalogoPage() {
         .from("Productos")
         .select("id", { count: "exact", head: true })
         .not("campana_id", "is", null);
-      setHayOfertas((count || 0) > 0);
+      // No la ocultamos si estamos parados justo en esa pestaña
+      setHayOfertas((count || 0) > 0 || disponibilidad === "oferta");
     }
     chequear();
   }, []);
