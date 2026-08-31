@@ -94,6 +94,8 @@ export default function BannerOferta() {
     ? "en 1 producto"
     : `en ${cantidad} productos`;
 
+  const tituloCinta = campana.titulo || "OFERTA LIMITADA";
+
   const ultimasHoras = new Date(campana.termina) - new Date() < 6 * 3600000;
   const prod = productos[actual];
 
@@ -109,7 +111,7 @@ export default function BannerOferta() {
         {/* Cinta superior con el tiempo */}
         <div className="bg-black/20 px-3 py-1.5 flex items-center justify-between">
           <span className="text-[10px] font-black text-white tracking-widest">
-            {campana.titulo}
+            🏷️ {tituloCinta}
           </span>
           <span className="text-[10px] font-bold text-white flex items-center gap-1">
             <span className="relative flex h-1.5 w-1.5">
@@ -122,45 +124,40 @@ export default function BannerOferta() {
 
         <div className="flex items-stretch">
           {/* Descuento: siempre visible, nunca rota */}
-          <div className="p-3 pr-2 flex flex-col justify-center min-w-[42%]">
-            <p className="text-[42px] leading-none font-black text-white drop-shadow-sm">
+          <div className="py-3 pl-3 pr-1 flex flex-col justify-center w-[30%] flex-shrink-0">
+            <p className="text-[40px] leading-none font-black text-white drop-shadow-sm">
               {Number(campana.porcentaje)}
-              <span className="text-2xl">%</span>
+              <span className="text-xl">%</span>
             </p>
-            <p className="text-sm font-black text-white leading-none -mt-0.5">OFF</p>
-            <p className="text-[10px] text-white/90 mt-1 leading-tight">{detalle}</p>
+            <p className="text-sm font-black text-white leading-none">OFF</p>
+            <p className="text-[9px] text-white/90 mt-1 leading-tight">{detalle}</p>
 
-            {campana.mensaje && (
-              <p className="text-[9px] text-white/80 mt-1 leading-tight line-clamp-2">
-                {campana.mensaje}
-              </p>
-            )}
-
-            <span className="inline-block bg-white text-[10px] font-black px-2.5 py-1 rounded-full mt-2 w-fit text-gray-800">
-              Ver ofertas →
+            <span className="inline-block bg-white text-[9px] font-black px-2 py-1 rounded-full mt-2 w-fit text-gray-800">
+              Ver todas →
             </span>
           </div>
 
-          {/* Productos rotando */}
+          {/* Producto: la foto tiene que verse bien, si no el cliente no
+              reconoce qué está en oferta y el cartel no sirve de nada. */}
           {prod && (
-            <div className="flex-1 bg-white/10 backdrop-blur-sm p-2 flex items-center gap-2 min-w-0">
-              <div className="w-16 h-16 bg-white rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
+            <div className="flex-1 flex items-center gap-2 p-2 min-w-0">
+              <div className="w-28 h-28 bg-white rounded-2xl flex-shrink-0 flex items-center justify-center p-1.5 shadow-md">
                 <img
                   src={prod.imagen_url}
                   alt=""
-                  className="max-w-full max-h-full object-contain transition-opacity duration-300"
+                  className="max-w-full max-h-full object-contain"
                   key={prod.id}
                 />
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-white font-semibold leading-tight line-clamp-2">
+                <p className="text-[11px] text-white font-bold leading-tight line-clamp-2">
                   {prod.nombre}
                 </p>
-                <p className="text-[10px] text-white/70 line-through leading-none mt-1">
+                <p className="text-[10px] text-white/70 line-through leading-none mt-1.5">
                   ${formatPrice(prod.precio)}
                 </p>
-                <p className="text-base font-black text-white leading-none">
+                <p className="text-xl font-black text-white leading-none mt-0.5">
                   ${formatPrice(prod.precio_oferta)}
                 </p>
               </div>
