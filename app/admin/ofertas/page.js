@@ -147,7 +147,7 @@ function Ofertas() {
         </Link>
         <h1 className="text-2xl font-extrabold text-gray-800 mt-1 mb-1">Ofertas</h1>
         <p className="text-xs text-gray-500 mb-4">
-          Descuento por tiempo limitado en todos tus productos.
+          Descuento por tiempo limitado. Elegís a qué productos se aplica.
         </p>
 
         {loading ? (
