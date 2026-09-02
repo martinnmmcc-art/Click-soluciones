@@ -41,13 +41,25 @@ export default function BannerNovedades() {
         // fecha_ingreso = cuándo llegó la mercadería de verdad. No usamos
         // created_at porque un producto puede estar cargado hace meses
         // y haber recibido stock recién ahora.
+        // Desempatamos por id: cuando llega un pedido entero se cargan todos
+        // con el mismo horario, y sin este segundo criterio el orden cambiaba
+        // al azar en cada visita.
         .order("fecha_ingreso", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false })
         .limit(8);
 
       setProductos(data || []);
       setCargando(false);
     }
     cargar();
+
+    // Al volver a la app volvemos a consultar: si no, alguien que la deja
+    // abierta sigue viendo las novedades de hace días.
+    function alVolver() {
+      if (document.visibilityState === "visible") cargar();
+    }
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
   }, []);
 
   useEffect(() => {
