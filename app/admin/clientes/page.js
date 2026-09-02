@@ -171,7 +171,15 @@ function Clientes() {
   }
 
   async function resetearPassword(c) {
-    const nueva = prompt(`Nueva contraseña para ${c.nombre || c.telefono}:`);
+    // Sugerimos una fácil de dictar por teléfono: sin letras que se
+    // confundan al escucharlas ni mayúsculas.
+    const sugerida = `bolson${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const nueva = prompt(
+      `Contraseña provisoria para ${c.nombre || c.telefono}:\n\n` +
+        `Se la pasás por WhatsApp y él después puede cambiarla desde su cuenta.`,
+      sugerida
+    );
     if (!nueva || !nueva.trim()) return;
 
     const { data: ok, error: updateError } = await supabase.rpc("admin_resetear_password", {
@@ -187,7 +195,24 @@ function Clientes() {
       );
       return;
     }
-    alert("Contraseña actualizada. Avisale al cliente cuál es su nueva contraseña.");
+    const mensaje =
+      `¡Hola ${c.nombre || ""}! 👋 Soy de Bolson Click.\n\n` +
+      `Te restablecí la contraseña de tu cuenta:\n\n` +
+      `📱 Usuario: *${c.telefono}*\n` +
+      `🔑 Contraseña: *${nueva.trim()}*\n\n` +
+      `Entrá en bolsonclick.com.ar y, si querés, cambiala por una tuya desde ` +
+      `"Cuenta" → "Cambiar mi contraseña".`;
+
+    if (
+      confirm(
+        `✓ Contraseña actualizada.\n\n¿Se la mando por WhatsApp ahora?`
+      )
+    ) {
+      window.open(
+        `https://wa.me/${telefonoParaWhatsapp(c.telefono)}?text=${encodeURIComponent(mensaje)}`,
+        "_blank"
+      );
+    }
   }
 
   // Deja el teléfono en el formato que usa toda la app (2944636224): sin +54,
