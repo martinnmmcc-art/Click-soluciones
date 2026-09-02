@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
+import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 
 function ImportarProveedor() {
@@ -11,6 +12,25 @@ function ImportarProveedor() {
   const [errorCats, setErrorCats] = useState("");
 
   const [catSeleccionada, setCatSeleccionada] = useState("");
+  const [seleccionadas, setSeleccionadas] = useState([]);
+  const [excluidas, setExcluidas] = useState([]);
+
+  // Las categorías que decidiste no vender no se pueden elegir
+  useEffect(() => {
+    async function cargarExcluidas() {
+      const { data } = await supabase.from("categorias_excluidas").select("categoria");
+      setExcluidas((data || []).map((e) => e.categoria));
+    }
+    cargarExcluidas();
+  }, []);
+
+  function alternarCategoria(id) {
+    setSeleccionadas((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+    setPreview(null);
+    setResultado(null);
+  }
   const [preview, setPreview] = useState(null);
   const [cargandoPreview, setCargandoPreview] = useState(false);
 
@@ -55,43 +75,66 @@ function ImportarProveedor() {
   }
 
   async function importar() {
-    if (!catSeleccionada) return;
-    if (!confirm("¿Importar esta categoría? Los productos entran como 'a pedido' con stock 0.")) return;
+    const cats = seleccionadas.length > 0 ? seleccionadas : [];
+    if (cats.length === 0) return;
+
+    const nombres = categorias
+      .filter((c) => cats.includes(c.id))
+      .map((c) => c.nombre)
+      .join(", ");
+
+    if (
+      !confirm(
+        `¿Importar ${cats.length} categoría${cats.length === 1 ? "" : "s"}?\n\n` +
+          `${nombres}\n\n` +
+          `Los productos entran como "a pedido" con stock 0.`
+      )
+    )
+      return;
 
     setImportando(true);
     setResultado(null);
 
-    let totales = { importados: 0, actualizados: 0, omitidos: 0 };
-    let pagina = 1;
-    let hayMas = true;
+    const totales = { importados: 0, actualizados: 0, omitidos: 0 };
 
     try {
-      // El proveedor entrega de a 100 productos, así que vamos página por página
-      while (hayMas && pagina <= 30) {
-        setProgreso(`Procesando página ${pagina}...`);
+      // Vamos categoría por categoría, y dentro de cada una página por página
+      for (let n = 0; n < cats.length; n++) {
+        const cat = cats[n];
+        const nombreCat = categorias.find((c) => c.id === cat)?.nombre || "";
 
-        const res = await fetch("/api/admin/importar-proveedor", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            categoria: catSeleccionada,
-            pagina,
-            actualizar_precios: actualizarPrecios
-          })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        let pagina = 1;
+        let hayMas = true;
 
-        totales.importados += data.importados;
-        totales.actualizados += data.actualizados;
-        totales.omitidos += data.omitidos;
+        while (hayMas && pagina <= 30) {
+          setProgreso(
+            `Categoría ${n + 1} de ${cats.length}: ${nombreCat} · página ${pagina}`
+          );
 
-        hayMas = data.hay_mas;
-        pagina++;
+          const res = await fetch("/api/admin/importar-proveedor", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              categoria: cat,
+              pagina,
+              actualizar_precios: actualizarPrecios
+            })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+
+          totales.importados += data.importados;
+          totales.actualizados += data.actualizados;
+          totales.omitidos += data.omitidos;
+
+          hayMas = data.hay_mas;
+          pagina++;
+        }
       }
 
       setResultado(totales);
       setPreview(null);
+      setSeleccionadas([]);
     } catch (e) {
       alert("Se cortó la importación: " + e.message + "\n\nLo que ya se importó quedó guardado.");
       setResultado(totales);
@@ -134,26 +177,101 @@ function ImportarProveedor() {
 
         {!cargandoCats && !errorCats && (
           <>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
-              1. Elegí una categoría
-            </p>
-            <div className="flex flex-col gap-2 mb-5">
-              {categorias.map((c) => (
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                Elegí una o varias categorías
+              </p>
+              {seleccionadas.length > 0 && (
                 <button
-                  key={c.id}
-                  onClick={() => previsualizar(c.id)}
-                  disabled={importando}
-                  className={`card p-3 text-left flex justify-between items-center ${
-                    catSeleccionada === c.id ? "border-2 border-brand-blue" : ""
-                  }`}
+                  onClick={() => setSeleccionadas([])}
+                  className="text-[11px] font-bold text-red-500"
                 >
-                  <span className="text-sm text-gray-700 font-medium flex-1 pr-2">{c.nombre}</span>
-                  <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
-                    {c.cantidad} prod.
-                  </span>
+                  Limpiar
                 </button>
-              ))}
+              )}
             </div>
+
+            <div className="flex flex-col gap-2 mb-4">
+              {categorias.map((c) => {
+                const excluida = excluidas.some(
+                  (e) => c.nombre.toLowerCase().includes(e.toLowerCase())
+                );
+                const elegida = seleccionadas.includes(c.id);
+
+                return (
+                  <label
+                    key={c.id}
+                    className={`card p-3 flex items-center gap-3 ${
+                      excluida
+                        ? "opacity-40"
+                        : elegida
+                        ? "border-2 border-brand-blue bg-blue-50"
+                        : "cursor-pointer"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={elegida}
+                      disabled={excluida || importando}
+                      onChange={() => alternarCategoria(c.id)}
+                      className="w-5 h-5 flex-shrink-0"
+                    />
+                    <span className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-700 font-medium block line-clamp-1">
+                        {c.nombre}
+                      </span>
+                      {excluida && (
+                        <span className="text-[10px] text-red-600 font-bold">
+                          Excluida: no la querés en la tienda
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-xs font-bold text-gray-400 whitespace-nowrap">
+                      {c.cantidad}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {seleccionadas.length > 0 && (
+              <div className="card p-4 mb-4 border-2 border-brand-blue">
+                <p className="text-sm font-bold text-gray-800">
+                  {seleccionadas.length} categoría
+                  {seleccionadas.length === 1 ? "" : "s"} elegida
+                  {seleccionadas.length === 1 ? "" : "s"}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5 mb-3">
+                  {categorias
+                    .filter((c) => seleccionadas.includes(c.id))
+                    .reduce((a, c) => a + c.cantidad, 0)}{" "}
+                  productos en total. Los que ya tengas no se duplican.
+                </p>
+
+                <label className="flex items-center gap-2 text-xs text-gray-600 mb-3">
+                  <input
+                    type="checkbox"
+                    checked={actualizarPrecios}
+                    onChange={(e) => setActualizarPrecios(e.target.checked)}
+                  />
+                  Actualizar el precio de los que ya tengo
+                </label>
+
+                <button
+                  onClick={importar}
+                  disabled={importando}
+                  className="btn-primary w-full text-sm disabled:opacity-50"
+                >
+                  {importando ? progreso || "Importando..." : "Importar"}
+                </button>
+
+                {importando && (
+                  <p className="text-[10px] text-gray-400 mt-2 text-center">
+                    Puede tardar varios minutos. No cierres la app.
+                  </p>
+                )}
+              </div>
+            )}
 
             {cargandoPreview && (
               <div className="card p-5 text-center text-gray-400 text-sm">Revisando productos...</div>
