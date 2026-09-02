@@ -12,6 +12,71 @@ import {
   OPCIONES_PAGO as LISTA_PAGO
 } from "@/lib/estadosPedido";
 
+// Arma el estado de cuenta del cliente para mandarle por WhatsApp:
+// qué se llevó, qué está entregado y cuánto debe. Evita las discusiones
+// de "yo pensé que había pagado" y las consultas por cada pedido.
+function armarEstadoDeCuenta(c) {
+  const nombre = (c.nombre || "").split(" ")[0];
+  let m = `*BOLSON CLICK* 🛍️\nResumen de tu cuenta\n\n¡Hola ${nombre}! 👋\n\n`;
+
+  const ordenados = c.pedidos
+    .slice()
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  ordenados.forEach((p) => {
+    const fecha = p.created_at
+      ? new Date(p.created_at).toLocaleDateString("es-AR")
+      : "";
+    const saldo = Number(p.total || 0) - Number(p.monto_pagado || 0);
+
+    const entregado = p.estado === "entregado";
+    const enCamino = p.estado === "repartiendo";
+    const listo = p.estado === "listo";
+
+    const estadoTexto = entregado
+      ? "✅ Entregado"
+      : enCamino
+      ? "🛵 En camino"
+      : listo
+      ? "📦 Listo para retirar"
+      : "⏳ En preparación";
+
+    m += `📋 *Pedido ${p.numero_pedido || "#" + p.id}* · ${fecha}\n`;
+    m += `${estadoTexto}\n`;
+
+    (p.items_pedido || []).forEach((i) => {
+      m += `   • ${i.cantidad}x ${i.nombre_producto}\n`;
+    });
+
+    m += `   Total: $${Number(p.total || 0).toLocaleString("es-AR")}\n`;
+
+    if (saldo > 0) {
+      if (Number(p.monto_pagado || 0) > 0) {
+        m += `   Pagaste: $${Number(p.monto_pagado).toLocaleString("es-AR")}\n`;
+      }
+      m += `   *Falta: $${saldo.toLocaleString("es-AR")}*\n`;
+    } else {
+      m += `   ✅ Pagado\n`;
+    }
+    m += `\n`;
+  });
+
+  m += `━━━━━━━━━━━━━━\n`;
+
+  if (c.saldoNeto > 0) {
+    m += `💰 *TOTAL A PAGAR: $${c.saldoNeto.toLocaleString("es-AR")}*\n\n`;
+    m += `Podés transferir al alias *bolsonclick* o pagar en efectivo cuando te lo entregue.\n\n`;
+  } else if (c.saldoNeto < 0) {
+    m += `💚 Tenés $${Math.abs(c.saldoNeto).toLocaleString("es-AR")} a favor para tu próxima compra.\n\n`;
+  } else {
+    m += `✅ *Estás al día, no debés nada.* ¡Gracias!\n\n`;
+  }
+
+  m += `Cualquier duda escribime por acá 🙌\n🛒 bolsonclick.com.ar`;
+
+  return m;
+}
+
 function telefonoParaWhatsapp(tel) {
   let limpio = (tel || "").replace(/\D/g, "");
   if (limpio.startsWith("54")) limpio = limpio.slice(2);
@@ -246,20 +311,35 @@ function ResumenClientes() {
                 </div>
 
                 {c.telefono !== "Sin teléfono" && (
-                  <a
-                    href={`https://wa.me/${telefonoParaWhatsapp(c.telefono)}${
-                      c.saldoNeto > 0
-                        ? `?text=${encodeURIComponent(
-                            `¡Hola ${c.nombre}! 👋 Te escribo de Bolson Click por el saldo pendiente de $${formatPrice(c.saldoNeto)}. ¿Coordinamos el pago?`
-                          )}`
-                        : ""
-                    }`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg mt-2"
-                  >
-                    💬 WhatsApp
-                  </a>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {/* Resumen completo: qué se llevó, qué está entregado y
+                        cuánto debe. Evita el ida y vuelta por cada pedido. */}
+                    <a
+                      href={`https://wa.me/${telefonoParaWhatsapp(
+                        c.telefono
+                      )}?text=${encodeURIComponent(armarEstadoDeCuenta(c))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-brand-blue text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+                    >
+                      📋 Enviar resumen de cuenta
+                    </a>
+
+                    <a
+                      href={`https://wa.me/${telefonoParaWhatsapp(c.telefono)}${
+                        c.saldoNeto > 0
+                          ? `?text=${encodeURIComponent(
+                              `¡Hola ${c.nombre}! 👋 Te escribo de Bolson Click por el saldo pendiente de $${formatPrice(c.saldoNeto)}. ¿Coordinamos el pago?`
+                            )}`
+                          : ""
+                      }`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+                    >
+                      💬 WhatsApp
+                    </a>
+                  </div>
                 )}
 
                 <button
