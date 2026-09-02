@@ -1259,6 +1259,21 @@ function PanelVentas() {
         </div>
 
         {/* ACCESOS A LAS OTRAS VISTAS */}
+        <Link
+          href="/admin/balance"
+          className="block bg-gradient-to-br from-brand-blue to-brand-blueDark text-white p-4 rounded-2xl shadow-sm mb-3"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-bold text-sm">📊 Balance del mes</p>
+              <p className="text-[11px] text-blue-100 mt-0.5">
+                Ganancia real, mejores días, qué rotó y qué no
+              </p>
+            </div>
+            <span className="text-2xl">→</span>
+          </div>
+        </Link>
+
         <div className="grid grid-cols-2 gap-3 mb-6">
           <Link
             href="/admin/ventas-cerradas"
