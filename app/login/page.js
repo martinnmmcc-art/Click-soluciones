@@ -26,6 +26,13 @@ export default function LoginPage() {
   const [emailPerfil, setEmailPerfil] = useState("");
   const [direccionPerfil, setDireccionPerfil] = useState("");
   const [editandoPerfil, setEditandoPerfil] = useState(false);
+  const [cambiandoPass, setCambiandoPass] = useState(false);
+  const [passActual, setPassActual] = useState("");
+  const [passNueva, setPassNueva] = useState("");
+  const [passRepetir, setPassRepetir] = useState("");
+  const [tienePassPropia, setTienePassPropia] = useState(true);
+  const [msgPass, setMsgPass] = useState("");
+  const [guardandoPass, setGuardandoPass] = useState(false);
   const [mensajePerfil, setMensajePerfil] = useState("");
 
   const [error, setError] = useState("");
@@ -114,6 +121,71 @@ export default function LoginPage() {
       }
     }
   }, []);
+
+  // Si la cuenta se creó al comprar, el cliente nunca eligió contraseña:
+  // en ese caso le pedimos que defina una, no la anterior.
+  useEffect(() => {
+    const tel = user?.telefono || sesionActiva?.telefono;
+    if (!tel) return;
+
+    async function chequear() {
+      const { data } = await supabase.rpc("tiene_password_propia", { p_telefono: tel });
+      setTienePassPropia(data !== false);
+    }
+    chequear();
+  }, [user, sesionActiva]);
+
+  async function cambiarPassword(e) {
+    e.preventDefault();
+    setMsgPass("");
+
+    if (passNueva.length < 4) {
+      setMsgPass("❌ La contraseña nueva tiene que tener al menos 4 caracteres.");
+      return;
+    }
+    if (passNueva !== passRepetir) {
+      setMsgPass("❌ Las dos contraseñas nuevas no coinciden.");
+      return;
+    }
+
+    setGuardandoPass(true);
+    try {
+      const tel = user?.telefono || sesionActiva?.telefono;
+      const { data, error } = await supabase.rpc("cambiar_password_cliente", {
+        p_telefono: tel,
+        p_password_actual: passActual,
+        p_password_nueva: passNueva
+      });
+
+      const r = data?.[0];
+
+      if (error || !r?.ok) {
+        const motivo = r?.motivo;
+        setMsgPass(
+          motivo === "ACTUAL_INCORRECTA"
+            ? "❌ La contraseña actual no es correcta."
+            : motivo === "CORTA"
+            ? "❌ La contraseña nueva es muy corta."
+            : "❌ No se pudo cambiar. Probá de nuevo."
+        );
+        return;
+      }
+
+      setMsgPass("✅ ¡Listo! Tu contraseña quedó cambiada.");
+      setPassActual("");
+      setPassNueva("");
+      setPassRepetir("");
+      setTienePassPropia(true);
+      setTimeout(() => {
+        setCambiandoPass(false);
+        setMsgPass("");
+      }, 2500);
+    } catch (err) {
+      setMsgPass("❌ Ocurrió un error. Intentá de nuevo.");
+    } finally {
+      setGuardandoPass(false);
+    }
+  }
 
   useEffect(() => {
     const tel = user?.telefono || sesionActiva?.telefono;
@@ -527,7 +599,7 @@ export default function LoginPage() {
               )}
             </div>
 
-            <div className="pt-2">
+            <div className="pt-2 space-y-2">
               <button
                 type="button"
                 onClick={() => setEditandoPerfil(!editandoPerfil)}
@@ -535,8 +607,101 @@ export default function LoginPage() {
               >
                 {editandoPerfil ? "Cancelar edición" : "⚙️ Completar / Editar mis datos opcionales"}
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setCambiandoPass(!cambiandoPass);
+                  setMsgPass("");
+                }}
+                className="btn-secondary w-full text-xs"
+              >
+                {cambiandoPass
+                  ? "Cancelar"
+                  : tienePassPropia
+                  ? "🔑 Cambiar mi contraseña"
+                  : "🔑 Ponerle una contraseña a mi cuenta"}
+              </button>
             </div>
           </div>
+
+          {cambiandoPass && (
+            <div className="card p-5 mb-4 bg-blue-50/50 border border-blue-200">
+              <h2 className="font-bold text-sm text-gray-800 mb-1 text-center">
+                {tienePassPropia ? "Cambiar contraseña" : "Elegí tu contraseña"}
+              </h2>
+
+              {!tienePassPropia && (
+                <p className="text-[11px] text-gray-600 text-center mb-3">
+                  Tu cuenta se creó automáticamente al comprar, así que todavía
+                  no tenés una contraseña propia. Elegí una ahora.
+                </p>
+              )}
+
+              {msgPass && (
+                <div className="text-xs text-center p-2 mb-3 rounded-lg bg-white border font-medium">
+                  {msgPass}
+                </div>
+              )}
+
+              <form onSubmit={cambiarPassword} className="space-y-3">
+                {tienePassPropia && (
+                  <div>
+                    <label className="text-xs font-bold text-gray-700 block mb-1">
+                      Contraseña actual
+                    </label>
+                    <input
+                      type="password"
+                      value={passActual}
+                      onChange={(e) => setPassActual(e.target.value)}
+                      className="input-field bg-white"
+                      placeholder="La que usás ahora"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">
+                    Contraseña nueva
+                  </label>
+                  <input
+                    type="password"
+                    value={passNueva}
+                    onChange={(e) => setPassNueva(e.target.value)}
+                    className="input-field bg-white"
+                    placeholder="Al menos 4 caracteres"
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">
+                    Repetila
+                  </label>
+                  <input
+                    type="password"
+                    value={passRepetir}
+                    onChange={(e) => setPassRepetir(e.target.value)}
+                    className="input-field bg-white"
+                    placeholder="Escribila de nuevo"
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <button
+                  disabled={guardandoPass}
+                  className="btn-primary w-full text-xs py-2 disabled:opacity-50"
+                >
+                  {guardandoPass ? "Guardando..." : "Guardar contraseña"}
+                </button>
+              </form>
+
+              <p className="text-[10px] text-gray-400 text-center mt-3">
+                Si te la olvidás, escribinos por WhatsApp y te la restablecemos.
+              </p>
+            </div>
+          )}
 
           {editandoPerfil && (
             <div className="card p-5 mb-4 bg-blue-50/50 border border-blue-200">
