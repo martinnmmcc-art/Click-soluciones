@@ -73,7 +73,7 @@ export default function AvisoDeuda() {
     }
 
     // Esperamos un poco: si aparece apenas abre, se cierra por reflejo
-    const t = setTimeout(revisar, 4000);
+    const t = setTimeout(revisar, 2500);
     return () => clearTimeout(t);
   }, []);
 
