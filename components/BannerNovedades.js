@@ -113,18 +113,26 @@ export default function BannerNovedades() {
     .slice(0, 95);
 
   return (
-    <div className="px-4 mt-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-orange opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-orange" />
-          </span>
-          <p className="text-xs font-extrabold text-gray-800 uppercase tracking-wide">
-            Novedades de esta semana
+    <div className="px-4 mt-4 py-4 bg-gradient-to-b from-blue-50 to-transparent">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-orange opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-orange" />
+            </span>
+            <h2 className="font-black text-gray-800 text-base leading-none">
+              Recién llegado
+            </h2>
+          </div>
+          <p className="text-[11px] text-blue-800 mt-1 ml-[18px]">
+            Lo último que entró al depósito
           </p>
         </div>
-        <Link href="/catalogo" className="text-[11px] font-bold text-brand-blue">
+        <Link
+          href="/catalogo"
+          className="text-[11px] font-bold text-brand-blue whitespace-nowrap mt-1"
+        >
           Ver todo →
         </Link>
       </div>
