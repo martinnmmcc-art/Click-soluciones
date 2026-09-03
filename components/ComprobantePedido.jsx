@@ -246,6 +246,56 @@ export default function ComprobantePedido({ pedido, onClose }) {
 
     y += 100;
 
+    // Estado del pago: sin esto el comprobante parecía decir que estaba
+    // todo pagado, y el cliente no se enteraba de que debía algo.
+    const pagado = Number(pedido.monto_pagado || 0);
+    const saldo = Number(pedido.total || 0) - pagado;
+
+    if (saldo > 0) {
+      // Si pagó una parte, la mostramos para que quede claro qué falta
+      if (pagado > 0) {
+        ctx.fillStyle = "#475569";
+        ctx.font = "600 15px Arial";
+        ctx.fillText("Ya pagaste", pad + 40, y);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#16A34A";
+        ctx.font = "700 17px Arial";
+        ctx.fillText(`$${formatPrice(pagado)}`, width - pad - 40, y);
+        ctx.textAlign = "left";
+        y += 34;
+      }
+
+      drawRoundedRect(ctx, pad + 30, y, width - pad * 2 - 60, 74, 14);
+      ctx.fillStyle = "#DC2626";
+      ctx.fill();
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "700 14px Arial";
+      ctx.fillText(
+        pagado > 0 ? "SALDO PENDIENTE" : "PENDIENTE DE PAGO",
+        width / 2,
+        y + 28
+      );
+      ctx.font = "800 28px Arial";
+      ctx.fillText(`$${formatPrice(saldo)}`, width / 2, y + 60);
+      ctx.textAlign = "left";
+
+      y += 96;
+    } else {
+      drawRoundedRect(ctx, pad + 30, y, width - pad * 2 - 60, 58, 14);
+      ctx.fillStyle = "#16A34A";
+      ctx.fill();
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "700 18px Arial";
+      ctx.fillText("✓ PAGADO", width / 2, y + 37);
+      ctx.textAlign = "left";
+
+      y += 80;
+    }
+
     ctx.strokeStyle = "#E2E8F0";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -254,22 +304,54 @@ export default function ComprobantePedido({ pedido, onClose }) {
     ctx.stroke();
     y += 26;
 
-    drawRoundedRect(ctx, pad + 30, y, width - pad * 2 - 60, 95, 14);
-    ctx.fillStyle = "#F97316";
-    ctx.fill();
+    // Estado de la entrega, para que el comprobante también sirva como
+    // constancia de que el pedido se entregó
+    const ESTADOS = {
+      pendiente: "Pedido recibido",
+      preparando: "Preparando tu pedido",
+      listo: "Listo para retirar",
+      repartiendo: "En camino",
+      entregado: "Entregado",
+      esperando_stock: "Esperando que llegue",
+      demorado: "Demorado",
+      cancelado: "Cancelado"
+    };
+    const textoEstado = ESTADOS[pedido.estado] || "Pedido recibido";
+
+    ctx.fillStyle = "#475569";
+    ctx.font = "600 14px Arial";
+    ctx.fillText("Estado", pad + 40, y);
+    ctx.textAlign = "right";
+    ctx.fillStyle = pedido.estado === "entregado" ? "#16A34A" : "#0F2C51";
+    ctx.font = "700 15px Arial";
+    ctx.fillText(textoEstado, width - pad - 40, y);
+    ctx.textAlign = "left";
+    y += 34;
+
+    // El alias solo tiene sentido si todavía debe algo
+    if (saldo > 0) {
+      drawRoundedRect(ctx, pad + 30, y, width - pad * 2 - 60, 95, 14);
+      ctx.fillStyle = "#F97316";
+      ctx.fill();
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "600 13px Arial";
+      ctx.fillText("PARA PAGAR · TRANSFERÍ AL ALIAS", width / 2, y + 26);
+
+      ctx.font = "800 30px Arial";
+      ctx.fillText("bolsonclick", width / 2, y + 62);
+
+      ctx.font = "600 14px Arial";
+      ctx.fillText("Tarjeta Naranja", width / 2, y + 84);
+      ctx.textAlign = "left";
+
+      y += 95 + 22;
+    } else {
+      y += 12;
+    }
 
     ctx.textAlign = "center";
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "600 13px Arial";
-    ctx.fillText("PAGO POR TRANSFERENCIA · ALIAS", width / 2, y + 26);
-
-    ctx.font = "800 30px Arial";
-    ctx.fillText("bolsonclick", width / 2, y + 62);
-
-    ctx.font = "600 14px Arial";
-    ctx.fillText("Tarjeta Naranja", width / 2, y + 84);
-
-    y += 95 + 22;
 
     ctx.fillStyle = "#334155";
     ctx.font = "700 15px Arial";
