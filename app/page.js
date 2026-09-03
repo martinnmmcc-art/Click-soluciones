@@ -99,15 +99,14 @@ export default function HomePage() {
           setProductos(prodData);
         }
 
-        const { data: catData, error: catError } = await supabase
-          .from("Categorias")
-          .select("*")
-          .order("nombre", { ascending: true });
-
-        if (catError) {
-          console.error("Error en Categorias:", catError.message);
-        } else if (catData) {
-          setCategorias(catData);
+        // Las categorías salen de los propios productos. La tabla "Categorias"
+        // usa claves como "hogar-cocina" y los productos guardan el nombre
+        // completo, así que nunca coincidían y la lista salía vacía.
+        if (prodData) {
+          const unicas = [
+            ...new Set(prodData.map((p) => p.categoria).filter(Boolean))
+          ].sort();
+          setCategorias(unicas.map((nombre) => ({ id: nombre, nombre })));
         }
       } catch (err) {
         console.error("Error general de red:", err);
@@ -137,9 +136,7 @@ export default function HomePage() {
 
   const productosFiltrados = productos.filter((prod) => {
     const coincideCategoria =
-      categoriaSeleccionada === "todas" ||
-      prod.categoria_id === categoriaSeleccionada ||
-      prod.categoria === categoriaSeleccionada;
+      categoriaSeleccionada === "todas" || prod.categoria === categoriaSeleccionada;
 
     const coincideBusqueda =
       !busqueda.trim() ||
@@ -147,6 +144,18 @@ export default function HomePage() {
       prod.descripcion?.toLowerCase().includes(busqueda.toLowerCase());
 
     return coincideCategoria && coincideBusqueda;
+  })
+  // Primero lo que se puede entregar ya: es lo que más rápido se convierte
+  // en venta. Los agotados quedan abajo, para consultar.
+  .sort((a, b) => {
+    const dispA = Number(a.stock || 0) > 0 ? 1 : 0;
+    const dispB = Number(b.stock || 0) > 0 ? 1 : 0;
+    if (dispA !== dispB) return dispB - dispA;
+
+    // Entre los disponibles, primero lo que llegó último
+    const fa = a.fecha_ingreso ? new Date(a.fecha_ingreso) : 0;
+    const fb = b.fecha_ingreso ? new Date(b.fecha_ingreso) : 0;
+    return fb - fa;
   });
 
   const destacados = productos.filter((p) => p.destacado);
@@ -218,7 +227,6 @@ export default function HomePage() {
                       video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
-                      mostrarIndicadores={false}
                     />
                     <span className="absolute top-1 left-1 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                       ⭐ DESTACADO
@@ -271,7 +279,6 @@ export default function HomePage() {
                       video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
-                      mostrarIndicadores={false}
                     />
                     <span className="absolute top-1 left-1 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                       🔥 TOP
@@ -294,6 +301,22 @@ export default function HomePage() {
       )}
 
       <div className="max-w-md mx-auto px-4 mt-4">
+        {/* Corte visual: sin esto, al desplazarse no se nota que terminaron
+            los carruseles y empieza el catálogo. */}
+        <div className="border-t-4 border-gray-100 -mx-4 mb-4" />
+
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xl">🛍️</span>
+          <div>
+            <h2 className="font-black text-gray-800 text-base leading-none">
+              Todos los productos
+            </h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Primero lo que tenemos disponible
+            </p>
+          </div>
+        </div>
+
         {categorias.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
             <button
