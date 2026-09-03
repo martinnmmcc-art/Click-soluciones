@@ -34,7 +34,7 @@ export default function ProductCard({ producto }) {
             fotos={[producto.imagen_url, producto.imagen_url_2, producto.imagen_url_3]}
             video={producto.video_url}
             alt={nombre}
-            className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
+            className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
           />
 
           {tieneOferta && (
@@ -61,14 +61,14 @@ export default function ProductCard({ producto }) {
           <BotonFavorito productoId={idProducto} className="absolute bottom-3.5 right-1.5 w-7 h-7" />
         </Link>
 
-        <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
+        <h3 className="font-bold text-[13px] text-gray-800 line-clamp-2 leading-snug">
           <Link href={`/producto/${idProducto}`} className="block">
             {nombre}
           </Link>
         </h3>
 
         {producto.descripcion && (
-          <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{producto.descripcion}</p>
+          <p className="text-[12px] text-gray-600 font-medium line-clamp-2 mt-1 leading-snug">{producto.descripcion}</p>
         )}
       </div>
 
