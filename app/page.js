@@ -200,24 +200,29 @@ export default function HomePage() {
                   key={prod.id}
                   href={`/producto/${prod.id}`}
                   onClick={salirAProducto}
-                  className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-amber-200 shadow-sm"
+                  className="flex-shrink-0 w-44 bg-white rounded-2xl p-3 border border-amber-200 shadow-sm"
                 >
                   <div className="relative">
                     <FotoRotativa
                       fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
                       video={prod.video_url}
                       alt={prod.nombre}
-                      className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50"
+                      className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
                       mostrarIndicadores={false}
                     />
-                    <span className="absolute top-1 left-1 bg-amber-500 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+                    <span className="absolute top-1 left-1 bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                       ⭐ DESTACADO
                     </span>
                   </div>
-                  <p className="text-[10px] font-bold text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</p>
-                  <p className="text-xs font-black text-brand-blue mt-1">
+                  <p className="text-[13px] font-bold text-gray-800 line-clamp-2 leading-snug">{prod.nombre}</p>
+                  <p className="text-lg font-black text-brand-blue mt-1 leading-tight">
                     ${Number((tieneOferta ? prod.precio_oferta : prod.precio) || 0).toLocaleString("es-AR")}
                   </p>
+                  {tieneOferta && (
+                    <p className="text-[11px] text-gray-400 line-through leading-none">
+                      ${Number(prod.precio || 0).toLocaleString("es-AR")}
+                    </p>
+                  )}
                 </Link>
               );
             })}
@@ -239,24 +244,29 @@ export default function HomePage() {
                   key={prod.id}
                   href={`/producto/${prod.id}`}
                   onClick={salirAProducto}
-                  className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm"
+                  className="flex-shrink-0 w-44 bg-white rounded-2xl p-3 border border-gray-100 shadow-sm"
                 >
                   <div className="relative">
                     <FotoRotativa
                       fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
                       video={prod.video_url}
                       alt={prod.nombre}
-                      className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50"
+                      className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
                       mostrarIndicadores={false}
                     />
-                    <span className="absolute top-1 left-1 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full">
+                    <span className="absolute top-1 left-1 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                       🔥 TOP
                     </span>
                   </div>
-                  <p className="text-[10px] font-bold text-gray-800 line-clamp-2 leading-tight">{prod.nombre}</p>
-                  <p className="text-xs font-black text-brand-blue mt-1">
+                  <p className="text-[13px] font-bold text-gray-800 line-clamp-2 leading-snug">{prod.nombre}</p>
+                  <p className="text-lg font-black text-brand-blue mt-1 leading-tight">
                     ${Number((tieneOferta ? prod.precio_oferta : prod.precio) || 0).toLocaleString("es-AR")}
                   </p>
+                  {tieneOferta && (
+                    <p className="text-[11px] text-gray-400 line-through leading-none">
+                      ${Number(prod.precio || 0).toLocaleString("es-AR")}
+                    </p>
+                  )}
                 </Link>
               );
             })}
@@ -333,14 +343,14 @@ export default function HomePage() {
                     <BotonFavorito productoId={prod.id} className="absolute bottom-3.5 right-1.5 w-7 h-7" />
                   </Link>
 
-                  <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
+                  <h3 className="font-bold text-[13px] text-gray-800 line-clamp-2 leading-snug">
                     <Link href={`/producto/${prod.id}`} onClick={salirAProducto} className="block">
                       {prod.nombre}
                     </Link>
                   </h3>
 
                   {prod.descripcion && (
-                    <p className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{prod.descripcion}</p>
+                    <p className="text-[12px] text-gray-600 font-medium line-clamp-2 mt-1 leading-snug">{prod.descripcion}</p>
                   )}
                 </div>
 
