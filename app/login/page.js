@@ -11,7 +11,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import { suscribirPush } from "@/lib/push";
 import { avisarAdmin } from "@/lib/avisarAdmin";
-import { estadoEntrega, estadoPago, PASOS_SEGUIMIENTO, pasoActual } from "@/lib/estadosPedido";
+import { estadoEntrega, estadoPago, textoPago, PASOS_SEGUIMIENTO, pasoActual } from "@/lib/estadosPedido";
 
 
 export default function LoginPage() {
@@ -27,6 +27,19 @@ export default function LoginPage() {
   const [direccionPerfil, setDireccionPerfil] = useState("");
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [cambiandoPass, setCambiandoPass] = useState(false);
+  const [aliasCopiado, setAliasCopiado] = useState(false);
+
+  // Copiar el alias con un toque: escribirlo a mano es donde la gente se
+  // equivoca o directamente abandona la transferencia.
+  async function copiarAlias() {
+    try {
+      await navigator.clipboard.writeText("bolsonclick");
+      setAliasCopiado(true);
+      setTimeout(() => setAliasCopiado(false), 2500);
+    } catch (e) {
+      alert("Alias para transferir: bolsonclick");
+    }
+  }
   const [passActual, setPassActual] = useState("");
   const [passNueva, setPassNueva] = useState("");
   const [passRepetir, setPassRepetir] = useState("");
@@ -798,6 +811,49 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* Total de deuda: si tiene varios pedidos impagos, verlo junto
+              es más claro que sumar de a uno */}
+          {(() => {
+            const deudaTotal = misPedidos
+              .filter((p) => p.estado !== "cancelado")
+              .reduce(
+                (a, p) =>
+                  a + Math.max(Number(p.total || 0) - Number(p.monto_pagado || 0), 0),
+                0
+              );
+
+            if (deudaTotal <= 0) return null;
+
+            return (
+              <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-4 mb-4 text-white">
+                <p className="text-[11px] font-bold opacity-90">TOTAL PENDIENTE</p>
+                <p className="text-3xl font-black leading-none mt-1">
+                  ${formatPrice(deudaTotal)}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={copiarAlias}
+                  className="w-full bg-white rounded-xl py-2 mt-3"
+                >
+                  <span className="block text-[10px] text-amber-700 font-semibold">
+                    Transferí al alias
+                  </span>
+                  <span className="block text-lg font-black text-amber-900 leading-tight">
+                    bolsonclick
+                  </span>
+                  <span className="block text-[10px] text-amber-700">
+                    {aliasCopiado ? "✓ Copiado, pegalo en tu banco" : "Tocá para copiar"}
+                  </span>
+                </button>
+
+                <p className="text-[10px] opacity-90 mt-2 text-center">
+                  Después mandanos el comprobante por WhatsApp 🙌
+                </p>
+              </div>
+            );
+          })()}
+
           <div className="mb-4">
             <h2 className="font-bold text-sm text-gray-800 mb-3">📦 Mis Pedidos</h2>
 
@@ -853,9 +909,16 @@ export default function LoginPage() {
                             </div>
 
                             {/* Explicación en palabras: evita que tenga que preguntar */}
-                            {pago.ayuda && (
-                              <p className="text-[11px] text-gray-500 mb-1">{pago.ayuda}</p>
-                            )}
+                            {(() => {
+                              const texto = textoPago(
+                                pedido.estado_pago,
+                                pedido.estado,
+                                saldo
+                              );
+                              return texto ? (
+                                <p className="text-[11px] text-gray-500 mb-1">{texto}</p>
+                              ) : null;
+                            })()}
 
                             {/* Barra de seguimiento, como la de una encomienda */}
                             {!cancelado && (
@@ -891,7 +954,32 @@ export default function LoginPage() {
                       })()}
 
                       {saldo > 0 && (
-                        <p className="text-xs font-bold text-red-700 mb-2">Debés ${formatPrice(saldo)}</p>
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 mb-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-amber-900">
+                              Falta pagar
+                            </span>
+                            <span className="text-base font-extrabold text-amber-900">
+                              ${formatPrice(saldo)}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={copiarAlias}
+                            className="w-full bg-white border border-amber-300 rounded-lg py-1.5 mt-2"
+                          >
+                            <span className="block text-[9px] text-amber-700">
+                              Transferí al alias
+                            </span>
+                            <span className="block text-sm font-black text-amber-900">
+                              bolsonclick
+                            </span>
+                            <span className="block text-[9px] text-amber-700">
+                              {aliasCopiado ? "✓ Copiado" : "Tocá para copiar"}
+                            </span>
+                          </button>
+                        </div>
                       )}
                       {saldo < 0 && (
                         <p className="text-xs font-bold text-blue-700 mb-2">A favor ${formatPrice(Math.abs(saldo))}</p>
