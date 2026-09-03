@@ -134,7 +134,7 @@ export default function HomePage() {
     return dias <= 7;
   }
 
-  const productosFiltrados = productos.filter((prod) => {
+  const productosFiltrados = (Array.isArray(productos) ? productos : []).filter((prod) => {
     const coincideCategoria =
       categoriaSeleccionada === "todas" || prod.categoria === categoriaSeleccionada;
 
@@ -152,10 +152,12 @@ export default function HomePage() {
     const dispB = Number(b.stock || 0) > 0 ? 1 : 0;
     if (dispA !== dispB) return dispB - dispA;
 
-    // Entre los disponibles, primero lo que llegó último
-    const fa = a.fecha_ingreso ? new Date(a.fecha_ingreso) : 0;
-    const fb = b.fecha_ingreso ? new Date(b.fecha_ingreso) : 0;
-    return fb - fa;
+    // Entre los disponibles, primero lo que llegó último. Usamos getTime
+    // con respaldo: si la fecha viene vacía o inválida, restar daría un
+    // valor imposible y el orden quedaría roto.
+    const fa = a.fecha_ingreso ? new Date(a.fecha_ingreso).getTime() : 0;
+    const fb = b.fecha_ingreso ? new Date(b.fecha_ingreso).getTime() : 0;
+    return (isNaN(fb) ? 0 : fb) - (isNaN(fa) ? 0 : fa);
   });
 
   const destacados = productos.filter((p) => p.destacado);
