@@ -14,7 +14,7 @@ export default function FotoRotativa({
   fotos = [],
   alt = "",
   className = "",
-  intervalo = 4000,
+  intervalo = 5500,
   mostrarIndicadores = true
 }) {
   const disponibles = fotos.filter((f) => f && String(f).trim() !== "");
@@ -48,7 +48,7 @@ export default function FotoRotativa({
           arranque = null;
         }
       },
-      { threshold: 0.4 }
+      { threshold: 0.15 }
     );
 
     if (contenedor.current) observador.observe(contenedor.current);
@@ -69,7 +69,12 @@ export default function FotoRotativa({
   }
 
   return (
-    <span ref={contenedor} className="block relative">
+    <span
+      ref={contenedor}
+      className="block relative"
+      onTouchStart={alTocar}
+      onTouchEnd={alSoltar}
+    >
       <img
         src={disponibles[actual]}
         alt={alt}
