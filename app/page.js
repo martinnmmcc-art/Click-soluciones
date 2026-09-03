@@ -186,11 +186,21 @@ export default function HomePage() {
         </p>
       </div>
 
+      {/* Cada sección con su propia banda de color: al desplazarse, el
+          cliente reconoce que cambió de bloque sin tener que leer el título.
+          El subtítulo da la razón para mirar, que es lo que engancha. */}
       {destacados.length > 0 && (
-        <div className="mt-5">
-          <div className="max-w-md mx-auto px-4 flex items-center gap-1.5 mb-2">
-            <span className="text-lg">⭐</span>
-            <h2 className="font-extrabold text-gray-800 text-sm">Destacados</h2>
+        <div className="mt-6 bg-gradient-to-b from-amber-50 to-transparent py-4">
+          <div className="max-w-md mx-auto px-4 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⭐</span>
+              <h2 className="font-black text-gray-800 text-base leading-none">
+                Elegidos para vos
+              </h2>
+            </div>
+            <p className="text-[11px] text-amber-800 mt-1 ml-7">
+              Lo que más recomendamos de nuestro stock
+            </p>
           </div>
           <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
             {destacados.map((prod) => {
@@ -230,11 +240,20 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Prueba social: saber que otros ya lo compraron es de lo que más
+          empuja a decidir, sobre todo en un pueblo donde se conocen. */}
       {masVendidos.length > 0 && (
-        <div className="mt-5">
-          <div className="max-w-md mx-auto px-4 flex items-center gap-1.5 mb-2">
-            <span className="text-lg">🔥</span>
-            <h2 className="font-extrabold text-gray-800 text-sm">Los más vendidos</h2>
+        <div className="mt-6 bg-gradient-to-b from-red-50 to-transparent py-4">
+          <div className="max-w-md mx-auto px-4 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🔥</span>
+              <h2 className="font-black text-gray-800 text-base leading-none">
+                Lo que más se lleva la gente
+              </h2>
+            </div>
+            <p className="text-[11px] text-red-800 mt-1 ml-7">
+              Los favoritos de El Bolsón y la Comarca
+            </p>
           </div>
           <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
             {masVendidos.map((prod) => {
