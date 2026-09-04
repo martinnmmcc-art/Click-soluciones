@@ -225,7 +225,14 @@ export default function HomePage() {
                 >
                   <div className="relative">
                     <FotoRotativa
-                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      fotos={[
+                        prod.imagen_url,
+                        prod.imagen_url_2,
+                        prod.imagen_url_3,
+                        prod.imagen_url_4,
+                        prod.imagen_url_5,
+                        prod.imagen_url_6
+                      ]}
                       video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
@@ -277,7 +284,14 @@ export default function HomePage() {
                 >
                   <div className="relative">
                     <FotoRotativa
-                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      fotos={[
+                        prod.imagen_url,
+                        prod.imagen_url_2,
+                        prod.imagen_url_3,
+                        prod.imagen_url_4,
+                        prod.imagen_url_5,
+                        prod.imagen_url_6
+                      ]}
                       video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
@@ -359,7 +373,14 @@ export default function HomePage() {
                 <div>
                   <Link href={`/producto/${prod.id}`} onClick={salirAProducto} className="block relative">
                     <FotoRotativa
-                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      fotos={[
+                        prod.imagen_url,
+                        prod.imagen_url_2,
+                        prod.imagen_url_3,
+                        prod.imagen_url_4,
+                        prod.imagen_url_5,
+                        prod.imagen_url_6
+                      ]}
                       video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
