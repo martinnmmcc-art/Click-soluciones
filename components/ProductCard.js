@@ -31,7 +31,14 @@ export default function ProductCard({ producto }) {
       <div>
         <Link href={`/producto/${idProducto}`} className="block relative">
           <FotoRotativa
-            fotos={[producto.imagen_url, producto.imagen_url_2, producto.imagen_url_3]}
+            fotos={[
+              producto.imagen_url,
+              producto.imagen_url_2,
+              producto.imagen_url_3,
+              producto.imagen_url_4,
+              producto.imagen_url_5,
+              producto.imagen_url_6
+            ]}
             video={producto.video_url}
             alt={nombre}
             className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
