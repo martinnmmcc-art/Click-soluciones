@@ -373,6 +373,16 @@ function Dashboard() {
             <span className="text-2xl">🏷️</span>
           </Link>
 
+          <Link href="/admin/fotos" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Completar fotos</p>
+              <p className="text-sm text-gray-500">
+                Sacá fotos con el celular y subilas de a varias
+              </p>
+            </div>
+            <span className="text-2xl">📷</span>
+          </Link>
+
           <Link href="/admin/promocionar" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Promocionar producto</p>
