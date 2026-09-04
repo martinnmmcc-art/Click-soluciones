@@ -154,7 +154,7 @@ export default function CatalogoPage() {
     let q = supabase
       .from("Productos")
       .select(
-        "id, nombre, precio, precio_oferta, imagen_url, imagen_url_2, imagen_url_3, video_url, stock, bajo_pedido, categoria, descripcion",
+        "id, nombre, precio, precio_oferta, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, imagen_url_5, imagen_url_6, video_url, stock, bajo_pedido, categoria, descripcion",
         { count: "exact" }
       )
       .eq("activo", true);
