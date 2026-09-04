@@ -197,7 +197,7 @@ export async function POST(request) {
     const refs = productos.map((p) => String(p.id));
     const { data: existentes } = await supabase
       .from("Productos")
-      .select("id, proveedor_ref, costo, categoria")
+      .select("id, proveedor_ref, costo, categoria, imagen_url_4, imagen_url_5, imagen_url_6")
       .eq("proveedor", PROVEEDOR)
       .in("proveedor_ref", refs);
 
@@ -251,10 +251,22 @@ export async function POST(request) {
         const categoriaCorrecta = categoriaDeProducto(p);
         const cambioCategoria = yaExiste.categoria !== categoriaCorrecta;
 
-        if (cambioPrecio || cambioCategoria) {
+        // Completamos fotos que falten aunque no haya cambiado el precio:
+        // el proveedor va agregando imágenes con el tiempo.
+        const fotosNuevas = {};
+        [3, 4, 5].forEach((i) => {
+          const campo = `imagen_url_${i + 1}`;
+          if (!yaExiste[campo] && p.images?.[i]?.src) {
+            fotosNuevas[campo] = p.images[i].src;
+          }
+        });
+        const hayFotosNuevas = Object.keys(fotosNuevas).length > 0;
+
+        if (cambioPrecio || cambioCategoria || hayFotosNuevas) {
           const cambios = {
             categoria: categoriaCorrecta,
-            categoria_proveedor: p.categories?.[0]?.name || null
+            categoria_proveedor: p.categories?.[0]?.name || null,
+            ...fotosNuevas
           };
           if (cambioPrecio) {
             cambios.costo = costo;
@@ -276,6 +288,12 @@ export async function POST(request) {
         imagen_url: p.images?.[0]?.src || null,
         imagen_url_2: p.images?.[1]?.src || null,
         imagen_url_3: p.images?.[2]?.src || null,
+        // El proveedor suele tener más de 3 fotos por producto. Traerlas
+        // todas es la forma segura de completar la ficha: son del producto
+        // real, no una búsqueda parecida.
+        imagen_url_4: p.images?.[3]?.src || null,
+        imagen_url_5: p.images?.[4]?.src || null,
+        imagen_url_6: p.images?.[5]?.src || null,
         costo,
         costo_envio: flete,
         precio,
