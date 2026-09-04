@@ -75,7 +75,7 @@ export default function APedidoPage() {
   function consultaBase() {
     let q = supabase
       .from("Productos")
-      .select("id, nombre, precio, imagen_url, imagen_url_2, imagen_url_3, video_url, descripcion, categoria", { count: "exact" })
+      .select("id, nombre, precio, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, video_url, descripcion, categoria", { count: "exact" })
       .eq("bajo_pedido", true)
       .eq("activo", true);
 
@@ -270,7 +270,7 @@ export default function APedidoPage() {
                       marcarSalidaAProducto("a-pedido");
                     }} className="block relative">
                     <FotoRotativa
-                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3]}
+                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3, prod.imagen_url_4]}
                       video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
