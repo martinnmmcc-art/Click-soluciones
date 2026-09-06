@@ -78,6 +78,44 @@ function categoriaDeProducto(p) {
   return limpia || "Otros";
 }
 
+// Saca los códigos internos del proveedor del nombre visible.
+// Un nombre con "Melech-05/Q-16-1/GT135" pegado en Google lleva directo
+// a nuestro proveedor; sin el código, el producto sigue siendo reconocible.
+function limpiarCodigos(nombre) {
+  if (!nombre) return "Sin nombre";
+
+  const tokens = String(nombre).trim().split(/\s+/);
+
+  const limpio = tokens.filter((tk, i) => {
+    const t = tk.trim().replace(/^\/+|\/+$/g, "");
+    if (t.length < 3) return true;
+    if (/^(x?\d+([.,]\d+)?)(cm|mm|mts?|m|ml|lts?|l|kg|g|w|v|hz|gb|mb|pcs|u|un)$/i.test(t)) return true;
+    if (/^\d+([.,]\d+)?[x*]\d+/i.test(t)) return true;
+    if (/^x\d+u?$/i.test(t)) return true;
+    if (!/^[A-Za-z0-9./-]+$/.test(t)) return true;
+
+    const letras = (t.match(/[A-Za-z]/g) || []).length;
+    const numeros = (t.match(/\d/g) || []).length;
+    const seps = (t.match(/[-/.]/g) || []).length;
+
+    if (letras === 0) return !(i === tokens.length - 1 && /^\d{3,}$/.test(t));
+    if (numeros === 0) return true;
+    if (seps >= 2) return false;
+    if (seps === 1 && letras <= 8) return false;
+    if (seps === 0 && letras <= 4 && numeros >= 3) return false;
+    return true;
+  });
+
+  const r = limpio
+    .join(" ")
+    .replace(/\s*\/\s*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[\s,\/-]+$/g, "")
+    .trim();
+
+  return r.length >= 8 ? r : nombre;
+}
+
 // Limpia las etiquetas HTML de la descripción del proveedor.
 function limpiarHtml(html) {
   if (!html) return "";
@@ -87,6 +125,9 @@ function limpiarHtml(html) {
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
     .replace(/&#8217;/g, "'")
+    .replace(/\bnext\s*cell\b/gi, "")
+    .replace(/\bnextcell(\.com\.ar)?\b/gi, "")
+    .replace(/\b(c[oó]digo|cod|sku|modelo)\s*:?\s*[A-Za-z0-9./-]+/gi, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 1500);
@@ -282,8 +323,13 @@ export async function POST(request) {
         continue;
       }
 
+      // Guardamos el nombre del proveedor aparte y mostramos uno limpio:
+      // así el cliente no puede rastrear de dónde sacamos la mercadería.
+      const nombreProveedor = p.name?.slice(0, 200) || "Sin nombre";
+
       aInsertar.push({
-        nombre: p.name?.slice(0, 200) || "Sin nombre",
+        nombre: limpiarCodigos(nombreProveedor),
+        nombre_proveedor: nombreProveedor,
         descripcion: limpiarHtml(p.description || p.short_description),
         imagen_url: p.images?.[0]?.src || null,
         imagen_url_2: p.images?.[1]?.src || null,
