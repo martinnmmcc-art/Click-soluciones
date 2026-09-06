@@ -5,6 +5,7 @@ import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage, formatPrice } from "@/lib/whatsapp";
 import BotonFavorito from "@/components/BotonFavorito";
 import FotoRotativa from "@/components/FotoRotativa";
+import { fotosDe } from "@/lib/imagenProducto";
 
 export default function ProductCard({ producto }) {
   const { addItem } = useCart();
@@ -31,14 +32,7 @@ export default function ProductCard({ producto }) {
       <div>
         <Link href={`/producto/${idProducto}`} className="block relative">
           <FotoRotativa
-            fotos={[
-              producto.imagen_url,
-              producto.imagen_url_2,
-              producto.imagen_url_3,
-              producto.imagen_url_4,
-              producto.imagen_url_5,
-              producto.imagen_url_6
-            ]}
+            fotos={fotosDe(producto)}
             video={producto.video_url}
             alt={nombre}
             className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
