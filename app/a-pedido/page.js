@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
 import FotoRotativa from "@/components/FotoRotativa";
+import { fotosDe } from "@/lib/imagenProducto";
 
 export default function APedidoPage() {
   const [productos, setProductos] = useState([]);
@@ -270,7 +271,7 @@ export default function APedidoPage() {
                       marcarSalidaAProducto("a-pedido");
                     }} className="block relative">
                     <FotoRotativa
-                      fotos={[prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3, prod.imagen_url_4]}
+                      fotos={fotosDe(prod)}
                       video={prod.video_url}
                       alt={prod.nombre}
                       className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
