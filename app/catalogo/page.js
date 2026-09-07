@@ -45,6 +45,10 @@ export default function CatalogoPage() {
   const [totalResultados, setTotalResultados] = useState(0);
   const [restaurado, setRestaurado] = useState(false);
   const [modoOffline, setModoOffline] = useState(false);
+  // Orden elegible. En "Lo que tengo" el orden por stock manda siempre;
+  // en "A pedido" y "Ver todo" el cliente puede elegir.
+  const [orden, setOrden] = useState("nuevo");
+
   const [hayOfertas, setHayOfertas] = useState(() => {
     if (typeof window === "undefined") return false;
     // Si venimos del cartel, la mostramos de entrada sin esperar la consulta
@@ -154,7 +158,7 @@ export default function CatalogoPage() {
     let q = supabase
       .from("Productos")
       .select(
-        "id, nombre, precio, precio_oferta, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, imagen_url_5, imagen_url_6, video_url, stock, bajo_pedido, categoria, descripcion",
+        "id, nombre, precio, precio_oferta, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, imagen_url_5, imagen_url_6, video_url, stock, bajo_pedido, categoria, descripcion, actualizado_en",
         { count: "exact" }
       )
       .eq("activo", true);
@@ -180,6 +184,25 @@ export default function CatalogoPage() {
 
     return q;
   }, [disponibilidad, categoriaSeleccionada, busqueda]);
+
+  // Aplica el orden elegido a la consulta
+  function aplicarOrden(q) {
+    // En "Lo que tengo" priorizamos siempre lo disponible: mostrar primero
+    // un agotado sería jugar en contra de la venta.
+    if (disponibilidad === "stock") {
+      return q
+        .order("stock", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
+    }
+
+    if (orden === "precio-asc") return q.order("precio", { ascending: true });
+    if (orden === "precio-desc") return q.order("precio", { ascending: false });
+    if (orden === "nombre") return q.order("nombre", { ascending: true });
+
+    return q
+      .order("actualizado_en", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false });
+  }
 
   // Primera tanda: cada vez que cambia un filtro empezamos de cero
   useEffect(() => {
@@ -249,7 +272,7 @@ export default function CatalogoPage() {
       cancelado = true;
       clearTimeout(temporizador);
     };
-  }, [construirConsulta, busqueda, restaurado, tandasCargadas]);
+  }, [construirConsulta, busqueda, restaurado, tandasCargadas, orden]);
 
   // Guardamos dónde está parado el cliente
   useEffect(() => {
@@ -276,10 +299,10 @@ export default function CatalogoPage() {
   async function cargarMas() {
     setCargandoMas(true);
     const desde = productos.length;
-    const { data } = await construirConsulta()
-      .order("stock", { ascending: false, nullsFirst: false })
-      .order("id", { ascending: false })
-      .range(desde, desde + POR_TANDA - 1);
+    const { data } = await aplicarOrden(construirConsulta()).range(
+      desde,
+      desde + POR_TANDA - 1
+    );
 
     setProductos((prev) => [...prev, ...(data || [])]);
     setHayMas((data?.length || 0) === POR_TANDA);
@@ -407,6 +430,34 @@ export default function CatalogoPage() {
                 }`}
               >
                 {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Ordenar: no aparece en "Lo que tengo" porque ahí el orden por
+            stock manda siempre, y ofrecer otra opción sería confuso. */}
+        {disponibilidad !== "stock" && (
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {[
+              { key: "nuevo", label: "🆕 Más nuevo" },
+              { key: "precio-asc", label: "💲 Más barato" },
+              { key: "precio-desc", label: "💎 Más caro" },
+              { key: "nombre", label: "A-Z" }
+            ].map((op) => (
+              <button
+                key={op.key}
+                onClick={() => {
+                  setOrden(op.key);
+                  setTandasCargadas(1);
+                }}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap ${
+                  orden === op.key
+                    ? "bg-gray-800 text-white"
+                    : "bg-white text-gray-600 border border-gray-200"
+                }`}
+              >
+                {op.label}
               </button>
             ))}
           </div>
