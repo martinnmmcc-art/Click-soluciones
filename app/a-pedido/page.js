@@ -14,7 +14,7 @@ export default function APedidoPage() {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
-  const [orden, setOrden] = useState("nombre-asc"); // nombre-asc | precio-asc | precio-desc
+  const [orden, setOrden] = useState("nuevo"); // nuevo | precio-asc | precio-desc | nombre-asc
   const [categorias, setCategorias] = useState([]);
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("todas");
   const [hayMas, setHayMas] = useState(false);
@@ -76,7 +76,7 @@ export default function APedidoPage() {
   function consultaBase() {
     let q = supabase
       .from("Productos")
-      .select("id, nombre, precio, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, video_url, descripcion, categoria", { count: "exact" })
+      .select("id, nombre, precio, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, video_url, descripcion, categoria, actualizado_en", { count: "exact" })
       .eq("bajo_pedido", true)
       .eq("activo", true);
 
@@ -87,6 +87,13 @@ export default function APedidoPage() {
       q = q.ilike("nombre", `%${busqueda.trim()}%`);
     }
 
+    // Lo más nuevo primero: es lo que da razón para volver a mirar.
+    // Desempatamos por id para que el orden sea estable entre visitas.
+    if (orden === "nuevo") {
+      return q
+        .order("actualizado_en", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
+    }
     if (orden === "precio-asc") return q.order("precio", { ascending: true });
     if (orden === "precio-desc") return q.order("precio", { ascending: false });
     return q.order("nombre", { ascending: true });
@@ -224,9 +231,10 @@ export default function APedidoPage() {
 
         <div className="flex gap-2 overflow-x-auto pb-3 mb-1 scrollbar-none">
           {[
-            { key: "nombre-asc", label: "A-Z" },
-            { key: "precio-asc", label: "Más barato" },
-            { key: "precio-desc", label: "Más caro" }
+            { key: "nuevo", label: "🆕 Más nuevo" },
+            { key: "precio-asc", label: "💲 Más barato" },
+            { key: "precio-desc", label: "💎 Más caro" },
+            { key: "nombre-asc", label: "A-Z" }
           ].map((op) => (
             <button
               key={op.key}
@@ -333,4 +341,5 @@ export default function APedidoPage() {
       <BottomNav />
     </main>
   );
-}
+                }
+    
