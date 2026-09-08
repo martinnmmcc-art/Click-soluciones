@@ -23,6 +23,30 @@ function Oportunidades() {
   const [loading, setLoading] = useState(true);
   const [generando, setGenerando] = useState(null);
 
+  // Envía solo la notificación al celular, sin cupón. Sirve para avisar de
+  // una oferta sin tener que resignar margen.
+  async function soloNotificar(telefono, titulo, cuerpo, url = "/catalogo?oferta=1") {
+    setGenerando(telefono);
+    try {
+      const res = await fetch("/api/avisar-push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefono, titulo, cuerpo, url })
+      });
+      const data = await res.json();
+
+      alert(
+        data.enviados > 0
+          ? `✓ Notificación enviada a ${data.enviados} dispositivo(s).`
+          : "Este cliente no tiene las notificaciones activadas. Mandale un WhatsApp."
+      );
+    } catch (e) {
+      alert("No se pudo enviar la notificación.");
+    } finally {
+      setGenerando(null);
+    }
+  }
+
   // Genera el cupón y abre WhatsApp con el mensaje que lo incluye.
   // El cupón es de un solo uso y vence: sirve para destrabar una compra,
   // no para que el cliente aprenda a esperar el descuento.
@@ -83,7 +107,24 @@ function Oportunidades() {
     ]);
 
     setCarritos(c.data || []);
-    setFavoritos(f.data || []);
+
+    // Agrupamos por cliente: si guardó 3 productos en oferta, le mandamos
+    // un mensaje con los 3, no tres mensajes seguidos.
+    const porCliente = {};
+    (f.data || []).forEach((x) => {
+      if (!porCliente[x.telefono]) {
+        porCliente[x.telefono] = {
+          telefono: x.telefono,
+          nombre_cliente: x.nombre_cliente,
+          productos: [],
+          ahorroTotal: 0
+        };
+      }
+      porCliente[x.telefono].productos.push(x);
+      porCliente[x.telefono].ahorroTotal += Number(x.ahorro || 0);
+    });
+
+    setFavoritos(Object.values(porCliente));
     setSinComprar(s.data || []);
     setLoading(false);
   }
@@ -130,28 +171,55 @@ function Oportunidades() {
   // Favorito: 5% y un extra si lleva más de uno, para subir el ticket
   function mensajeFavoritoCupon(f, codigo, vence) {
     const nombre = (f.nombre_cliente || "").split(" ")[0];
+    const lista = f.productos.map((p) => `• ${p.producto}`).join("\n");
     return (
       `¡Hola ${nombre}! 👋\n\n` +
-      `Habías guardado *${f.producto}* en favoritos y quería avisarte ` +
-      `que te preparé un descuento 🎁\n\n` +
+      `Guardaste esto en favoritos:\n${lista}\n\n` +
+      `Te preparé un descuento 🎁\n\n` +
       `🎟️ Código: *${codigo}*\n` +
       `💰 *5% off* en tu compra\n` +
       `🎉 Y si llevás 2 productos o más, *10% off*\n` +
       `⏰ Válido hasta el ${vence}\n\n` +
-      `Mirá tu favorito acá:\n${SITIO}/producto/${f.producto_id}`
+      `Mirá tus favoritos acá:\n${SITIO}/catalogo?oferta=1`
     );
   }
 
   function mensajeFavorito(f) {
     const nombre = (f.nombre_cliente || "").split(" ")[0];
+    const varios = f.productos.length > 1;
+
+    let m = `¡Hola ${nombre}! 👋\n\n`;
+    m += varios
+      ? `Te aviso porque ${f.productos.length} productos que guardaste en favoritos están en oferta 🔥\n\n`
+      : `Te aviso porque habías guardado esto en favoritos y ahora está en oferta 🔥\n\n`;
+
+    f.productos.forEach((p) => {
+      m += `*${p.producto}*\n`;
+      m += `~$${Number(p.precio).toLocaleString("es-AR")}~ → `;
+      m += `*$${Number(p.precio_oferta).toLocaleString("es-AR")}*\n\n`;
+    });
+
+    if (varios) {
+      m += `💰 Ahorrás $${Number(f.ahorroTotal).toLocaleString("es-AR")} en total\n\n`;
+    }
+
+    m += `Es por tiempo limitado:\n${SITIO}/catalogo?oferta=1`;
+    return m;
+  }
+
+  // Cupón de primera compra con monto mínimo: el descuento vale la pena
+  // solo si el pedido justifica el viaje de la entrega.
+  function mensajeBienvenidaCupon(c, codigo, vence) {
+    const nombre = (c.nombre || "").split(" ")[0];
     return (
-      `¡Hola ${nombre}! 👋\n\n` +
-      `Te aviso porque habías guardado *${f.producto}* en favoritos ` +
-      `y ahora está en oferta 🔥\n\n` +
-      `~$${Number(f.precio).toLocaleString("es-AR")}~ → ` +
-      `*$${Number(f.precio_oferta).toLocaleString("es-AR")}*\n` +
-      `Te ahorrás $${Number(f.ahorro).toLocaleString("es-AR")}\n\n` +
-      `Es por tiempo limitado:\n${SITIO}/producto/${f.producto_id}`
+      `¡Hola ${nombre}! 👋 Soy de Bolson Click.\n\n` +
+      `Vi que te registraste en la app y todavía no hiciste tu primera compra. ` +
+      `Te preparé algo para estrenarla 🎁\n\n` +
+      `🎟️ Código: *${codigo}*\n` +
+      `💰 *10% off* en compras desde $35.000\n` +
+      `⏰ Válido hasta el ${vence}\n\n` +
+      `Es solo para vos y por única vez. Mirá el catálogo:\n${SITIO}\n\n` +
+      `Cualquier cosa que busques y no veas, preguntame que te la consigo 🙌`
     );
   }
 
@@ -324,18 +392,29 @@ function Oportunidades() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-gray-800">
                           {f.nombre_cliente}
+                          {f.productos.length > 1 && (
+                            <span className="ml-1 text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full font-extrabold">
+                              {f.productos.length} favoritos
+                            </span>
+                          )}
                         </p>
-                        <p className="text-[11px] text-gray-600 line-clamp-1">
-                          ⭐ {f.producto}
-                        </p>
-                        <p className="text-[11px] mt-0.5">
-                          <span className="text-gray-400 line-through">
-                            ${formatPrice(f.precio)}
-                          </span>{" "}
-                          <b className="text-red-600">${formatPrice(f.precio_oferta)}</b>
-                          <span className="text-green-700 font-bold">
-                            {" "}· ahorra ${formatPrice(f.ahorro)}
-                          </span>
+
+                        {f.productos.map((p, j) => (
+                          <p key={j} className="text-[11px] text-gray-600 mt-0.5">
+                            ⭐ <span className="line-clamp-1 inline">{p.producto}</span>
+                            <span className="block text-[10px] ml-3">
+                              <span className="text-gray-400 line-through">
+                                ${formatPrice(p.precio)}
+                              </span>{" "}
+                              <b className="text-red-600">
+                                ${formatPrice(p.precio_oferta)}
+                              </b>
+                            </span>
+                          </p>
+                        ))}
+
+                        <p className="text-[11px] text-green-700 font-bold mt-1">
+                          Ahorra ${formatPrice(f.ahorroTotal)} en total
                         </p>
                       </div>
 
@@ -350,6 +429,22 @@ function Oportunidades() {
                         >
                           💬 Avisar
                         </a>
+
+                        <button
+                          onClick={() =>
+                            soloNotificar(
+                              f.telefono,
+                              "⭐ Tu favorito está en oferta",
+                              f.productos.length > 1
+                                ? `${f.productos.length} productos que guardaste bajaron de precio`
+                                : `${f.productos[0].producto} bajó de precio`
+                            )
+                          }
+                          disabled={generando === f.telefono}
+                          className="bg-brand-blue text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap disabled:opacity-50"
+                        >
+                          🔔 Avisar
+                        </button>
 
                         <button
                           onClick={() =>
@@ -412,16 +507,33 @@ function Oportunidades() {
                         </p>
                       </div>
 
-                      <a
-                        href={`https://wa.me/${wa(c.telefono)}?text=${encodeURIComponent(
-                          mensajeBienvenida(c)
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap"
-                      >
-                        💬 Escribir
-                      </a>
+                      <div className="flex flex-col gap-1.5 flex-shrink-0">
+                        <a
+                          href={`https://wa.me/${wa(c.telefono)}?text=${encodeURIComponent(
+                            mensajeBienvenida(c)
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap text-center"
+                        >
+                          💬 Escribir
+                        </a>
+
+                        <button
+                          onClick={() =>
+                            conCupon(
+                              c,
+                              "bienvenida",
+                              { porcentaje: 10, dias: 15, minimo: 35000 },
+                              (cod, ven) => mensajeBienvenidaCupon(c, cod, ven)
+                            )
+                          }
+                          disabled={generando === c.telefono}
+                          className="bg-amber-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap disabled:opacity-50"
+                        >
+                          {generando === c.telefono ? "..." : "🎁 10% desde $35k"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
