@@ -26,6 +26,10 @@ function telefonoParaWhatsapp(tel) {
 
 // Cada tipo de evento define cómo se ve la notificación
 const PLANTILLAS = {
+  resena: (e) => ({
+    titulo: "⭐ Nueva opinión para aprobar",
+    cuerpo: `${e.nombre || "Un cliente"} opinó sobre ${e.detalle}`
+  }),
   registro: (e) => ({
     titulo: "🎉 Cliente nuevo",
     cuerpo: `${e.nombre || "Alguien"} (${e.telefono}) se registró en la app`
