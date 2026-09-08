@@ -20,6 +20,22 @@ export async function POST(request) {
       return Response.json({ error: "Faltan datos" }, { status: 400 });
     }
 
+    const dias = vence_en
+      ? Math.max(1, Math.ceil((new Date(vence_en) - new Date()) / (1000 * 60 * 60 * 24)))
+      : 7;
+
+    // El aviso queda en la app aunque no tenga notificaciones activadas
+    await supabase.rpc("dejar_mensaje", {
+      p_telefono: telefono,
+      p_titulo: `🎁 Tenés ${porcentaje}% de descuento`,
+      p_cuerpo: `Usá el código ${codigo} antes de que venza`,
+      p_url: "/catalogo",
+      p_icono: "🎁",
+      p_color: "naranja",
+      p_dias: dias,
+      p_tipo: "cupon"
+    });
+
     const publica = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     const privada = process.env.VAPID_PRIVATE_KEY;
 
@@ -47,13 +63,6 @@ export async function POST(request) {
       bienvenida: "👋 Regalo para tu primera compra",
       manual: "🎁 Tenés un descuento esperándote"
     };
-
-    const dias = vence_en
-      ? Math.max(
-          1,
-          Math.ceil((new Date(vence_en) - new Date()) / (1000 * 60 * 60 * 24))
-        )
-      : null;
 
     const contenido = JSON.stringify({
       title: titulos[motivo] || titulos.manual,
