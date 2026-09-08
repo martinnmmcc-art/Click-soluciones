@@ -1,0 +1,323 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import AdminGuard from "@/components/AdminGuard";
+import { supabase } from "@/lib/supabaseClient";
+import { formatPrice } from "@/lib/whatsapp";
+
+function wa(tel) {
+  let n = (tel || "").replace(/\D/g, "");
+  if (n.startsWith("54")) n = n.slice(2);
+  if (n.startsWith("9")) n = n.slice(1);
+  return `549${n}`;
+}
+
+const SITIO = "https://www.bolsonclick.com.ar";
+
+function Oportunidades() {
+  const [vista, setVista] = useState("carritos");
+  const [carritos, setCarritos] = useState([]);
+  const [favoritos, setFavoritos] = useState([]);
+  const [sinComprar, setSinComprar] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function cargar() {
+    setLoading(true);
+    const [c, f, s] = await Promise.all([
+      supabase
+        .from("carritos_abandonados")
+        .select("*")
+        .eq("recuperado", false)
+        .order("actualizado_en", { ascending: false }),
+      supabase.rpc("favoritos_en_oferta"),
+      supabase.rpc("registrados_sin_comprar")
+    ]);
+
+    setCarritos(c.data || []);
+    setFavoritos(f.data || []);
+    setSinComprar(s.data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  // El mensaje reconoce lo que dejó, no es un "volvé a comprar" genérico
+  function mensajeCarrito(c) {
+    const nombre = (c.nombre || "").split(" ")[0];
+    const prods = (c.productos || [])
+      .slice(0, 3)
+      .map((p) => `• ${p.cantidad}x ${p.nombre}`)
+      .join("\n");
+
+    return (
+      `¡Hola ${nombre}! 👋 Soy de Bolson Click.\n\n` +
+      `Vi que dejaste esto en tu carrito:\n\n${prods}\n\n` +
+      `¿Querés que te lo aparte? Tengo stock 🙂\n\n` +
+      `Si preferís, completá el pedido acá:\n${SITIO}/carrito`
+    );
+  }
+
+  function mensajeFavorito(f) {
+    const nombre = (f.nombre_cliente || "").split(" ")[0];
+    return (
+      `¡Hola ${nombre}! 👋\n\n` +
+      `Te aviso porque habías guardado *${f.producto}* en favoritos ` +
+      `y ahora está en oferta 🔥\n\n` +
+      `~$${Number(f.precio).toLocaleString("es-AR")}~ → ` +
+      `*$${Number(f.precio_oferta).toLocaleString("es-AR")}*\n` +
+      `Te ahorrás $${Number(f.ahorro).toLocaleString("es-AR")}\n\n` +
+      `Es por tiempo limitado:\n${SITIO}/producto/${f.producto_id}`
+    );
+  }
+
+  function mensajeBienvenida(c) {
+    const nombre = (c.nombre || "").split(" ")[0];
+    const miro = Number(c.miro_productos || 0) > 0;
+
+    return (
+      `¡Hola ${nombre}! 👋 Soy de Bolson Click.\n\n` +
+      (miro
+        ? `Vi que estuviste mirando algunas cosas en la app 🙂\n\n`
+        : `Te escribo porque te registraste en la app y todavía no hiciste tu primera compra.\n\n`) +
+      `¿Hay algo que estés buscando? Decime qué necesitás y te digo si lo tengo ` +
+      `o te lo consigo.\n\n` +
+      `🛒 ${SITIO}\n🚚 Entrego en El Bolsón y toda la Comarca`
+    );
+  }
+
+  const vistas = [
+    { id: "carritos", label: `🛒 Carritos (${carritos.length})` },
+    { id: "favoritos", label: `⭐ Favoritos (${favoritos.length})` },
+    { id: "nuevos", label: `👋 Sin comprar (${sinComprar.length})` }
+  ];
+
+  return (
+    <main className="min-h-screen bg-gray-50 pb-16">
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <Link href="/admin" className="text-sm text-brand-blue font-medium">
+          ← Panel
+        </Link>
+        <h1 className="text-2xl font-extrabold text-gray-800 mt-1 mb-1">
+          Oportunidades de venta
+        </h1>
+        <p className="text-xs text-gray-500 mb-4">
+          Gente que ya mostró interés. Son las ventas más fáciles.
+        </p>
+
+        <div className="flex gap-2 overflow-x-auto pb-3">
+          {vistas.map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setVista(v.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${
+                vista === v.id
+                  ? "bg-brand-blue text-white"
+                  : "bg-white text-gray-600 border border-gray-200"
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+
+        {loading ? (
+          <p className="text-center text-gray-400 py-10">Cargando...</p>
+        ) : vista === "carritos" ? (
+          <>
+            <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-3 mb-3">
+              <p className="text-[11px] text-gray-700">
+                Dejaron productos en el carrito sin comprar. Escribirles al día
+                siguiente recupera <b>1 de cada 5</b> en negocios chicos.
+              </p>
+            </div>
+
+            {carritos.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+                <p className="text-sm text-gray-600">No hay carritos abandonados.</p>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Aparecen acá cuando alguien deja algo sin comprar.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {carritos.map((c) => {
+                  const horas = Math.floor(
+                    (Date.now() - new Date(c.actualizado_en)) / 3600000
+                  );
+                  return (
+                    <div key={c.id} className="bg-white rounded-2xl border border-gray-100 p-3">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-gray-800">
+                            {c.nombre || c.telefono}
+                          </p>
+                          <p className="text-[11px] text-gray-400">
+                            {horas < 1
+                              ? "Recién ahora"
+                              : horas < 24
+                              ? `Hace ${horas}h`
+                              : `Hace ${Math.floor(horas / 24)} día(s)`}
+                          </p>
+
+                          <div className="mt-1">
+                            {(c.productos || []).slice(0, 3).map((p, i) => (
+                              <p key={i} className="text-[11px] text-gray-600">
+                                • {p.cantidad}x {p.nombre}
+                              </p>
+                            ))}
+                          </div>
+
+                          <p className="text-xs font-extrabold text-brand-blue mt-1">
+                            ${formatPrice(c.total)}
+                          </p>
+                        </div>
+
+                        <a
+                          href={`https://wa.me/${wa(c.telefono)}?text=${encodeURIComponent(
+                            mensajeCarrito(c)
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap"
+                        >
+                          💬 Escribir
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : vista === "favoritos" ? (
+          <>
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-3">
+              <p className="text-[11px] text-gray-700">
+                Guardaron estos productos y ahora están en oferta. Ya mostraron
+                interés: solo falta el empujón.
+              </p>
+            </div>
+
+            {favoritos.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+                <p className="text-sm text-gray-600">
+                  Ningún producto guardado está en oferta.
+                </p>
+                <Link
+                  href="/admin/ofertas"
+                  className="text-xs font-bold text-brand-blue underline mt-1 inline-block"
+                >
+                  Poner productos en oferta →
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {favoritos.map((f, i) => (
+                  <div key={i} className="bg-white rounded-2xl border border-gray-100 p-3">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-800">
+                          {f.nombre_cliente}
+                        </p>
+                        <p className="text-[11px] text-gray-600 line-clamp-1">
+                          ⭐ {f.producto}
+                        </p>
+                        <p className="text-[11px] mt-0.5">
+                          <span className="text-gray-400 line-through">
+                            ${formatPrice(f.precio)}
+                          </span>{" "}
+                          <b className="text-red-600">${formatPrice(f.precio_oferta)}</b>
+                          <span className="text-green-700 font-bold">
+                            {" "}· ahorra ${formatPrice(f.ahorro)}
+                          </span>
+                        </p>
+                      </div>
+
+                      <a
+                        href={`https://wa.me/${wa(f.telefono)}?text=${encodeURIComponent(
+                          mensajeFavorito(f)
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap"
+                      >
+                        💬 Avisar
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-3 mb-3">
+              <p className="text-[11px] text-gray-700">
+                Se registraron pero nunca compraron. Algo les interesó: preguntarles
+                qué buscan suele destrabar la primera compra.
+              </p>
+            </div>
+
+            {sinComprar.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+                <p className="text-sm text-gray-600">
+                  Todos los registrados ya compraron. 🎉
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sinComprar.map((c) => (
+                  <div
+                    key={c.telefono}
+                    className="bg-white rounded-2xl border border-gray-100 p-3"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-gray-800">{c.nombre}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {c.telefono}
+                          {c.localidad && ` · ${c.localidad}`}
+                        </p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          Registrado hace {c.dias_registrado} día
+                          {c.dias_registrado === 1 ? "" : "s"}
+                          {Number(c.miro_productos) > 0 && (
+                            <span className="text-green-700 font-bold">
+                              {" "}· miró {c.miro_productos} producto(s)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      <a
+                        href={`https://wa.me/${wa(c.telefono)}?text=${encodeURIComponent(
+                          mensajeBienvenida(c)
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap"
+                      >
+                        💬 Escribir
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
+
+export default function OportunidadesPage() {
+  return (
+    <AdminGuard>
+      <Oportunidades />
+    </AdminGuard>
+  );
+}
