@@ -5,7 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
-import { generarPlaca, generarTextoPromo } from "@/lib/generadorPromo";
+import { generarPlaca, textoWhatsApp, textoFacebook } from "@/lib/generadorPromo";
 
 const ETIQUETAS = [
   { id: "NOVEDAD", label: "🆕 Novedad" },
@@ -23,6 +23,8 @@ function Promocionar() {
   const [generando, setGenerando] = useState(false);
   const [placa, setPlaca] = useState(null);
   const [textoPromo, setTextoPromo] = useState("");
+  const [textoFb, setTextoFb] = useState("");
+  const [red, setRed] = useState("whatsapp");
   const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
@@ -52,7 +54,8 @@ function Promocionar() {
     try {
       const blob = await generarPlaca(producto, { etiqueta });
       setPlaca(blob);
-      setTextoPromo(generarTextoPromo(producto, { etiqueta }));
+      setTextoPromo(textoWhatsApp(producto, { etiqueta }));
+      setTextoFb(textoFacebook(producto, { etiqueta }));
     } catch (e) {
       alert("No se pudo armar la promoción: " + e.message);
     } finally {
@@ -62,28 +65,37 @@ function Promocionar() {
 
   // Comparte imagen y texto juntos: en el celular abre el menú de compartir
   // y con un toque va directo al estado de WhatsApp.
-  async function compartir() {
+  async function compartir(cual = "whatsapp") {
     if (!placa) return;
 
+    const texto = cual === "facebook" ? textoFb : textoPromo;
     const archivo = new File([placa], `bolsonclick-${Date.now()}.jpg`, {
       type: "image/jpeg"
     });
 
     try {
       if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
-        await navigator.share({
-          files: [archivo],
-          text: textoPromo
-        });
+        await navigator.share({ files: [archivo], text: texto });
         return;
       }
     } catch (e) {
-      // Si cancela el menú de compartir, no es un error
       if (e.name === "AbortError") return;
     }
 
-    // Si el celular no permite compartir archivos, la descargamos
     descargar();
+  }
+
+  // Para Facebook conviene copiar el texto primero: la app no siempre
+  // acepta imagen y texto juntos desde el menú de compartir.
+  async function prepararFacebook() {
+    try {
+      await navigator.clipboard.writeText(textoFb);
+    } catch (e) {}
+    descargar();
+    alert(
+      "✓ Texto copiado y foto descargada.\n\n" +
+        "Abrí Facebook, creá una publicación, subí la foto y pegá el texto."
+    );
   }
 
   function descargar() {
@@ -96,9 +108,9 @@ function Promocionar() {
     URL.revokeObjectURL(url);
   }
 
-  async function copiarTexto() {
+  async function copiarTexto(texto) {
     try {
-      await navigator.clipboard.writeText(textoPromo);
+      await navigator.clipboard.writeText(texto || textoPromo);
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2000);
     } catch (e) {
@@ -136,12 +148,47 @@ function Promocionar() {
               className="w-full max-w-[240px] mx-auto rounded-xl shadow-md mb-3"
             />
 
-            <button
-              onClick={compartir}
-              className="w-full bg-[#25D366] text-white text-sm font-bold py-3 rounded-xl mb-2"
-            >
-              📲 Compartir en WhatsApp / Redes
-            </button>
+            {/* Cada red tiene su propio texto: en un estado de WhatsApp la
+                gente lee 3 segundos; en Facebook lee más y las etiquetas
+                locales hacen que te encuentren vecinos. */}
+            <div className="flex gap-2 mb-2">
+              <button
+                onClick={() => setRed("whatsapp")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold ${
+                  red === "whatsapp"
+                    ? "bg-[#25D366] text-white"
+                    : "bg-white border border-gray-200 text-gray-600"
+                }`}
+              >
+                💬 WhatsApp
+              </button>
+              <button
+                onClick={() => setRed("facebook")}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold ${
+                  red === "facebook"
+                    ? "bg-[#1877F2] text-white"
+                    : "bg-white border border-gray-200 text-gray-600"
+                }`}
+              >
+                📘 Facebook
+              </button>
+            </div>
+
+            {red === "whatsapp" ? (
+              <button
+                onClick={() => compartir("whatsapp")}
+                className="w-full bg-[#25D366] text-white text-sm font-bold py-3 rounded-xl mb-2"
+              >
+                📲 Compartir en Estado de WhatsApp
+              </button>
+            ) : (
+              <button
+                onClick={prepararFacebook}
+                className="w-full bg-[#1877F2] text-white text-sm font-bold py-3 rounded-xl mb-2"
+              >
+                📘 Preparar para Facebook
+              </button>
+            )}
 
             <div className="flex gap-2">
               <button
@@ -151,7 +198,7 @@ function Promocionar() {
                 ⬇️ Descargar imagen
               </button>
               <button
-                onClick={copiarTexto}
+                onClick={() => copiarTexto(red === "facebook" ? textoFb : textoPromo)}
                 className="flex-1 bg-white border border-gray-200 text-gray-700 text-xs font-bold py-2.5 rounded-xl"
               >
                 {copiado ? "✓ Copiado" : "📋 Copiar texto"}
@@ -160,13 +207,14 @@ function Promocionar() {
 
             <div className="bg-gray-50 rounded-xl p-3 mt-3">
               <p className="text-[11px] text-gray-600 whitespace-pre-line leading-relaxed">
-                {textoPromo}
+                {red === "facebook" ? textoFb : textoPromo}
               </p>
             </div>
 
             <p className="text-[10px] text-gray-400 mt-3">
-              En WhatsApp: tocá &quot;Compartir&quot; → Estado. La imagen ya lleva
-              tu teléfono y la página, así que sirve igual si alguien la reenvía.
+              {red === "whatsapp"
+                ? 'Tocá "Compartir" → Estado. La imagen lleva tu teléfono y la página, así que sirve igual si alguien la reenvía.'
+                : "Se copia el texto y se descarga la foto. Abrí Facebook, creá la publicación, subí la foto y pegá el texto."}
             </p>
 
             <button
