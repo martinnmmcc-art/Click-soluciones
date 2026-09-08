@@ -33,7 +33,7 @@ export async function GET(request) {
         supabase
           .from("pedidos")
           .select(
-            "id, total, monto_pagado, estado, estado_pago, created_at, telefono_cliente, nombre_cliente, items_pedido(producto_id, nombre_producto, cantidad, precio_unitario)"
+            "id, total, monto_pagado, estado, estado_pago, created_at, telefono_cliente, nombre_cliente, origen, items_pedido(producto_id, nombre_producto, cantidad, precio_unitario)"
           )
           .gte("created_at", anterior.inicio.toISOString())
           .lt("created_at", fin.toISOString()),
@@ -193,6 +193,21 @@ export async function GET(request) {
       .filter((p) => Number(p.stock || 0) > 0 && !vendidosIds.has(p.id))
       .reduce((a, p) => a + (costoPorProducto[p.id] || 0) * Number(p.stock || 0), 0);
 
+    // ---------- DE DÓNDE VINIERON LAS VENTAS ----------
+    // Sirve para saber si conviene seguir invirtiendo tiempo en WhatsApp,
+    // en Facebook, o si la mayoría entra directo a la app.
+    const porOrigen = {};
+    delMes.forEach((p) => {
+      const o = p.origen || "directo";
+      if (!porOrigen[o]) porOrigen[o] = { origen: o, pedidos: 0, total: 0 };
+      porOrigen[o].pedidos += 1;
+      porOrigen[o].total += Number(p.total || 0);
+    });
+
+    const canales = Object.values(porOrigen)
+      .map((c) => ({ ...c, ticket: Math.round(c.total / c.pedidos) }))
+      .sort((a, b) => b.total - a.total);
+
     // ---------- CLIENTES ----------
     const porCliente = {};
     delMes.forEach((p) => {
@@ -266,6 +281,7 @@ export async function GET(request) {
         masRentables,
         sinRotacion,
         plataParadaTotal,
+        canales,
         mejoresClientes,
         clientes: {
           compraron: Object.keys(porCliente).length,
