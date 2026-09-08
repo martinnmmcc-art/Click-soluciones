@@ -81,8 +81,22 @@ function categoriaDeProducto(p) {
 // Saca los códigos internos del proveedor del nombre visible.
 // Un nombre con "Melech-05/Q-16-1/GT135" pegado en Google lleva directo
 // a nuestro proveedor; sin el código, el producto sigue siendo reconocible.
+// Los nombres del proveedor vienen con códigos HTML (&#8243; por las
+// comillas de pulgadas, &amp; por el &). Sin esto quedan a la vista.
+function decodificarHtml(texto) {
+  if (!texto) return "";
+  return String(texto)
+    .replace(/&#8243;|&#8221;|&#8220;|&quot;/g, '"')
+    .replace(/&#8211;|&#8212;/g, "-")
+    .replace(/&#8217;|&#8216;/g, "'")
+    .replace(/&#038;|&amp;/g, "&")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+}
+
 function limpiarCodigos(nombre) {
   if (!nombre) return "Sin nombre";
+  nombre = decodificarHtml(nombre);
 
   const tokens = String(nombre).trim().split(/\s+/);
 
@@ -346,7 +360,7 @@ export async function POST(request) {
 
       // Guardamos el nombre del proveedor aparte y mostramos uno limpio:
       // así el cliente no puede rastrear de dónde sacamos la mercadería.
-      const nombreProveedor = p.name?.slice(0, 200) || "Sin nombre";
+      const nombreProveedor = decodificarHtml(p.name || "").slice(0, 200) || "Sin nombre";
 
       aInsertar.push({
         nombre: limpiarCodigos(nombreProveedor),
