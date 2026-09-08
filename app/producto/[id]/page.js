@@ -379,7 +379,7 @@ export default function ProductoDetallePage() {
       </div>
       <CompradosJuntos productoId={producto.id} />
 
-      <ResenasProducto productoId={producto.id} />
+      <ResenasProducto productoId={producto.id} nombreProducto={producto.nombre} />
 
     </main>
   );
