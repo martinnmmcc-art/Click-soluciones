@@ -7,6 +7,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabaseClient";
+import { leerOrigen } from "@/components/RegistrarOrigen";
 import { avisarAdmin } from "@/lib/avisarAdmin";
 import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
 import {
