@@ -21,6 +21,41 @@ function Oportunidades() {
   const [favoritos, setFavoritos] = useState([]);
   const [sinComprar, setSinComprar] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [generando, setGenerando] = useState(null);
+
+  // Genera el cupón y abre WhatsApp con el mensaje que lo incluye.
+  // El cupón es de un solo uso y vence: sirve para destrabar una compra,
+  // no para que el cliente aprenda a esperar el descuento.
+  async function conCupon(persona, motivo, config, armarMensaje) {
+    setGenerando(persona.telefono);
+    try {
+      const { data, error } = await supabase.rpc("generar_cupon", {
+        p_telefono: persona.telefono,
+        p_motivo: motivo,
+        p_porcentaje: config.porcentaje,
+        p_dias: config.dias,
+        p_porcentaje_segundo: config.segundo || 0,
+        p_minimo: config.minimo || 0
+      });
+
+      if (error || !data?.[0]) {
+        alert("No se pudo generar el cupón: " + (error?.message || ""));
+        return;
+      }
+
+      const cupon = data[0];
+      const vence = new Date(cupon.vence_en).toLocaleDateString("es-AR");
+
+      window.open(
+        `https://wa.me/${wa(persona.telefono)}?text=${encodeURIComponent(
+          armarMensaje(cupon.codigo, vence)
+        )}`,
+        "_blank"
+      );
+    } finally {
+      setGenerando(null);
+    }
+  }
 
   async function cargar() {
     setLoading(true);
@@ -57,6 +92,40 @@ function Oportunidades() {
       `Vi que dejaste esto en tu carrito:\n\n${prods}\n\n` +
       `¿Querés que te lo aparte? Tengo stock 🙂\n\n` +
       `Si preferís, completá el pedido acá:\n${SITIO}/carrito`
+    );
+  }
+
+  // Carrito viejo: descuento para destrabar la compra
+  function mensajeCarritoCupon(c, codigo, vence) {
+    const nombre = (c.nombre || "").split(" ")[0];
+    const prods = (c.productos || [])
+      .slice(0, 3)
+      .map((p) => `• ${p.cantidad}x ${p.nombre}`)
+      .join("\n");
+
+    return (
+      `¡Hola ${nombre}! 👋 Soy de Bolson Click.\n\n` +
+      `Vi que hace unos días dejaste esto en tu carrito:\n\n${prods}\n\n` +
+      `Te dejo un *10% de descuento* para que lo completes 🎁\n\n` +
+      `🎟️ Tu código: *${codigo}*\n` +
+      `⏰ Válido hasta el ${vence}\n\n` +
+      `Es solo para vos y por única vez. Ponelo al finalizar la compra:\n` +
+      `${SITIO}/carrito`
+    );
+  }
+
+  // Favorito: 5% y un extra si lleva más de uno, para subir el ticket
+  function mensajeFavoritoCupon(f, codigo, vence) {
+    const nombre = (f.nombre_cliente || "").split(" ")[0];
+    return (
+      `¡Hola ${nombre}! 👋\n\n` +
+      `Habías guardado *${f.producto}* en favoritos y quería avisarte ` +
+      `que te preparé un descuento 🎁\n\n` +
+      `🎟️ Código: *${codigo}*\n` +
+      `💰 *5% off* en tu compra\n` +
+      `🎉 Y si llevás 2 productos o más, *10% off*\n` +
+      `⏰ Válido hasta el ${vence}\n\n` +
+      `Mirá tu favorito acá:\n${SITIO}/producto/${f.producto_id}`
     );
   }
 
@@ -175,16 +244,37 @@ function Oportunidades() {
                           </p>
                         </div>
 
-                        <a
-                          href={`https://wa.me/${wa(c.telefono)}?text=${encodeURIComponent(
-                            mensajeCarrito(c)
-                          )}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap"
-                        >
-                          💬 Escribir
-                        </a>
+                        <div className="flex flex-col gap-1.5 flex-shrink-0">
+                          <a
+                            href={`https://wa.me/${wa(c.telefono)}?text=${encodeURIComponent(
+                              mensajeCarrito(c)
+                            )}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap text-center"
+                          >
+                            💬 Recordar
+                          </a>
+
+                          {/* El descuento recién a la semana: antes alcanza
+                              con recordarle, y así no se acostumbra. */}
+                          {horas >= 168 && (
+                            <button
+                              onClick={() =>
+                                conCupon(
+                                  c,
+                                  "carrito",
+                                  { porcentaje: 10, dias: 5 },
+                                  (cod, ven) => mensajeCarritoCupon(c, cod, ven)
+                                )
+                              }
+                              disabled={generando === c.telefono}
+                              className="bg-amber-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap disabled:opacity-50"
+                            >
+                              {generando === c.telefono ? "..." : "🎁 10% off"}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -236,16 +326,33 @@ function Oportunidades() {
                         </p>
                       </div>
 
-                      <a
-                        href={`https://wa.me/${wa(f.telefono)}?text=${encodeURIComponent(
-                          mensajeFavorito(f)
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap"
-                      >
-                        💬 Avisar
-                      </a>
+                      <div className="flex flex-col gap-1.5 flex-shrink-0">
+                        <a
+                          href={`https://wa.me/${wa(f.telefono)}?text=${encodeURIComponent(
+                            mensajeFavorito(f)
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap text-center"
+                        >
+                          💬 Avisar
+                        </a>
+
+                        <button
+                          onClick={() =>
+                            conCupon(
+                              { telefono: f.telefono, nombre: f.nombre_cliente },
+                              "favorito",
+                              { porcentaje: 5, dias: 7, segundo: 10 },
+                              (cod, ven) => mensajeFavoritoCupon(f, cod, ven)
+                            )
+                          }
+                          disabled={generando === f.telefono}
+                          className="bg-amber-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap disabled:opacity-50"
+                        >
+                          {generando === f.telefono ? "..." : "🎁 5% + 10%"}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
