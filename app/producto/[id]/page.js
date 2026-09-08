@@ -12,6 +12,7 @@ import { formatPrice, buildWhatsAppLink, whatsappProductMessage } from "@/lib/wh
 import { nombreCategoria } from "@/lib/categorias";
 import { pedirAvisoDeStock } from "@/lib/push";
 import ResenasProducto from "@/components/ResenasProducto";
+import CompradosJuntos from "@/components/CompradosJuntos";
 
 export default function ProductoDetallePage() {
   const params = useParams();
@@ -376,6 +377,8 @@ export default function ProductoDetallePage() {
           </div>
         )}
       </div>
+      <CompradosJuntos productoId={producto.id} />
+
       <ResenasProducto productoId={producto.id} />
 
     </main>
