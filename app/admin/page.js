@@ -370,6 +370,66 @@ function Dashboard() {
             <span className="text-2xl">🛍️</span>
           </Link>
 
+          <Link href="/admin/resenas" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
+            <div>
+              <p className="font-semibold text-gray-800">Opiniones de clientes</p>
+              <p className="text-sm text-gray-500">
+                Aprobar las que llegan y pedir nuevas por WhatsApp
+              </p>
+            </div>
+            <span className="text-2xl">⭐</span>
+          </Link>
+
+          <Link href="/admin/oportunidades" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-green-300">
+            <div>
+              <p className="font-semibold text-gray-800">Oportunidades de venta</p>
+              <p className="text-sm text-gray-500">
+                Carritos dejados, favoritos en oferta y registrados sin comprar
+              </p>
+            </div>
+            <span className="text-2xl">🎯</span>
+          </Link>
+
+          <Link href="/admin/balance" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Balance del mes</p>
+              <p className="text-sm text-gray-500">
+                Ganancia real, mejores días, qué rotó y qué no
+              </p>
+            </div>
+            <span className="text-2xl">📊</span>
+          </Link>
+
+          <Link href="/admin/recuperar-clientes" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Hacer volver clientes</p>
+              <p className="text-sm text-gray-500">
+                Crearles cuenta e invitarlos a comprar de nuevo
+              </p>
+            </div>
+            <span className="text-2xl">🔄</span>
+          </Link>
+
+          <Link href="/admin/ventas-cerradas" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Ventas cerradas</p>
+              <p className="text-sm text-gray-500">
+                Pedidos entregados y cobrados, agrupados por cliente
+              </p>
+            </div>
+            <span className="text-2xl">✅</span>
+          </Link>
+
+          <Link href="/admin/resumen-clientes" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Resumen por cliente</p>
+              <p className="text-sm text-gray-500">
+                Cuánto compró cada uno y cuánto debe
+              </p>
+            </div>
+            <span className="text-2xl">👥</span>
+          </Link>
+
           <Link href="/admin/cupones" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Cupones</p>
