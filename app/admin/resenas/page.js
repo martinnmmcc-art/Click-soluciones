@@ -15,8 +15,9 @@ function telefonoWhatsapp(tel) {
 function Resenas() {
   const [pendientes, setPendientes] = useState([]);
   const [publicadas, setPublicadas] = useState([]);
+  const [pendientesAprobar, setPendientesAprobar] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [vista, setVista] = useState("pedir");
+  const [vista, setVista] = useState("aprobar");
 
   async function cargar() {
     setLoading(true);
@@ -72,7 +73,8 @@ function Resenas() {
       .order("created_at", { ascending: false });
 
     setPendientes(lista);
-    setPublicadas(pub || []);
+    setPendientesAprobar((pub || []).filter((r) => !r.aprobada));
+    setPublicadas((pub || []).filter((r) => r.aprobada));
     setLoading(false);
   }
 
@@ -93,6 +95,36 @@ function Resenas() {
       `https://www.bolsonclick.com.ar/producto/${c.productoId}\n\n` +
       `¡Gracias! 🙌`
     );
+  }
+
+  async function aprobar(r) {
+    const { error } = await supabase
+      .from("resenas")
+      .update({ aprobada: true })
+      .eq("id", r.id);
+
+    if (error) {
+      alert("No se pudo publicar: " + error.message);
+      return;
+    }
+    cargar();
+  }
+
+  async function rechazar(r) {
+    if (
+      !confirm(
+        `¿Rechazar esta opinión?\n\nSe borra y el cliente puede volver a escribir otra.\n\n` +
+          `Si tiene un error o un malentendido, conviene hablarlo por WhatsApp antes.`
+      )
+    )
+      return;
+
+    const { error } = await supabase.from("resenas").delete().eq("id", r.id);
+    if (error) {
+      alert("No se pudo rechazar: " + error.message);
+      return;
+    }
+    cargar();
   }
 
   async function cambiarVisibilidad(r) {
@@ -121,20 +153,34 @@ function Resenas() {
           Lo que más ayuda a que alguien se decida a comprarte.
         </p>
 
-        <div className="flex gap-2 mb-4">
+        <div className="flex gap-2 mb-4 overflow-x-auto">
+          <button
+            onClick={() => setVista("aprobar")}
+            className={`flex-1 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap px-2 relative ${
+              vista === "aprobar"
+                ? "bg-amber-600 text-white"
+                : "bg-white border border-gray-200 text-gray-600"
+            }`}
+          >
+            Para aprobar ({pendientesAprobar.length})
+            {pendientesAprobar.length > 0 && vista !== "aprobar" && (
+              <span className="absolute -top-1 -right-1 bg-red-600 w-2.5 h-2.5 rounded-full" />
+            )}
+          </button>
+
           <button
             onClick={() => setVista("pedir")}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold ${
+            className={`flex-1 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap px-2 ${
               vista === "pedir"
                 ? "bg-brand-blue text-white"
                 : "bg-white border border-gray-200 text-gray-600"
             }`}
           >
-            Pedir opiniones ({pendientes.length})
+            Pedir ({pendientes.length})
           </button>
           <button
             onClick={() => setVista("publicadas")}
-            className={`flex-1 py-2 rounded-xl text-xs font-bold ${
+            className={`flex-1 py-2 rounded-xl text-[11px] font-bold whitespace-nowrap px-2 ${
               vista === "publicadas"
                 ? "bg-brand-blue text-white"
                 : "bg-white border border-gray-200 text-gray-600"
@@ -146,6 +192,112 @@ function Resenas() {
 
         {loading ? (
           <p className="text-center text-gray-400 py-10">Cargando...</p>
+        ) : vista === "aprobar" ? (
+          pendientesAprobar.length === 0 ? (
+            <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+              <p className="text-sm text-gray-600">
+                No hay opiniones esperando aprobación.
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Cuando un cliente deje una, te llega una notificación y aparece acá.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-3">
+                <p className="text-[11px] text-gray-700">
+                  Estas opiniones <b>todavía no se ven</b> en la app. Revisalas y
+                  publicá las que estén bien. Si alguna tiene un error o un
+                  malentendido, hablalo por WhatsApp antes de rechazarla.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {pendientesAprobar.map((r) => (
+                  <div
+                    key={r.id}
+                    className="bg-white rounded-2xl border-2 border-amber-300 p-4"
+                  >
+                    <div className="flex justify-between items-start gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-gray-800">
+                          {r.nombre}
+                          {r.localidad && (
+                            <span className="font-normal text-gray-400">
+                              {" "}· {r.localidad}
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-amber-400 text-base leading-none mt-0.5">
+                          {"★".repeat(r.estrellas)}
+                          <span className="text-gray-300">
+                            {"★".repeat(5 - r.estrellas)}
+                          </span>
+                        </p>
+                        <p className="text-[11px] text-gray-500 mt-1 line-clamp-1">
+                          {r.Productos?.nombre}
+                        </p>
+                      </div>
+
+                      <span className="text-[10px] text-gray-400 whitespace-nowrap">
+                        {new Date(r.created_at).toLocaleDateString("es-AR")}
+                      </span>
+                    </div>
+
+                    {r.comentario ? (
+                      <div className="bg-gray-50 rounded-xl p-3 mb-3">
+                        <p className="text-xs text-gray-700 leading-relaxed">
+                          &ldquo;{r.comentario}&rdquo;
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-gray-400 italic mb-3">
+                        Sin comentario, solo puntuación.
+                      </p>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => aprobar(r)}
+                        className="flex-1 bg-green-600 text-white text-xs font-bold py-2.5 rounded-xl"
+                      >
+                        ✓ Publicar
+                      </button>
+
+                      <a
+                        href={`https://wa.me/${telefonoWhatsapp(
+                          r.telefono
+                        )}?text=${encodeURIComponent(
+                          `¡Hola ${(r.nombre || "").split(" ")[0]}! 👋 Gracias por dejar tu opinión sobre ${
+                            r.Productos?.nombre || "el producto"
+                          } 🙌`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-emerald-600 text-white text-xs font-bold px-3 py-2.5 rounded-xl"
+                      >
+                        💬
+                      </a>
+
+                      <button
+                        onClick={() => rechazar(r)}
+                        className="px-3 text-xs font-semibold text-red-500"
+                      >
+                        Rechazar
+                      </button>
+                    </div>
+
+                    {r.estrellas <= 2 && (
+                      <p className="text-[10px] text-amber-800 bg-amber-50 rounded-lg p-2 mt-2">
+                        Puntuación baja: conviene escribirle antes de publicar,
+                        capaz se resuelve y termina cambiándola.
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          )
         ) : vista === "pedir" ? (
           pendientes.length === 0 ? (
             <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
