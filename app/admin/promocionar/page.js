@@ -33,6 +33,51 @@ function Promocionar() {
   const [red, setRed] = useState("whatsapp");
   const [modo, setModo] = useState("uno"); // uno | varios
   const [varios, setVarios] = useState([]);
+  const [yaPromocionados, setYaPromocionados] = useState({});
+
+  // Qué productos ya publicaste en las últimas 2 semanas, para no repetir
+  useEffect(() => {
+    async function cargarPromos() {
+      const { data } = await supabase.rpc("productos_ya_promocionados", {
+        p_dias: 14
+      });
+      const mapa = {};
+      (data || []).forEach((r) => {
+        mapa[r.producto_id] = {
+          veces: r.veces,
+          ultima: r.ultima,
+          canales: r.canales
+        };
+      });
+      setYaPromocionados(mapa);
+    }
+    cargarPromos();
+  }, []);
+
+  // Guardamos la promoción para saber qué se publicó y medir después
+  async function registrarPromo(canal, productos, tipo) {
+    try {
+      await supabase.from("promociones").insert({
+        canal,
+        tipo,
+        etiqueta,
+        producto_ids: productos.map((p) => p.id),
+        productos: productos.map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          precio: p.precio,
+          precio_oferta: p.precio_oferta
+        }))
+      });
+      // Refrescamos para que se vea el aviso enseguida
+      const { data } = await supabase.rpc("productos_ya_promocionados", { p_dias: 14 });
+      const mapa = {};
+      (data || []).forEach((r) => {
+        mapa[r.producto_id] = { veces: r.veces, ultima: r.ultima, canales: r.canales };
+      });
+      setYaPromocionados(mapa);
+    } catch (e) {}
+  }
 
   function alternarVarios(p) {
     setVarios((prev) =>
@@ -62,7 +107,10 @@ function Promocionar() {
           ? "ÚLTIMAS UNIDADES"
           : "DESTACADOS";
 
-      const blob = await generarPlacaMultiple(varios, { titulo: tituloPlaca });
+      const blob = await generarPlacaMultiple(varios, {
+        titulo: tituloPlaca,
+        formato: red === "facebook" ? "facebook" : "whatsapp"
+      });
       setPlaca(blob);
       setElegido({ nombre: `${varios.length} productos`, id: "multiple" });
 
@@ -118,6 +166,8 @@ function Promocionar() {
   async function compartir(cual = "whatsapp") {
     if (!placa) return;
 
+    registrarPromo(cual, modo === "varios" ? varios : [elegido], modo === "varios" ? "multiple" : "individual");
+
     const texto = cual === "facebook" ? textoFb : textoPromo;
     const archivo = new File([placa], `bolsonclick-${Date.now()}.jpg`, {
       type: "image/jpeg"
@@ -138,6 +188,8 @@ function Promocionar() {
   // Para Facebook conviene copiar el texto primero: la app no siempre
   // acepta imagen y texto juntos desde el menú de compartir.
   async function prepararFacebook() {
+    registrarPromo("facebook", modo === "varios" ? varios : [elegido], modo === "varios" ? "multiple" : "individual");
+
     try {
       await navigator.clipboard.writeText(textoFb);
     } catch (e) {}
@@ -345,6 +397,14 @@ function Promocionar() {
                   </p>
                 ))}
 
+                {varios.some((p) => yaPromocionados[p.id]) && (
+                  <p className="text-[10px] text-amber-800 bg-amber-50 rounded-lg p-2 mt-2">
+                    ⚠️ Algunos de estos ya los publicaste hace poco. Repetir en
+                    la misma semana cansa a tus seguidores y Facebook les baja
+                    el alcance.
+                  </p>
+                )}
+
                 <button
                   onClick={generarVarios}
                   disabled={generando}
@@ -395,6 +455,26 @@ function Promocionar() {
                       <p className="text-[10px] text-gray-400">
                         {Number(p.stock || 0) > 0 ? `Stock: ${p.stock}` : "Sin stock"}
                       </p>
+
+                      {/* Aviso de repetido: publicar lo mismo dos veces en
+                          la semana cansa a los seguidores y baja el alcance */}
+                      {yaPromocionados[p.id] && (
+                        <p className="text-[9px] font-bold text-amber-700 bg-amber-50 rounded px-1 py-0.5 mt-1">
+                          ⚠️ Ya lo publicaste{" "}
+                          {yaPromocionados[p.id].veces > 1
+                            ? `${yaPromocionados[p.id].veces} veces`
+                            : ""}{" "}
+                          hace{" "}
+                          {Math.max(
+                            0,
+                            Math.floor(
+                              (Date.now() - new Date(yaPromocionados[p.id].ultima)) /
+                                86400000
+                            )
+                          )}{" "}
+                          día(s)
+                        </p>
+                      )}
                     </button>
                   );
                 })}
