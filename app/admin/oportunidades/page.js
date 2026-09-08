@@ -37,8 +37,8 @@ function Oportunidades() {
 
       alert(
         data.enviados > 0
-          ? `✓ Notificación enviada a ${data.enviados} dispositivo(s).`
-          : "Este cliente no tiene las notificaciones activadas. Mandale un WhatsApp."
+          ? `✓ Aviso enviado.\n\nLe llegó la notificación al celular (${data.enviados} dispositivo) y también lo va a ver al entrar a la app.`
+          : `✓ Aviso dejado en la app.\n\nEste cliente no tiene las notificaciones activadas, así que lo va a ver la próxima vez que entre. Si querés que se entere ahora, mandale un WhatsApp.`
       );
     } catch (e) {
       alert("No se pudo enviar la notificación.");
