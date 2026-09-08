@@ -12,6 +12,15 @@ function telefonoWhatsapp(tel) {
   return `549${n}`;
 }
 
+
+const CANALES = {
+  directo: { label: "Entraron directo a la app", icono: "📱" },
+  whatsapp: { label: "Desde WhatsApp", icono: "💬" },
+  facebook: { label: "Desde Facebook", icono: "📘" },
+  instagram: { label: "Desde Instagram", icono: "📷" },
+  catalogo: { label: "Catálogo compartido", icono: "🗂️" }
+};
+
 function Variacion({ valor }) {
   if (valor === null || valor === undefined) return null;
   const sube = valor >= 0;
@@ -265,6 +274,60 @@ function Balance() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* DE DÓNDE VIENEN LAS VENTAS */}
+        {datos.canales?.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+            <p className="font-bold text-sm text-gray-800 mb-1">
+              📊 De dónde vienen las ventas
+            </p>
+            <p className="text-[11px] text-gray-500 mb-3">
+              Para saber dónde conviene poner el esfuerzo
+            </p>
+
+            <div className="space-y-2">
+              {datos.canales.map((c) => {
+                const info = CANALES[c.origen] || {
+                  label: c.origen,
+                  icono: "🔗"
+                };
+                const pct = Math.round((c.total / (v.total || 1)) * 100);
+
+                return (
+                  <div key={c.origen}>
+                    <div className="flex justify-between items-center text-xs mb-1">
+                      <span className="text-gray-700">
+                        {info.icono} {info.label}
+                      </span>
+                      <span className="font-bold text-gray-800">
+                        ${formatPrice(c.total)}
+                      </span>
+                    </div>
+
+                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-brand-blue h-full rounded-full"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      {c.pedidos} pedido{c.pedidos === 1 ? "" : "s"} · ticket $
+                      {formatPrice(c.ticket)} · {pct}% de lo vendido
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {datos.canales.length === 1 && datos.canales[0].origen === "directo" && (
+              <p className="text-[11px] text-gray-500 bg-gray-50 rounded-lg p-2 mt-3">
+                Todavía no hay datos por canal. Se empiezan a registrar cuando
+                los clientes entren desde los links de las promociones.
+              </p>
             )}
           </div>
         )}
