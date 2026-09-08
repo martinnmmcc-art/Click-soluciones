@@ -10,6 +10,7 @@ import InstalarApp from "@/components/InstalarApp";
 import MuroRegistro from "@/components/MuroRegistro";
 import AvisoDeuda from "@/components/AvisoDeuda";
 import AvisoCupon from "@/components/AvisoCupon";
+import MensajesCliente from "@/components/MensajesCliente";
 import WhatsAppFloatingButton from "@/components/WhatsAppFloatingButton";
 import BottomNav from "@/components/BottomNav";
 import ProtegerContenido from "@/components/ProtegerContenido";
@@ -53,6 +54,7 @@ export default function RootLayout({ children }) {
                 <MuroRegistro />
                 <AvisoDeuda />
                 <AvisoCupon />
+                <MensajesCliente />
                 <div className="container-app pb-24">{children}</div>
                 <WhatsAppFloatingButton />
                 <BottomNav />
