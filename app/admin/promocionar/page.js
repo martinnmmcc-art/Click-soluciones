@@ -24,6 +24,7 @@ function Promocionar() {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
+  const [soloOfertas, setSoloOfertas] = useState(false);
   const [elegido, setElegido] = useState(null);
   const [etiqueta, setEtiqueta] = useState("NOVEDAD");
   const [generando, setGenerando] = useState(false);
@@ -220,9 +221,18 @@ function Promocionar() {
     }
   }
 
-  const filtrados = productos.filter(
-    (p) => !busqueda.trim() || p.nombre?.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const filtrados = productos.filter((p) => {
+    if (busqueda.trim() && !p.nombre?.toLowerCase().includes(busqueda.toLowerCase()))
+      return false;
+    if (soloOfertas) {
+      return p.precio_oferta && Number(p.precio_oferta) < Number(p.precio);
+    }
+    return true;
+  });
+
+  const cuantasOfertas = productos.filter(
+    (p) => p.precio_oferta && Number(p.precio_oferta) < Number(p.precio)
+  ).length;
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
@@ -422,6 +432,31 @@ function Promocionar() {
               placeholder="Buscar producto..."
             />
 
+            {cuantasOfertas > 0 && (
+              <div className="flex gap-2 mb-3">
+                <button
+                  onClick={() => setSoloOfertas(false)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold ${
+                    !soloOfertas
+                      ? "bg-gray-800 text-white"
+                      : "bg-white border border-gray-200 text-gray-600"
+                  }`}
+                >
+                  Todos ({productos.length})
+                </button>
+                <button
+                  onClick={() => setSoloOfertas(true)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold ${
+                    soloOfertas
+                      ? "bg-red-600 text-white"
+                      : "bg-white border border-gray-200 text-gray-600"
+                  }`}
+                >
+                  🏷️ En oferta ({cuantasOfertas})
+                </button>
+              </div>
+            )}
+
             {loading ? (
               <p className="text-center text-gray-400 py-8 text-sm">Cargando...</p>
             ) : (
@@ -449,9 +484,28 @@ function Promocionar() {
                         {modo === "varios" && varios.some((x) => x.id === p.id) && "✓ "}
                         {p.nombre}
                       </p>
-                      <p className="text-xs font-extrabold text-brand-blue mt-0.5">
-                        ${formatPrice(enOferta ? p.precio_oferta : p.precio)}
-                      </p>
+                      {/* Mostramos los dos precios: sin el tachado no se
+                          distingue cuál está en oferta y cuál no. */}
+                      {enOferta ? (
+                        <div className="mt-0.5">
+                          <p className="text-[10px] text-gray-400 line-through leading-none">
+                            ${formatPrice(p.precio)}
+                          </p>
+                          <p className="text-sm font-extrabold text-red-600 leading-tight">
+                            ${formatPrice(p.precio_oferta)}
+                            <span className="text-[9px] font-bold text-red-500 ml-1">
+                              OFERTA
+                            </span>
+                          </p>
+                          <p className="text-[9px] font-bold text-green-700 leading-none">
+                            ahorra ${formatPrice(Number(p.precio) - Number(p.precio_oferta))}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-extrabold text-brand-blue mt-0.5">
+                          ${formatPrice(p.precio)}
+                        </p>
+                      )}
                       <p className="text-[10px] text-gray-400">
                         {Number(p.stock || 0) > 0 ? `Stock: ${p.stock}` : "Sin stock"}
                       </p>
