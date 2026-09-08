@@ -11,6 +11,7 @@ import { useCart } from "@/context/CartContext";
 import { formatPrice, buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
 import { nombreCategoria } from "@/lib/categorias";
 import { pedirAvisoDeStock } from "@/lib/push";
+import ResenasProducto from "@/components/ResenasProducto";
 
 export default function ProductoDetallePage() {
   const params = useParams();
@@ -375,6 +376,8 @@ export default function ProductoDetallePage() {
           </div>
         )}
       </div>
+      <ResenasProducto productoId={producto.id} />
+
     </main>
   );
 }
