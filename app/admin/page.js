@@ -393,6 +393,16 @@ function Dashboard() {
             <span className="text-2xl">📣</span>
           </Link>
 
+          <Link href="/admin/whatsapp-catalogo" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Catálogo en WhatsApp</p>
+              <p className="text-sm text-gray-500">
+                Que te lleguen a la tienda desde tu WhatsApp Business
+              </p>
+            </div>
+            <span className="text-2xl">💬</span>
+          </Link>
+
           <Link href="/admin/compartir-catalogo" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Compartir catálogo</p>
