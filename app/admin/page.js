@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
+import ControlNotificaciones from "@/components/ControlNotificaciones";
 import { useAdmin } from "@/context/AdminContext";
 
 // Muestra los importes siempre con 2 decimales, como en un resumen bancario.
