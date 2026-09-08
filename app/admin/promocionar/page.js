@@ -5,7 +5,13 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
-import { generarPlaca, textoWhatsApp, textoFacebook } from "@/lib/generadorPromo";
+import {
+  generarPlaca,
+  textoWhatsApp,
+  textoFacebook,
+  generarPlacaMultiple,
+  textoMultiple
+} from "@/lib/generadorPromo";
 
 const ETIQUETAS = [
   { id: "NOVEDAD", label: "🆕 Novedad" },
@@ -25,6 +31,50 @@ function Promocionar() {
   const [textoPromo, setTextoPromo] = useState("");
   const [textoFb, setTextoFb] = useState("");
   const [red, setRed] = useState("whatsapp");
+  const [modo, setModo] = useState("uno"); // uno | varios
+  const [varios, setVarios] = useState([]);
+
+  function alternarVarios(p) {
+    setVarios((prev) =>
+      prev.some((x) => x.id === p.id)
+        ? prev.filter((x) => x.id !== p.id)
+        : prev.length >= 4
+        ? prev
+        : [...prev, p]
+    );
+  }
+
+  // Arma una sola imagen con hasta 4 productos, para publicar en Facebook
+  // sin saturar el muro con una publicación por producto.
+  async function generarVarios() {
+    if (varios.length === 0) return;
+
+    setGenerando(true);
+    setPlaca(null);
+
+    try {
+      const tituloPlaca =
+        etiqueta === "OFERTA"
+          ? "OFERTAS"
+          : etiqueta === "NOVEDAD"
+          ? "RECIÉN LLEGADO"
+          : etiqueta === "ULTIMAS"
+          ? "ÚLTIMAS UNIDADES"
+          : "DESTACADOS";
+
+      const blob = await generarPlacaMultiple(varios, { titulo: tituloPlaca });
+      setPlaca(blob);
+      setElegido({ nombre: `${varios.length} productos`, id: "multiple" });
+
+      const texto = textoMultiple(varios, { titulo: tituloPlaca });
+      setTextoPromo(texto);
+      setTextoFb(texto);
+    } catch (e) {
+      alert("No se pudo armar la placa: " + e.message);
+    } finally {
+      setGenerando(false);
+    }
+  }
   const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
@@ -231,6 +281,34 @@ function Promocionar() {
 
         {!placa && (
           <>
+            {/* Una publicación con varios productos rinde más en Facebook
+                que varias seguidas: no satura el muro y muestra surtido. */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => {
+                  setModo("uno");
+                  setVarios([]);
+                }}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold ${
+                  modo === "uno"
+                    ? "bg-brand-blue text-white"
+                    : "bg-white border border-gray-200 text-gray-600"
+                }`}
+              >
+                📄 Un producto
+              </button>
+              <button
+                onClick={() => setModo("varios")}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-bold ${
+                  modo === "varios"
+                    ? "bg-brand-blue text-white"
+                    : "bg-white border border-gray-200 text-gray-600"
+                }`}
+              >
+                🖼️ Varios juntos
+              </button>
+            </div>
+
             <p className="text-xs font-bold text-gray-500 uppercase mb-2">
               1. Elegí el tipo de aviso
             </p>
@@ -251,8 +329,31 @@ function Promocionar() {
             </div>
 
             <p className="text-xs font-bold text-gray-500 uppercase mb-2 mt-3">
-              2. Elegí el producto
+              {modo === "varios"
+                ? `2. Elegí hasta 4 productos (${varios.length}/4)`
+                : "2. Elegí el producto"}
             </p>
+
+            {modo === "varios" && varios.length > 0 && (
+              <div className="bg-blue-50 border border-brand-blue/40 rounded-xl p-3 mb-3">
+                <p className="text-[11px] font-bold text-gray-700 mb-1.5">
+                  Van a salir en la imagen:
+                </p>
+                {varios.map((p, i) => (
+                  <p key={p.id} className="text-[11px] text-gray-600">
+                    {i + 1}. {p.nombre}
+                  </p>
+                ))}
+
+                <button
+                  onClick={generarVarios}
+                  disabled={generando}
+                  className="w-full bg-brand-blue text-white text-xs font-bold py-2.5 rounded-xl mt-2 disabled:opacity-50"
+                >
+                  {generando ? "Armando..." : `Armar placa con ${varios.length}`}
+                </button>
+              </div>
+            )}
 
             <input
               value={busqueda}
@@ -271,9 +372,13 @@ function Promocionar() {
                   return (
                     <button
                       key={p.id}
-                      onClick={() => generar(p)}
+                      onClick={() => (modo === "varios" ? alternarVarios(p) : generar(p))}
                       disabled={generando}
-                      className="bg-white rounded-2xl border border-gray-100 p-2 text-left disabled:opacity-50"
+                      className={`bg-white rounded-2xl p-2 text-left disabled:opacity-50 border-2 ${
+                        modo === "varios" && varios.some((x) => x.id === p.id)
+                          ? "border-brand-blue"
+                          : "border-gray-100"
+                      }`}
                     >
                       <img
                         src={p.imagen_url}
@@ -281,6 +386,7 @@ function Promocionar() {
                         className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50"
                       />
                       <p className="text-[11px] font-semibold text-gray-800 line-clamp-2 leading-tight">
+                        {modo === "varios" && varios.some((x) => x.id === p.id) && "✓ "}
                         {p.nombre}
                       </p>
                       <p className="text-xs font-extrabold text-brand-blue mt-0.5">
