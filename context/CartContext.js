@@ -1,5 +1,7 @@
 "use client";
 
+import { supabase } from "@/lib/supabaseClient";
+
 import { createContext, useContext, useEffect, useState } from "react";
 import { avisarAdmin, clienteActual } from "@/lib/avisarAdmin";
 
@@ -30,6 +32,33 @@ export function CartProvider({ children }) {
   useEffect(() => {
     if (!loaded) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ items, nota }));
+
+    // Guardamos el carrito en el servidor para poder recordárselo si lo
+    // abandona. Solo si tiene sesión: sin teléfono no hay a quién escribirle.
+    try {
+      const sesion = JSON.parse(localStorage.getItem("cliente_sesion") || "null");
+      if (sesion?.telefono) {
+        const total = items.reduce(
+          (a, i) => a + Number(i.precio || 0) * Number(i.cantidad || 0),
+          0
+        );
+
+        supabase
+          .rpc("guardar_carrito", {
+            p_telefono: sesion.telefono,
+            p_nombre: sesion.nombre || null,
+            p_productos: items.map((i) => ({
+              id: i.id,
+              nombre: i.nombre,
+              cantidad: i.cantidad,
+              precio: i.precio
+            })),
+            p_total: total
+          })
+          .then(() => {})
+          .catch(() => {});
+      }
+    } catch (e) {}
   }, [items, nota, loaded]);
 
   function addItem(producto, cantidad = 1) {
