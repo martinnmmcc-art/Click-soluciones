@@ -28,6 +28,25 @@ export default function LoginPage() {
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [cambiandoPass, setCambiandoPass] = useState(false);
   const [aliasCopiado, setAliasCopiado] = useState(false);
+  const [paraResenar, setParaResenar] = useState([]);
+  const [misResenas, setMisResenas] = useState([]);
+
+  // Productos que recibió y todavía no opinó. Ponerlo acá es clave: en la
+  // ficha del producto hay que buscarlo, acá lo ve al entrar a sus pedidos.
+  useEffect(() => {
+    const tel = user?.telefono || sesionActiva?.telefono;
+    if (!tel) return;
+
+    async function cargarResenas() {
+      const [{ data: pendientes }, { data: mias }] = await Promise.all([
+        supabase.rpc("productos_para_resenar", { p_telefono: tel }),
+        supabase.rpc("mis_resenas", { p_telefono: tel })
+      ]);
+      setParaResenar(pendientes || []);
+      setMisResenas(mias || []);
+    }
+    cargarResenas();
+  }, [user, sesionActiva]);
 
   // Copiar el alias con un toque: escribirlo a mano es donde la gente se
   // equivoca o directamente abandona la transferencia.
@@ -855,6 +874,77 @@ export default function LoginPage() {
               </div>
             );
           })()}
+
+          {/* OPINAR SOBRE LO QUE RECIBIÓ */}
+          {paraResenar.length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 mb-4">
+              <p className="font-bold text-sm text-gray-800">
+                ⭐ ¿Cómo te fue con lo que compraste?
+              </p>
+              <p className="text-[11px] text-gray-600 mt-0.5 mb-3">
+                Tu opinión ayuda a otros vecinos que están dudando.
+              </p>
+
+              <div className="space-y-2">
+                {paraResenar.slice(0, 4).map((p) => (
+                  <a
+                    key={p.producto_id}
+                    href={`/producto/${p.producto_id}`}
+                    className="flex items-center gap-2.5 bg-white rounded-xl p-2.5"
+                  >
+                    <div className="w-11 h-11 bg-gray-50 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      {p.imagen_url ? (
+                        <img
+                          src={p.imagen_url}
+                          alt=""
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-lg">📦</span>
+                      )}
+                    </div>
+
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[11px] font-semibold text-gray-800 line-clamp-2 leading-tight">
+                        {p.nombre}
+                      </span>
+                      <span className="block text-[10px] text-brand-blue font-bold mt-0.5">
+                        Dejar mi opinión →
+                      </span>
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ESTADO DE LAS QUE YA DEJÓ */}
+          {misResenas.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+              <p className="font-bold text-sm text-gray-800 mb-2">Mis opiniones</p>
+              <div className="space-y-2">
+                {misResenas.map((r) => (
+                  <div key={r.producto_id} className="flex items-start gap-2">
+                    <span className="text-amber-400 text-xs flex-shrink-0">
+                      {"★".repeat(r.estrellas)}
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[11px] text-gray-700 line-clamp-1">
+                        {r.producto}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold ${
+                          r.aprobada ? "text-green-700" : "text-amber-700"
+                        }`}
+                      >
+                        {r.aprobada ? "✓ Publicada" : "🕐 En revisión"}
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="mb-4">
             <h2 className="font-bold text-sm text-gray-800 mb-3">📦 Mis Pedidos</h2>
