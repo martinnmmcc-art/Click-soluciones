@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { avisarAdmin } from "@/lib/avisarAdmin";
 
 // Reseñas de clientes.
 //
@@ -31,7 +32,7 @@ function Estrellas({ cantidad, tamano = "text-base", onClick = null }) {
   );
 }
 
-export default function ResenasProducto({ productoId }) {
+export default function ResenasProducto({ productoId, nombreProducto = "" }) {
   const [resenas, setResenas] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [puedeOpinar, setPuedeOpinar] = useState(false);
@@ -104,7 +105,20 @@ export default function ResenasProducto({ productoId }) {
         return;
       }
 
-      setMensaje("✅ ¡Gracias por tu opinión!");
+      // Le avisamos al negocio que hay una opinión esperando aprobación
+      try {
+        const sesion = JSON.parse(localStorage.getItem("cliente_sesion") || "{}");
+        avisarAdmin({
+          tipo: "resena",
+          telefono: sesion.telefono,
+          nombre: sesion.nombre,
+          detalle: nombreProducto || `producto #${productoId}`
+        });
+      } catch (err) {}
+
+      setMensaje(
+        "✅ ¡Gracias! Tu opinión va a aparecer en cuanto la revisemos."
+      );
       setComentario("");
       setEscribiendo(false);
       setPuedeOpinar(false);
