@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
-import ActivarNotificaciones from "@/components/ActivarNotificaciones";
+import ControlNotificaciones from "@/components/ControlNotificaciones";
 import PedirNotificaciones from "@/components/PedirNotificaciones";
 import DescargarOffline from "@/components/DescargarOffline";
 import { useAuth } from "@/context/AuthContext";
@@ -764,7 +764,7 @@ export default function LoginPage() {
           )}
 
           <div className="mb-4">
-            <ActivarNotificaciones telefono={user?.telefono || sesionActiva?.telefono} />
+            <ControlNotificaciones telefono={user?.telefono || sesionActiva?.telefono} />
           </div>
 
           <div className="mb-4">
