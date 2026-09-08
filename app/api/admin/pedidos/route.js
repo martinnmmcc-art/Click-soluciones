@@ -124,6 +124,27 @@ export async function PATCH(req) {
     return Response.json({ error: error.message }, { status: 400 });
   }
 
+  // Le avisamos al cliente que cambió el estado de su pedido. Va sin esperar
+  // respuesta: si el aviso falla, el cambio de estado igual se guardó.
+  const cambioEstado = estado !== undefined && estado !== pedidoActual.estado;
+  const cambioPago =
+    estado_pago !== undefined && estado_pago !== pedidoActual.estado_pago;
+
+  if (cambioEstado || cambioPago) {
+    const base =
+      process.env.NEXT_PUBLIC_SITE_URL || "https://www.bolsonclick.com.ar";
+
+    fetch(`${base}/api/avisar-cliente`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pedido_id: id,
+        estado: cambioEstado ? estado : null,
+        estado_pago: cambioPago ? estado_pago : null
+      })
+    }).catch(() => {});
+  }
+
   return Response.json({ pedido: data });
 }
 
