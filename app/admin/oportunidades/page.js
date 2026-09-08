@@ -46,6 +46,19 @@ function Oportunidades() {
       const cupon = data[0];
       const vence = new Date(cupon.vence_en).toLocaleDateString("es-AR");
 
+      // Notificación al celular: llega aunque no lea el WhatsApp
+      fetch("/api/avisar-cupon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          telefono: persona.telefono,
+          codigo: cupon.codigo,
+          porcentaje: config.porcentaje,
+          vence_en: cupon.vence_en,
+          motivo
+        })
+      }).catch(() => {});
+
       window.open(
         `https://wa.me/${wa(persona.telefono)}?text=${encodeURIComponent(
           armarMensaje(cupon.codigo, vence)
