@@ -19,11 +19,30 @@ export async function POST(request) {
       return Response.json({ error: "Faltan datos" }, { status: 400 });
     }
 
+    // Dejamos el aviso dentro de la app SIEMPRE, tenga o no notificaciones.
+    // Solo el 15% las tiene activadas: si dependiéramos de eso, la mayoría
+    // no se entera de nada.
+    await supabase.rpc("dejar_mensaje", {
+      p_telefono: telefono,
+      p_titulo: titulo,
+      p_cuerpo: cuerpo || null,
+      p_url: url || null,
+      p_icono: "🔔",
+      p_color: "azul",
+      p_dias: 15,
+      p_tipo: "aviso"
+    });
+
     const publica = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
     const privada = process.env.VAPID_PRIVATE_KEY;
 
     if (!publica || !privada) {
-      return Response.json({ ok: false, enviados: 0, motivo: "push_no_configurado" });
+      return Response.json({
+        ok: true,
+        enviados: 0,
+        en_app: true,
+        motivo: "push_no_configurado"
+      });
     }
 
     webpush.setVapidDetails("mailto:martinnm.mcc@gmail.com", publica, privada);
@@ -36,7 +55,13 @@ export async function POST(request) {
       .or("es_admin.is.null,es_admin.eq.false");
 
     if (!suscripciones || suscripciones.length === 0) {
-      return Response.json({ ok: true, enviados: 0, motivo: "no_tiene_avisos" });
+      // No tiene notificaciones, pero el aviso ya quedó en la app
+      return Response.json({
+        ok: true,
+        enviados: 0,
+        en_app: true,
+        motivo: "no_tiene_avisos"
+      });
     }
 
     const contenido = JSON.stringify({
@@ -64,7 +89,7 @@ export async function POST(request) {
       })
     );
 
-    return Response.json({ ok: true, enviados });
+    return Response.json({ ok: true, enviados, en_app: true });
   } catch (err) {
     return Response.json({ error: err.message }, { status: 500 });
   }
