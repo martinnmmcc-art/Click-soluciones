@@ -341,7 +341,9 @@ export default function LoginPage() {
     }
 
     if (ADMIN_EMAILS.includes(identificador.trim())) {
-      window.location.href = "/admin/productos";
+      // Al panel, no a productos: ahí están las ventas del día, los pedidos
+      // abiertos y el balance, que es lo primero que querés ver al entrar.
+      window.location.href = "/admin";
     } else {
       window.location.href = "/";
     }
