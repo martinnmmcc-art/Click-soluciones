@@ -247,14 +247,29 @@ export async function POST(request) {
     // También comparamos por nombre: si el producto ya está cargado a mano
     // (con stock y precio propio), no queremos crear una copia importada.
     const nombresProveedor = productos.map((p) => p.name).filter(Boolean);
+    // Comparamos contra nombre_proveedor, no contra el nombre visible.
+    // Al limpiar los códigos, el nombre que mostramos dejó de coincidir con
+    // el del proveedor y por eso se crearon copias de productos que ya
+    // teníamos. También miramos el nombre limpio, por si acaso.
+    const nombresLimpios = nombresProveedor.map((n) => limpiarCodigos(n));
+
     const { data: porNombre } = await supabase
       .from("Productos")
-      .select("id, nombre")
-      .in("nombre", nombresProveedor.length ? nombresProveedor : ["_"]);
+      .select("id, nombre, nombre_proveedor")
+      .or(
+        `nombre_proveedor.in.(${nombresProveedor
+          .map((n) => `"${n.replace(/"/g, "")}"`)
+          .join(",")}),nombre.in.(${nombresLimpios
+          .map((n) => `"${n.replace(/"/g, "")}"`)
+          .join(",")})`
+      );
 
-    const yaExistePorNombre = new Set(
-      (porNombre || []).map((p) => (p.nombre || "").trim().toLowerCase())
-    );
+    const yaExistePorNombre = new Set();
+    (porNombre || []).forEach((p) => {
+      if (p.nombre) yaExistePorNombre.add(p.nombre.trim().toLowerCase());
+      if (p.nombre_proveedor)
+        yaExistePorNombre.add(p.nombre_proveedor.trim().toLowerCase());
+    });
 
     const aInsertar = [];
     let actualizados = 0;
@@ -279,7 +294,13 @@ export async function POST(request) {
 
       // Si ya lo tenés cargado con ese nombre, lo salteamos: tu versión manda
       // (tiene tu stock, tu precio y tus ofertas).
-      if (!mapaExistentes.get(ref) && yaExistePorNombre.has((p.name || "").trim().toLowerCase())) {
+      const nombreOriginal = (p.name || "").trim().toLowerCase();
+      const nombreLimpio = limpiarCodigos(p.name || "").trim().toLowerCase();
+
+      if (
+        !mapaExistentes.get(ref) &&
+        (yaExistePorNombre.has(nombreOriginal) || yaExistePorNombre.has(nombreLimpio))
+      ) {
         omitidos++;
         continue;
       }
