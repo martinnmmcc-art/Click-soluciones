@@ -68,6 +68,12 @@ function Dashboard() {
           </div>
         </div>
 
+        {/* Control de notificaciones: va arriba de todo porque sin esto
+            no te enterás de las ventas hasta que entrás a mirar. */}
+        <div className="mb-5">
+          <ControlNotificaciones telefono="2944396888" esAdmin={true} />
+        </div>
+
         {loading ? (
           <div className="card p-6 text-center text-gray-400 text-sm mb-6">Cargando números...</div>
         ) : error ? (
