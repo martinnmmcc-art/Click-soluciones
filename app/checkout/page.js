@@ -46,6 +46,55 @@ export default function CheckoutPage() {
   const [yaTieneCuenta, setYaTieneCuenta] = useState(false);
   const [metodosPago, setMetodosPago] = useState([]);
   const [copiado, setCopiado] = useState("");
+  const [cupon, setCupon] = useState("");
+  const [cuponAplicado, setCuponAplicado] = useState(null);
+  const [validandoCupon, setValidandoCupon] = useState(false);
+  const [errorCupon, setErrorCupon] = useState("");
+
+  async function aplicarCupon() {
+    setErrorCupon("");
+    setValidandoCupon(true);
+
+    try {
+      const tel = normalizarTelefono(form.telefono_cliente);
+      const { data, error } = await supabase.rpc("validar_cupon", {
+        p_codigo: cupon,
+        p_telefono: tel,
+        p_total: total
+      });
+
+      const r = data?.[0];
+
+      if (error || !r?.valido) {
+        const mensajes = {
+          NO_EXISTE: "Ese código no existe.",
+          NO_ES_TUYO: "Ese código es de otro cliente.",
+          YA_USADO: "Ese código ya fue usado.",
+          VENCIDO: "Ese código venció.",
+          MINIMO: `Este código es para compras desde $${Number(r?.porcentaje || 0).toLocaleString("es-AR")}.`
+        };
+        setErrorCupon(mensajes[r?.motivo] || "No se pudo aplicar el código.");
+        setCuponAplicado(null);
+        return;
+      }
+
+      // Si lleva 2 productos o más y el cupón lo contempla, aplica el mayor
+      const unidades = items.reduce((a, i) => a + Number(i.cantidad || 0), 0);
+      const pct =
+        unidades >= 2 && Number(r.porcentaje_segundo) > Number(r.porcentaje)
+          ? Number(r.porcentaje_segundo)
+          : Number(r.porcentaje);
+
+      setCuponAplicado({
+        codigo: cupon.trim().toUpperCase(),
+        porcentaje: pct,
+        descuento: Math.round((total * pct) / 100),
+        conBonus: pct > Number(r.porcentaje)
+      });
+    } finally {
+      setValidandoCupon(false);
+    }
+  }
 
   // Las formas de pago se configuran desde el panel, así podés sumar
   // Naranja X o Mercado Pago sin tocar la app.
@@ -241,6 +290,17 @@ export default function CheckoutPage() {
           // Si falla la cuenta no arruinamos la compra: el pedido ya entró
           console.error("No se pudo crear la cuenta:", e);
         }
+      }
+
+      // Marcamos el cupón como usado: es de un solo uso
+      if (cuponAplicado && result?.pedido?.id) {
+        supabase
+          .rpc("usar_cupon", {
+            p_codigo: cuponAplicado.codigo,
+            p_pedido_id: result.pedido.id
+          })
+          .then(() => {})
+          .catch(() => {});
       }
 
       clearCart();
@@ -543,11 +603,84 @@ export default function CheckoutPage() {
               })}
           </div>
 
-          <div className="card p-4 flex items-center justify-between">
-            <span className="font-semibold text-gray-700">Total</span>
-            <span className="text-xl font-extrabold text-brand-blueDark">
-              ${formatPrice(total)}
-            </span>
+          {/* CÓDIGO DE DESCUENTO */}
+          <div className="card p-4">
+            {cuponAplicado ? (
+              <div className="bg-green-50 border border-green-300 rounded-xl p-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-xs font-bold text-green-800">
+                      🎟️ {cuponAplicado.codigo} aplicado
+                    </p>
+                    <p className="text-[11px] text-green-700">
+                      {cuponAplicado.porcentaje}% de descuento
+                      {cuponAplicado.conBonus && " (¡por llevar 2 o más!)"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCuponAplicado(null);
+                      setCupon("");
+                    }}
+                    className="text-[11px] font-semibold text-gray-500"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  ¿Tenés un código de descuento?
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    value={cupon}
+                    onChange={(e) => setCupon(e.target.value.toUpperCase())}
+                    className="input-field flex-1 uppercase"
+                    placeholder="Ej: VOLVE1234"
+                  />
+                  <button
+                    type="button"
+                    onClick={aplicarCupon}
+                    disabled={validandoCupon || !cupon.trim()}
+                    className="bg-brand-blue text-white text-xs font-bold px-4 rounded-xl disabled:opacity-50"
+                  >
+                    {validandoCupon ? "..." : "Aplicar"}
+                  </button>
+                </div>
+                {errorCupon && (
+                  <p className="text-[11px] text-red-600 mt-1">{errorCupon}</p>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="card p-4">
+            {cuponAplicado && (
+              <>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="text-gray-500">Subtotal</span>
+                  <span className="text-gray-600">${formatPrice(total)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm mb-2 pb-2 border-b border-gray-100">
+                  <span className="text-green-700 font-semibold">
+                    Descuento {cuponAplicado.porcentaje}%
+                  </span>
+                  <span className="text-green-700 font-bold">
+                    -${formatPrice(cuponAplicado.descuento)}
+                  </span>
+                </div>
+              </>
+            )}
+
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-gray-700">Total</span>
+              <span className="text-xl font-extrabold text-brand-blueDark">
+                ${formatPrice(total - (cuponAplicado?.descuento || 0))}
+              </span>
+            </div>
           </div>
 
           {/* CREAR CUENTA: sin fricción, con los datos que ya completó */}
