@@ -8,6 +8,7 @@ import AvisoSinConexion from "@/components/AvisoSinConexion";
 import PrecargaAutomatica from "@/components/PrecargaAutomatica";
 import InstalarApp from "@/components/InstalarApp";
 import MuroRegistro from "@/components/MuroRegistro";
+import LimiteDeError from "@/components/LimiteDeError";
 import AvisoDeuda from "@/components/AvisoDeuda";
 import AvisoCupon from "@/components/AvisoCupon";
 import MensajesCliente from "@/components/MensajesCliente";
@@ -49,16 +50,34 @@ export default function RootLayout({ children }) {
               <AuthGuard>
                 <ProtegerContenido />
                 <ServiceWorkerRegister />
-                <AvisoSinConexion />
-                <PrecargaAutomatica />
-                <InstalarApp />
-                <MuroRegistro />
-                <AvisoDeuda />
-                <AvisoCupon />
-                <MensajesCliente />
-                <RegistrarOrigen />
+                <LimiteDeError>
+                  <AvisoSinConexion />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <PrecargaAutomatica />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <InstalarApp />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <MuroRegistro />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <AvisoDeuda />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <AvisoCupon />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <MensajesCliente />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <RegistrarOrigen />
+                </LimiteDeError>
                 <div className="container-app pb-24">{children}</div>
-                <WhatsAppFloatingButton />
+                <LimiteDeError>
+                  <WhatsAppFloatingButton />
+                </LimiteDeError>
                 <BottomNav />
               </AuthGuard>
             </CartProvider>
