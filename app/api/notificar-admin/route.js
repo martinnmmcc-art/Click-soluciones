@@ -67,7 +67,7 @@ const PLANTILLAS = {
 export async function POST(request) {
   try {
     const evento = await request.json();
-    const { tipo, telefono, nombre, detalle, monto } = evento;
+    const { tipo, telefono, nombre, detalle, monto, visitante } = evento;
 
     if (!tipo) {
       return NextResponse.json({ error: "Falta el tipo de evento" }, { status: 400 });
@@ -79,7 +79,8 @@ export async function POST(request) {
       telefono: telefono || null,
       nombre: nombre || null,
       detalle: detalle || null,
-      monto: monto || null
+      monto: monto || null,
+      visitante: visitante || null
     });
 
     // 2. Armamos el texto según el tipo
