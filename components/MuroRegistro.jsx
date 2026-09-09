@@ -16,6 +16,29 @@ import { avisarAdmin, idVisitante } from "@/lib/avisarAdmin";
 
 const SEGUNDOS_ANTES_DE_PEDIR = 20;
 
+// Huella básica del dispositivo. No identifica a la persona, solo ayuda a
+// distinguir dos celulares distintos detrás de la misma conexión, algo
+// habitual en las redes móviles de la zona.
+function huellaDispositivo() {
+  try {
+    const partes = [
+      navigator.userAgent || "",
+      navigator.language || "",
+      screen.width + "x" + screen.height,
+      new Date().getTimezoneOffset()
+    ].join("|");
+
+    let h = 0;
+    for (let i = 0; i < partes.length; i++) {
+      h = (h << 5) - h + partes.charCodeAt(i);
+      h |= 0;
+    }
+    return "d" + Math.abs(h).toString(36);
+  } catch (e) {
+    return null;
+  }
+}
+
 // Pantallas donde nunca molestamos
 const RUTAS_LIBRES = ["/login", "/catalogo-compartir", "/offline", "/admin"];
 
@@ -26,6 +49,7 @@ export default function MuroRegistro() {
   const [localidad, setLocalidad] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
+  const [yaMiroAntes, setYaMiroAntes] = useState(false);
 
   useEffect(() => {
     function estaLibre() {
@@ -54,6 +78,30 @@ export default function MuroRegistro() {
         return false;
       }
     }
+
+    // Contamos la visita apenas entra. El servidor lleva la cuenta por IP,
+    // así que entrar en incógnito o borrar los datos no la reinicia.
+    let visitaPrevia = null;
+    async function contarVisita() {
+      try {
+        const res = await fetch("/api/visita", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ huella: huellaDispositivo() })
+        });
+        visitaPrevia = await res.json();
+
+        // Si ya miró varias veces sin registrarse, no esperamos los
+        // 20 segundos: se lo pedimos enseguida.
+        if (visitaPrevia?.exigir_registro && !estaLibre() && !tieneSesionCliente()) {
+          if (!(await esAdminLogueado())) {
+            setYaMiroAntes(true);
+            setMostrar(true);
+          }
+        }
+      } catch (e) {}
+    }
+    contarVisita();
 
     async function decidir() {
       if (estaLibre() || tieneSesionCliente()) return;
@@ -186,10 +234,16 @@ export default function MuroRegistro() {
               className="w-16 h-16 rounded-2xl mx-auto mb-3"
             />
             <h2 className="font-extrabold text-lg text-gray-800 leading-tight">
-              Seguí mirando con tu cuenta
+              {yaMiroAntes
+                ? "Creá tu cuenta para seguir"
+                : "Seguí mirando con tu cuenta"}
             </h2>
             <p className="text-xs text-gray-500 mt-1.5">
-              Es gratis, son 10 segundos y <b>no necesitás contraseña</b>.
+              {yaMiroAntes
+                ? "Ya miraste varias veces 🙂 Registrate y seguí sin límite."
+                : "Es gratis, son 10 segundos y "}
+              {!yaMiroAntes && <b>no necesitás contraseña</b>}
+              {!yaMiroAntes && "."}
             </p>
           </div>
 
