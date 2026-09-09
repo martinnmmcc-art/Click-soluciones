@@ -190,6 +190,18 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Nombre y apellido: con un solo nombre no se distingue entre dos
+    // clientes que se llaman igual, y en un pueblo pasa seguido.
+    const partesNombre = form.nombre_cliente
+      .trim()
+      .split(/\s+/)
+      .filter((x) => x.length >= 2);
+
+    if (partesNombre.length < 2) {
+      setError("Escribí tu nombre y apellido, así sabemos a quién entregar.");
+      return;
+    }
+
     // Si el celular está mal, no hay forma de coordinar la entrega:
     // conviene frenarlo acá y no después de que el pedido ya entró.
     const chequeoTel = validarTelefonoArgentino(form.telefono_cliente);
@@ -387,6 +399,7 @@ export default function CheckoutPage() {
                   value={form.nombre_cliente}
                   onChange={handleChange}
                   className="input-field"
+                  placeholder="Ej: Juan Pérez"
                 />
               </div>
               <div>
