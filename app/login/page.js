@@ -31,23 +31,6 @@ export default function LoginPage() {
   const [paraResenar, setParaResenar] = useState([]);
   const [misResenas, setMisResenas] = useState([]);
 
-  // Productos que recibió y todavía no opinó. Ponerlo acá es clave: en la
-  // ficha del producto hay que buscarlo, acá lo ve al entrar a sus pedidos.
-  useEffect(() => {
-    const tel = user?.telefono || sesionActiva?.telefono;
-    if (!tel) return;
-
-    async function cargarResenas() {
-      const [{ data: pendientes }, { data: mias }] = await Promise.all([
-        supabase.rpc("productos_para_resenar", { p_telefono: tel }),
-        supabase.rpc("mis_resenas", { p_telefono: tel })
-      ]);
-      setParaResenar(pendientes || []);
-      setMisResenas(mias || []);
-    }
-    cargarResenas();
-  }, [user, sesionActiva]);
-
   // Copiar el alias con un toque: escribirlo a mano es donde la gente se
   // equivoca o directamente abandona la transferencia.
   async function copiarAlias() {
@@ -70,6 +53,24 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [sesionActiva, setSesionActiva] = useState(null);
+
+  // Productos que recibió y todavía no opinó. Ponerlo acá es clave: en la
+  // ficha del producto hay que buscarlo, acá lo ve al entrar a sus pedidos.
+  useEffect(() => {
+    const tel = user?.telefono || sesionActiva?.telefono;
+    if (!tel) return;
+
+    async function cargarResenas() {
+      const [{ data: pendientes }, { data: mias }] = await Promise.all([
+        supabase.rpc("productos_para_resenar", { p_telefono: tel }),
+        supabase.rpc("mis_resenas", { p_telefono: tel })
+      ]);
+      setParaResenar(pendientes || []);
+      setMisResenas(mias || []);
+    }
+    cargarResenas();
+  }, [user, sesionActiva]);
+
 
   const [misPedidos, setMisPedidos] = useState([]);
   const [pedidosLoading, setPedidosLoading] = useState(false);
