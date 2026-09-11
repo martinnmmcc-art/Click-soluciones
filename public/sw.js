@@ -8,7 +8,7 @@
 //     actualiza en segundo plano. Son inmutables, no hay riesgo de versión vieja.
 //   - Datos de productos: primero la red; sin internet, la última copia guardada.
 
-const VERSION = "v6";
+const VERSION = "v7";
 const CACHE_APP = `bolsonclick-app-${VERSION}`;
 const CACHE_DATOS = `bolsonclick-datos-${VERSION}`;
 const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
