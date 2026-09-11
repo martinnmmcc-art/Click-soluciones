@@ -42,3 +42,18 @@ export async function POST(request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+// Baja del celular: lo sacamos de la base para no seguir enviándole avisos
+export async function DELETE(request) {
+  try {
+    const { endpoint } = await request.json();
+    if (!endpoint) {
+      return NextResponse.json({ error: "Falta el identificador" }, { status: 400 });
+    }
+
+    await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
