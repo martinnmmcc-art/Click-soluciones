@@ -1,56 +1,93 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { pushSoportado, suscribirPush, estaSuscripto } from "@/lib/push";
 import { supabase } from "@/lib/supabaseClient";
 
-// Control para prender y apagar las notificaciones.
+// Control de notificaciones, pensado para que lo use cualquiera.
 //
-// Muestra siempre el estado real, porque el permiso vive en el navegador y
-// no en nuestra base: alguien puede haberlas bloqueado desde la
-// configuración del celular y hay que decírselo, no dejarlo pensando que
-// están activas.
-// Cada admin tiene su teléfono. Antes el panel usaba uno fijo, así que
-// entrara quien entrara se registraba siempre el mismo número.
+// Un botón grande, y cuando algo falla se explica en palabras qué hacer,
+// sin códigos ni términos técnicos. La mayoría de los clientes de la app
+// no son gente que vaya a revisar la configuración del navegador.
+
 const ADMINS = {
   "maricelcanumir@gmail.com": { telefono: "2944396888", nombre: "Maricel" },
   "martinnm.mcc@gmail.com": { telefono: "2944636224", nombre: "Martin" },
   "patagoniavolt@gmail.com": { telefono: "2944906160", nombre: "Patagonia Volt" }
 };
 
-export default function ControlNotificaciones({ telefono, esAdmin = false }) {
-  const [telefonoReal, setTelefonoReal] = useState(telefono);
-  const [nombreAdmin, setNombreAdmin] = useState("");
+function soportado() {
+  try {
+    return (
+      typeof window !== "undefined" &&
+      "serviceWorker" in navigator &&
+      "PushManager" in window &&
+      "Notification" in window
+    );
+  } catch (e) {
+    return false;
+  }
+}
 
-  // Averiguamos con qué cuenta entró para registrar SU celular
+export default function ControlNotificaciones({ telefono, esAdmin = false }) {
+  const [estado, setEstado] = useState("cargando");
+  const [procesando, setProcesando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [telefonoReal, setTelefonoReal] = useState(telefono || "");
+  const [nombreAdmin, setNombreAdmin] = useState("");
+  const [estadoAdmins, setEstadoAdmins] = useState([]);
+
+  // Con qué cuenta entró: cada admin registra su propio celular
   useEffect(() => {
     if (!esAdmin) {
-      setTelefonoReal(telefono);
+      setTelefonoReal(telefono || "");
       return;
     }
-
-    async function quienEs() {
+    (async () => {
       try {
         const { data } = await supabase.auth.getSession();
-        const email = data?.session?.user?.email;
-        const admin = ADMINS[email];
-
+        const admin = ADMINS[data?.session?.user?.email];
         if (admin) {
           setTelefonoReal(admin.telefono);
           setNombreAdmin(admin.nombre);
         }
       } catch (e) {}
-    }
-    quienEs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    })();
   }, [esAdmin, telefono]);
-  const [estado, setEstado] = useState("cargando");
-  const [procesando, setProcesando] = useState(false);
-  const [probando, setProbando] = useState(false);
-  const [estadoAdmins, setEstadoAdmins] = useState([]);
 
-  // Estado de los tres celulares del negocio: sirve para ver de un vistazo
-  // quién va a recibir los avisos y quién todavía no los activó.
+  async function revisar() {
+    if (!soportado()) {
+      setEstado("no_soportado");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setEstado("bloqueado");
+      return;
+    }
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+
+      if (!sub) {
+        setEstado("inactivas");
+        return;
+      }
+
+      // Que exista en el navegador no alcanza: tiene que estar en nuestra
+      // base, si no, no le llega nada.
+      const res = await fetch("/api/estado-suscripcion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: sub.endpoint })
+      });
+      const d = await res.json();
+
+      setEstado(d.registrada ? "activas" : "a_medias");
+    } catch (e) {
+      setEstado("inactivas");
+    }
+  }
+
   async function revisarAdmins() {
     if (!esAdmin) return;
     try {
@@ -60,20 +97,118 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
         .eq("es_admin", true);
 
       const registrados = new Set((data || []).map((s) => s.telefono));
-
       setEstadoAdmins(
-        Object.values(ADMINS).map((a) => ({
-          ...a,
-          activo: registrados.has(a.telefono)
-        }))
+        Object.values(ADMINS).map((a) => ({ ...a, activo: registrados.has(a.telefono) }))
       );
     } catch (e) {}
   }
 
-  // Envía una notificación de prueba y cuenta qué pasó en cada paso.
-  // Sin esto, cuando algo falla no hay forma de saber dónde.
+  useEffect(() => {
+    revisar();
+    revisarAdmins();
+
+    function alVolver() {
+      if (document.visibilityState === "visible") revisar();
+    }
+    document.addEventListener("visibilitychange", alVolver);
+    return () => document.removeEventListener("visibilitychange", alVolver);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telefonoReal]);
+
+  // Activación en un solo paso, con el motivo claro si algo falla
+  async function activar() {
+    setProcesando(true);
+    setMensaje("");
+
+    try {
+      // 1. Revisamos que el servidor esté bien configurado
+      const cfg = await (await fetch("/api/diagnostico-push")).json();
+      if (!cfg.todo_bien) {
+        setMensaje(
+          "⚠️ Falta configurar algo en el servidor. Avisale a Martin:\n\n" +
+            cfg.problemas.join("\n")
+        );
+        return;
+      }
+
+      // 2. Pedimos permiso
+      const permiso = await Notification.requestPermission();
+      if (permiso !== "granted") {
+        setEstado(permiso === "denied" ? "bloqueado" : "inactivas");
+        setMensaje("No diste permiso. Sin eso no podemos avisarte nada.");
+        return;
+      }
+
+      // 3. Registramos el celular
+      const reg = await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+
+      if (!sub) {
+        const clave = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        const bytes = Uint8Array.from(
+          atob((clave + "=".repeat((4 - (clave.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/")),
+          (c) => c.charCodeAt(0)
+        );
+
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: bytes
+        });
+      }
+
+      // 4. Lo guardamos
+      const res = await fetch("/api/push/suscribir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription: sub, telefono: telefonoReal })
+      });
+      const guardado = await res.json();
+
+      if (!res.ok || guardado?.error) {
+        setMensaje("No se pudo guardar: " + (guardado?.error || "error del servidor"));
+        return;
+      }
+
+      setEstado("activas");
+      setMensaje("✅ ¡Listo! Ya vas a recibir los avisos.");
+      revisarAdmins();
+      setTimeout(() => setMensaje(""), 4000);
+    } catch (e) {
+      setMensaje("No se pudieron activar: " + e.message);
+    } finally {
+      setProcesando(false);
+    }
+  }
+
+  async function desactivar() {
+    if (!confirm("¿Desactivar las notificaciones en este celular?")) return;
+
+    setProcesando(true);
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+
+      if (sub) {
+        await fetch("/api/push/suscribir", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint })
+        });
+        await sub.unsubscribe();
+      }
+
+      setEstado("inactivas");
+      revisarAdmins();
+    } catch (e) {
+      setMensaje("No se pudo desactivar: " + e.message);
+    } finally {
+      setProcesando(false);
+    }
+  }
+
   async function probar() {
-    setProbando(true);
+    setProcesando(true);
+    setMensaje("");
     try {
       const res = await fetch("/api/probar-notificacion", {
         method: "POST",
@@ -82,109 +217,13 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
       });
       const d = await res.json();
 
-      let msg = "";
-
-      if (!d.claves_configuradas) {
-        msg = "❌ Faltan las claves de notificaciones en el servidor.";
-      } else if (d.suscripciones_encontradas === 0) {
-        msg =
-          "❌ Este celular no está registrado.\n\n" +
-          "Desactivá las notificaciones y volvé a activarlas.";
-      } else if (d.enviadas > 0) {
-        msg =
-          `✅ Enviada a ${d.enviadas} dispositivo(s).\n\n` +
-          (d.marcado_admin
-            ? "Este celular está marcado como administrador, así que vas a recibir cada venta y cada carrito."
-            : "⚠️ Pero NO figura como administrador: no vas a recibir los avisos de ventas.") +
-          "\n\nSi no te llegó nada en unos segundos, revisá que las notificaciones de la app estén permitidas en la configuración del celular.";
-      } else {
-        msg = `❌ No se pudo enviar.\n\n${d.errores.join("\n")}`;
-      }
-
-      alert(msg);
+      setMensaje(
+        d.enviadas > 0
+          ? "✅ Enviada. Debería llegarte en unos segundos."
+          : `No se pudo enviar.\n${d.errores?.join("\n") || ""}`
+      );
     } catch (e) {
-      alert("No se pudo hacer la prueba: " + e.message);
-    } finally {
-      setProbando(false);
-    }
-  }
-
-  async function revisar() {
-    if (!pushSoportado()) {
-      setEstado("no_soportado");
-      return;
-    }
-
-    if (typeof Notification !== "undefined" && Notification.permission === "denied") {
-      setEstado("bloqueado");
-      return;
-    }
-
-    const suscripto = await estaSuscripto();
-    setEstado(suscripto ? "activas" : "inactivas");
-  }
-
-  useEffect(() => {
-    revisar();
-    revisarAdmins();
-
-    // Si el usuario cambia el permiso desde la configuración del celular,
-    // lo detectamos al volver a la app.
-    function alVolver() {
-      if (document.visibilityState === "visible") revisar();
-    }
-    document.addEventListener("visibilitychange", alVolver);
-    return () => document.removeEventListener("visibilitychange", alVolver);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function activar() {
-    setProcesando(true);
-    try {
-      const res = await suscribirPush(telefonoReal);
-      await revisar();
-      await revisarAdmins();
-
-      // Confirmamos qué quedó guardado: antes fallaba en silencio y no
-      // había forma de saber si el registro se había hecho.
-      if (res?.ok) {
-        if (esAdmin && res.es_admin === false) {
-          alert(
-            "Las notificaciones quedaron activas, pero este celular no se " +
-              "registró como administrador.\n\nRevisá que el teléfono del panel " +
-              "sea uno de los del negocio."
-          );
-        }
-      } else if (res?.error) {
-        alert("No se pudieron activar: " + res.error);
-      }
-    } finally {
-      setProcesando(false);
-    }
-  }
-
-  async function desactivar() {
-    if (!confirm("¿Desactivar las notificaciones?\n\nNo vas a recibir más avisos en este celular."))
-      return;
-
-    setProcesando(true);
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-
-      if (sub) {
-        // Primero la sacamos de nuestra base, después del navegador
-        await supabase
-          .from("push_subscriptions")
-          .delete()
-          .eq("endpoint", sub.endpoint);
-
-        await sub.unsubscribe();
-      }
-
-      await revisar();
-    } catch (e) {
-      alert("No se pudo desactivar: " + e.message);
+      setMensaje("Error en la prueba: " + e.message);
     } finally {
       setProcesando(false);
     }
@@ -198,7 +237,7 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
         <p className="text-sm font-bold text-gray-700">🔕 Notificaciones</p>
         <p className="text-xs text-gray-500 mt-1">
           Este navegador no las permite. Probá desde Chrome en Android, o
-          instalá la app en la pantalla de inicio.
+          instalá la app desde el botón de abajo.
         </p>
       </div>
     );
@@ -206,19 +245,22 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
 
   if (estado === "bloqueado") {
     return (
-      <div className="bg-red-50 border border-red-300 rounded-2xl p-4">
-        <p className="text-sm font-bold text-red-800">🔕 Notificaciones bloqueadas</p>
+      <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
+        <p className="text-sm font-bold text-red-800">🔕 Están bloqueadas</p>
         <p className="text-xs text-red-700 mt-1">
-          Las bloqueaste en su momento y el navegador no deja volver a
-          preguntar desde acá.
+          En algún momento se eligió &quot;Bloquear&quot; y el navegador ya no
+          deja volver a preguntar desde acá.
         </p>
-        <div className="bg-white rounded-xl p-2.5 mt-2">
-          <p className="text-[11px] text-gray-700 font-semibold mb-1">
-            Para reactivarlas:
-          </p>
+        <div className="bg-white rounded-xl p-3 mt-2">
+          <p className="text-[11px] font-bold text-gray-700 mb-1">Para arreglarlo:</p>
           <p className="text-[11px] text-gray-600">
-            Tocá el candado 🔒 al lado de la dirección, arriba de la pantalla →
-            Permisos → Notificaciones → Permitir. Después recargá.
+            1. Tocá el candado 🔒 al lado de la dirección, arriba
+            <br />
+            2. Entrá en Permisos o Configuración del sitio
+            <br />
+            3. En Notificaciones elegí Permitir
+            <br />
+            4. Volvé acá y recargá
           </p>
         </div>
       </div>
@@ -226,49 +268,49 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
   }
 
   const activas = estado === "activas";
+  const aMedias = estado === "a_medias";
 
   return (
     <div
       className={`rounded-2xl p-4 border-2 ${
-        activas ? "bg-green-50 border-green-300" : "bg-white border-brand-blue/40"
+        activas
+          ? "bg-green-50 border-green-300"
+          : aMedias
+          ? "bg-amber-50 border-amber-300"
+          : "bg-white border-brand-blue/40"
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-gray-800">
-            {activas ? "🔔 Notificaciones activas" : "🔕 Notificaciones apagadas"}
+            {activas
+              ? "🔔 Notificaciones activas"
+              : aMedias
+              ? "⚠️ Quedaron a medias"
+              : "🔕 Notificaciones apagadas"}
           </p>
           <p className="text-xs text-gray-600 mt-1">
-            {esAdmin
+            {aMedias
+              ? "Tu celular dio el permiso pero no quedó registrado. Tocá el botón para completarlo."
+              : esAdmin
               ? activas
-                ? `Te avisamos de cada venta, pedido y comprobante al instante${
-                    nombreAdmin ? ` (celular de ${nombreAdmin})` : ""
-                  }.`
-                : "Activalas para enterarte de cada venta apenas pasa, sin tener que entrar."
+                ? `Te avisamos de cada venta y cada pedido${nombreAdmin ? ` (celular de ${nombreAdmin})` : ""}.`
+                : "Activalas para enterarte de cada venta apenas pasa."
               : activas
               ? "Te avisamos cuando avanza tu pedido y cuando llega mercadería nueva."
               : "Activalas para seguir tu pedido y enterarte de las novedades."}
           </p>
         </div>
-
-        <span className="text-2xl flex-shrink-0">{activas ? "✅" : "📵"}</span>
+        <span className="text-2xl flex-shrink-0">
+          {activas ? "✅" : aMedias ? "⚠️" : "📵"}
+        </span>
       </div>
 
-      <button
-        onClick={activas ? desactivar : activar}
-        disabled={procesando}
-        className={`w-full text-xs font-bold py-2.5 rounded-xl mt-3 disabled:opacity-50 ${
-          activas
-            ? "bg-white border border-gray-300 text-gray-600"
-            : "bg-brand-blue text-white"
-        }`}
-      >
-        {procesando
-          ? "Un momento..."
-          : activas
-          ? "Desactivar en este celular"
-          : "Activar notificaciones"}
-      </button>
+      {mensaje && (
+        <div className="bg-white border border-gray-200 rounded-xl p-2.5 mt-3">
+          <p className="text-[11px] text-gray-700 whitespace-pre-line">{mensaje}</p>
+        </div>
+      )}
 
       {esAdmin && estadoAdmins.length > 0 && (
         <div className="bg-white/70 rounded-xl p-2.5 mt-3">
@@ -291,25 +333,37 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
             </div>
           ))}
           <p className="text-[9px] text-gray-400 mt-1.5">
-            Cada uno tiene que activarlas desde su propio celular.
+            Cada uno las activa desde su propio celular.
           </p>
         </div>
       )}
 
+      <button
+        onClick={activas ? desactivar : activar}
+        disabled={procesando}
+        className={`w-full text-sm font-bold py-3 rounded-xl mt-3 disabled:opacity-50 ${
+          activas
+            ? "bg-white border border-gray-300 text-gray-600"
+            : "bg-brand-blue text-white"
+        }`}
+      >
+        {procesando
+          ? "Un momento..."
+          : activas
+          ? "Desactivar en este celular"
+          : aMedias
+          ? "Completar activación"
+          : "Activar notificaciones"}
+      </button>
+
       {activas && (
         <button
           onClick={probar}
-          disabled={probando}
+          disabled={procesando}
           className="w-full text-[11px] font-bold text-brand-blue py-2 disabled:opacity-50"
         >
-          {probando ? "Probando..." : "🔔 Enviarme una notificación de prueba"}
+          🔔 Enviarme una de prueba
         </button>
-      )}
-
-      {!activas && (
-        <p className="text-[10px] text-gray-400 mt-2 text-center">
-          Podés desactivarlas cuando quieras desde acá mismo.
-        </p>
       )}
     </div>
   );
