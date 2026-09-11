@@ -8,6 +8,7 @@ import { formatPrice } from "@/lib/whatsapp";
 import {
   generarPlaca,
   textoWhatsApp,
+  textoWhatsAppLargo,
   textoFacebook,
   generarPlacaMultiple,
   textoMultiple
@@ -32,6 +33,7 @@ function Promocionar() {
   const [textoPromo, setTextoPromo] = useState("");
   const [textoFb, setTextoFb] = useState("");
   const [red, setRed] = useState("whatsapp");
+  const [textoLargo, setTextoLargo] = useState(false);
   const [modo, setModo] = useState("uno"); // uno | varios
   const [varios, setVarios] = useState([]);
   const [yaPromocionados, setYaPromocionados] = useState({});
@@ -153,7 +155,11 @@ function Promocionar() {
     try {
       const blob = await generarPlaca(producto, { etiqueta });
       setPlaca(blob);
-      setTextoPromo(textoWhatsApp(producto, { etiqueta }));
+      setTextoPromo(
+        textoLargo
+          ? textoWhatsAppLargo(producto, { etiqueta })
+          : textoWhatsApp(producto, { etiqueta })
+      );
       setTextoFb(textoFacebook(producto, { etiqueta }));
     } catch (e) {
       alert("No se pudo armar la promoción: " + e.message);
@@ -318,6 +324,37 @@ function Promocionar() {
             </div>
 
             <div className="bg-gray-50 rounded-xl p-3 mt-3">
+              {red === "whatsapp" && elegido?.id !== "multiple" && (
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={() => {
+                      setTextoLargo(false);
+                      setTextoPromo(textoWhatsApp(elegido, { etiqueta }));
+                    }}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold ${
+                      !textoLargo
+                        ? "bg-gray-800 text-white"
+                        : "bg-white border border-gray-200 text-gray-600"
+                    }`}
+                  >
+                    Corto (para estado)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTextoLargo(true);
+                      setTextoPromo(textoWhatsAppLargo(elegido, { etiqueta }));
+                    }}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold ${
+                      textoLargo
+                        ? "bg-gray-800 text-white"
+                        : "bg-white border border-gray-200 text-gray-600"
+                    }`}
+                  >
+                    Largo (para chat)
+                  </button>
+                </div>
+              )}
+
               <p className="text-[11px] text-gray-600 whitespace-pre-line leading-relaxed">
                 {red === "facebook" ? textoFb : textoPromo}
               </p>
