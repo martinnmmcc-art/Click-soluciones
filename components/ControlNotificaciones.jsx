@@ -10,10 +10,65 @@ import { supabase } from "@/lib/supabaseClient";
 // no en nuestra base: alguien puede haberlas bloqueado desde la
 // configuración del celular y hay que decírselo, no dejarlo pensando que
 // están activas.
+// Cada admin tiene su teléfono. Antes el panel usaba uno fijo, así que
+// entrara quien entrara se registraba siempre el mismo número.
+const ADMINS = {
+  "maricelcanumir@gmail.com": { telefono: "2944396888", nombre: "Maricel" },
+  "martinnm.mcc@gmail.com": { telefono: "2944636224", nombre: "Martin" },
+  "patagoniavolt@gmail.com": { telefono: "2944906160", nombre: "Patagonia Volt" }
+};
+
 export default function ControlNotificaciones({ telefono, esAdmin = false }) {
+  const [telefonoReal, setTelefonoReal] = useState(telefono);
+  const [nombreAdmin, setNombreAdmin] = useState("");
+
+  // Averiguamos con qué cuenta entró para registrar SU celular
+  useEffect(() => {
+    if (!esAdmin) {
+      setTelefonoReal(telefono);
+      return;
+    }
+
+    async function quienEs() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const email = data?.session?.user?.email;
+        const admin = ADMINS[email];
+
+        if (admin) {
+          setTelefonoReal(admin.telefono);
+          setNombreAdmin(admin.nombre);
+        }
+      } catch (e) {}
+    }
+    quienEs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esAdmin, telefono]);
   const [estado, setEstado] = useState("cargando");
   const [procesando, setProcesando] = useState(false);
   const [probando, setProbando] = useState(false);
+  const [estadoAdmins, setEstadoAdmins] = useState([]);
+
+  // Estado de los tres celulares del negocio: sirve para ver de un vistazo
+  // quién va a recibir los avisos y quién todavía no los activó.
+  async function revisarAdmins() {
+    if (!esAdmin) return;
+    try {
+      const { data } = await supabase
+        .from("push_subscriptions")
+        .select("telefono")
+        .eq("es_admin", true);
+
+      const registrados = new Set((data || []).map((s) => s.telefono));
+
+      setEstadoAdmins(
+        Object.values(ADMINS).map((a) => ({
+          ...a,
+          activo: registrados.has(a.telefono)
+        }))
+      );
+    } catch (e) {}
+  }
 
   // Envía una notificación de prueba y cuenta qué pasó en cada paso.
   // Sin esto, cuando algo falla no hay forma de saber dónde.
@@ -23,7 +78,7 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
       const res = await fetch("/api/probar-notificacion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ telefono })
+        body: JSON.stringify({ telefono: telefonoReal })
       });
       const d = await res.json();
 
@@ -71,6 +126,7 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
 
   useEffect(() => {
     revisar();
+    revisarAdmins();
 
     // Si el usuario cambia el permiso desde la configuración del celular,
     // lo detectamos al volver a la app.
@@ -85,8 +141,9 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
   async function activar() {
     setProcesando(true);
     try {
-      const res = await suscribirPush(telefono);
+      const res = await suscribirPush(telefonoReal);
       await revisar();
+      await revisarAdmins();
 
       // Confirmamos qué quedó guardado: antes fallaba en silencio y no
       // había forma de saber si el registro se había hecho.
@@ -184,7 +241,9 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
           <p className="text-xs text-gray-600 mt-1">
             {esAdmin
               ? activas
-                ? "Te avisamos de cada venta, pedido y comprobante al instante."
+                ? `Te avisamos de cada venta, pedido y comprobante al instante${
+                    nombreAdmin ? ` (celular de ${nombreAdmin})` : ""
+                  }.`
                 : "Activalas para enterarte de cada venta apenas pasa, sin tener que entrar."
               : activas
               ? "Te avisamos cuando avanza tu pedido y cuando llega mercadería nueva."
@@ -210,6 +269,32 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
           ? "Desactivar en este celular"
           : "Activar notificaciones"}
       </button>
+
+      {esAdmin && estadoAdmins.length > 0 && (
+        <div className="bg-white/70 rounded-xl p-2.5 mt-3">
+          <p className="text-[10px] font-bold text-gray-600 mb-1.5">
+            Celulares del negocio
+          </p>
+          {estadoAdmins.map((a) => (
+            <div key={a.telefono} className="flex justify-between items-center">
+              <span className="text-[11px] text-gray-700">
+                {a.nombre}
+                <span className="text-gray-400"> · {a.telefono}</span>
+              </span>
+              <span
+                className={`text-[10px] font-bold ${
+                  a.activo ? "text-green-700" : "text-gray-400"
+                }`}
+              >
+                {a.activo ? "✓ recibe" : "sin activar"}
+              </span>
+            </div>
+          ))}
+          <p className="text-[9px] text-gray-400 mt-1.5">
+            Cada uno tiene que activarlas desde su propio celular.
+          </p>
+        </div>
+      )}
 
       {activas && (
         <button
