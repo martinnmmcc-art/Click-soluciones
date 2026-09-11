@@ -13,6 +13,46 @@ import { supabase } from "@/lib/supabaseClient";
 export default function ControlNotificaciones({ telefono, esAdmin = false }) {
   const [estado, setEstado] = useState("cargando");
   const [procesando, setProcesando] = useState(false);
+  const [probando, setProbando] = useState(false);
+
+  // Envía una notificación de prueba y cuenta qué pasó en cada paso.
+  // Sin esto, cuando algo falla no hay forma de saber dónde.
+  async function probar() {
+    setProbando(true);
+    try {
+      const res = await fetch("/api/probar-notificacion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefono })
+      });
+      const d = await res.json();
+
+      let msg = "";
+
+      if (!d.claves_configuradas) {
+        msg = "❌ Faltan las claves de notificaciones en el servidor.";
+      } else if (d.suscripciones_encontradas === 0) {
+        msg =
+          "❌ Este celular no está registrado.\n\n" +
+          "Desactivá las notificaciones y volvé a activarlas.";
+      } else if (d.enviadas > 0) {
+        msg =
+          `✅ Enviada a ${d.enviadas} dispositivo(s).\n\n` +
+          (d.marcado_admin
+            ? "Este celular está marcado como administrador, así que vas a recibir cada venta y cada carrito."
+            : "⚠️ Pero NO figura como administrador: no vas a recibir los avisos de ventas.") +
+          "\n\nSi no te llegó nada en unos segundos, revisá que las notificaciones de la app estén permitidas en la configuración del celular.";
+      } else {
+        msg = `❌ No se pudo enviar.\n\n${d.errores.join("\n")}`;
+      }
+
+      alert(msg);
+    } catch (e) {
+      alert("No se pudo hacer la prueba: " + e.message);
+    } finally {
+      setProbando(false);
+    }
+  }
 
   async function revisar() {
     if (!pushSoportado()) {
@@ -170,6 +210,16 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
           ? "Desactivar en este celular"
           : "Activar notificaciones"}
       </button>
+
+      {activas && (
+        <button
+          onClick={probar}
+          disabled={probando}
+          className="w-full text-[11px] font-bold text-brand-blue py-2 disabled:opacity-50"
+        >
+          {probando ? "Probando..." : "🔔 Enviarme una notificación de prueba"}
+        </button>
+      )}
 
       {!activas && (
         <p className="text-[10px] text-gray-400 mt-2 text-center">
