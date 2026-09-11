@@ -47,8 +47,19 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
     try {
       const res = await suscribirPush(telefono);
       await revisar();
-      if (!res?.ok) {
-        // Si lo bloqueó, revisar() ya deja el estado correcto
+
+      // Confirmamos qué quedó guardado: antes fallaba en silencio y no
+      // había forma de saber si el registro se había hecho.
+      if (res?.ok) {
+        if (esAdmin && res.es_admin === false) {
+          alert(
+            "Las notificaciones quedaron activas, pero este celular no se " +
+              "registró como administrador.\n\nRevisá que el teléfono del panel " +
+              "sea uno de los del negocio."
+          );
+        }
+      } else if (res?.error) {
+        alert("No se pudieron activar: " + res.error);
       }
     } finally {
       setProcesando(false);
