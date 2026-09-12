@@ -14,6 +14,18 @@ export default function EscanerCodigo({ abierto, onLeer, onCerrar }) {
   const video = useRef(null);
   const [estado, setEstado] = useState("iniciando");
   const [detalle, setDetalle] = useState("");
+  const [instalada, setInstalada] = useState(false);
+
+  // La app instalada no tiene barra de direcciones ni candado: el permiso
+  // se maneja desde la configuración de Android, no desde el navegador.
+  useEffect(() => {
+    try {
+      setInstalada(
+        window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone === true
+      );
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     if (!abierto) return;
@@ -34,7 +46,22 @@ export default function EscanerCodigo({ abierto, onLeer, onCerrar }) {
         return;
       }
 
-      // 3. Pedimos la cámara. Acá el navegador muestra el cartel de permiso.
+      // 3. Consultamos si ya está decidido. Si Android lo tiene denegado,
+      //    pedirlo de nuevo no muestra ningún cartel: hay que mandar a la
+      //    configuración del sistema.
+      try {
+        if (navigator.permissions?.query) {
+          const p = await navigator.permissions.query({ name: "camera" });
+          if (p.state === "denied") {
+            setEstado("sin_permiso");
+            return;
+          }
+        }
+      } catch (e) {
+        // Algunos navegadores no permiten consultarlo: seguimos igual
+      }
+
+      // 4. Pedimos la cámara. Acá aparece el cartel de permiso.
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: { ideal: "environment" } },
@@ -70,7 +97,7 @@ export default function EscanerCodigo({ abierto, onLeer, onCerrar }) {
         } catch (e) {}
       }
 
-      // 4. Lector de códigos. Si el navegador no lo trae, la cámara igual
+      // 5. Lector de códigos. Si el navegador no lo trae, la cámara igual
       //    se ve y se puede escribir el código a mano.
       if (!("BarcodeDetector" in window)) {
         setEstado("sin_lector");
@@ -109,17 +136,29 @@ export default function EscanerCodigo({ abierto, onLeer, onCerrar }) {
   if (!abierto) return null;
 
   const problemas = {
-    sin_permiso: {
-      titulo: "La cámara está bloqueada",
-      texto:
-        "El navegador tiene guardado que no se puede usar la cámara en esta página.",
-      pasos: [
-        "Tocá el candado 🔒 al lado de la dirección, arriba",
-        "Entrá en Permisos o Configuración del sitio",
-        "En Cámara elegí Permitir",
-        "Cerrá y volvé a abrir la app"
-      ]
-    },
+    sin_permiso: instalada
+      ? {
+          titulo: "Falta el permiso de cámara",
+          texto:
+            "Como la app está instalada, el permiso se da desde la configuración del celular:",
+          pasos: [
+            "Salí de la app y mantené apretado su ícono",
+            'Tocá "Información de la app" (la ⓘ)',
+            "Entrá en Permisos → Cámara",
+            'Elegí "Permitir"',
+            "Volvé a abrir la app y probá de nuevo"
+          ]
+        }
+      : {
+          titulo: "Falta el permiso de cámara",
+          texto: "El navegador no está dejando usar la cámara en esta página.",
+          pasos: [
+            "Tocá el candado 🔒 al lado de la dirección, arriba",
+            'Entrá en "Permisos" o "Configuración del sitio"',
+            'En Cámara elegí "Permitir"',
+            "Recargá la página"
+          ]
+        },
     no_seguro: {
       titulo: "Hace falta una conexión segura",
       texto:
@@ -173,9 +212,36 @@ export default function EscanerCodigo({ abierto, onLeer, onCerrar }) {
               </div>
             )}
 
+            {estado === "sin_permiso" && (
+              <>
+                <button
+                  onClick={() => {
+                    // Reintentamos sin cerrar: si el permiso se acaba de
+                    // dar desde la configuración, funciona en el momento.
+                    setEstado("iniciando");
+                    setDetalle("");
+                  }}
+                  className="w-full bg-green-600 text-white text-sm font-bold py-3 rounded-xl mt-4"
+                >
+                  Ya lo activé, probar de nuevo
+                </button>
+
+                {instalada && (
+                  <a
+                    href="https://www.bolsonclick.com.ar/admin/caja"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full bg-white border border-gray-300 text-gray-700 text-xs font-bold py-2.5 rounded-xl mt-2 text-center"
+                  >
+                    O abrilo en Chrome
+                  </a>
+                )}
+              </>
+            )}
+
             <button
               onClick={onCerrar}
-              className="w-full bg-brand-blue text-white text-sm font-bold py-3 rounded-xl mt-4"
+              className="w-full bg-brand-blue text-white text-sm font-bold py-3 rounded-xl mt-2"
             >
               Escribir el código a mano
             </button>
