@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CATEGORIAS } from "@/lib/categorias";
 import { supabase } from "@/lib/supabaseClient";
+import CodigoBarras from "@/components/CodigoBarras";
 
 // Convierte un link de YouTube normal al formato que se puede incrustar,
 // para que el video se vea dentro de la ficha del producto.
