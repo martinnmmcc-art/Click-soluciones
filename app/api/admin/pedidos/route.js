@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
+import { NEGOCIO as CFG } from "@/lib/config";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -79,30 +80,15 @@ export async function PATCH(req) {
       (estadoFinal === "entregado" && estadoPagoFinal === "pagado"));
 
   if (debeConvertirseAVenta) {
-    const { data: items, error: errItems } = await supabaseAdmin
-      .from("items_pedido")
-      .select("producto_id, cantidad")
-      .eq("pedido_id", id);
+    // Una sola llamada descuenta el stock de todos los productos.
+    // Antes se hacían dos consultas por producto esperando cada una, y con
+    // pedidos de varios items el servicio cortaba por tiempo de espera.
+    const { error: errStock } = await supabaseAdmin.rpc("descontar_stock_pedido", {
+      p_pedido_id: Number(id)
+    });
 
-    if (errItems) {
-      return Response.json({ error: errItems.message }, { status: 400 });
-    }
-
-    for (const item of items || []) {
-      if (!item.producto_id) continue;
-      const { data: prod } = await supabaseAdmin
-        .from("Productos")
-        .select("stock")
-        .eq("id", item.producto_id)
-        .single();
-
-      if (prod) {
-        const nuevoStock = Number(prod.stock || 0) - Number(item.cantidad || 0);
-        await supabaseAdmin
-          .from("Productos")
-          .update({ stock: nuevoStock })
-          .eq("id", item.producto_id);
-      }
+    if (errStock) {
+      return Response.json({ error: errStock.message }, { status: 400 });
     }
 
     campos.stock_descontado = true;
@@ -132,11 +118,16 @@ export async function PATCH(req) {
 
   if (cambioEstado || cambioPago) {
     const base =
-      process.env.NEXT_PUBLIC_SITE_URL || "https://www.bolsonclick.com.ar";
+      process.env.NEXT_PUBLIC_SITE_URL || CFG.sitio;
+
+    // Cortamos el aviso a los 3 segundos: si tarda más, el cambio de estado
+    // igual se guardó y no tiene sentido hacer esperar al panel.
+    const corte = AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined;
 
     fetch(`${base}/api/avisar-cliente`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: corte,
       body: JSON.stringify({
         pedido_id: id,
         estado: cambioEstado ? estado : null,
@@ -165,26 +156,8 @@ export async function DELETE(req) {
     .single();
 
   if (pedidoActual?.stock_descontado) {
-    const { data: items } = await supabaseAdmin
-      .from("items_pedido")
-      .select("producto_id, cantidad")
-      .eq("pedido_id", id);
-
-    for (const item of items || []) {
-      if (!item.producto_id) continue;
-      const { data: prod } = await supabaseAdmin
-        .from("Productos")
-        .select("stock")
-        .eq("id", item.producto_id)
-        .single();
-      if (prod) {
-        const nuevoStock = Number(prod.stock || 0) + Number(item.cantidad || 0);
-        await supabaseAdmin
-          .from("Productos")
-          .update({ stock: nuevoStock })
-          .eq("id", item.producto_id);
-      }
-    }
+    // Devolvemos todo el stock en una sola llamada
+    await supabaseAdmin.rpc("devolver_stock_pedido", { p_pedido_id: Number(id) });
   }
 
   const { error: errItems } = await supabaseAdmin
