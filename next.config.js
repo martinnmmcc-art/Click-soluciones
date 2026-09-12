@@ -27,9 +27,12 @@ const securityHeaders = [
     value: "strict-origin-when-cross-origin"
   },
   {
-    // La app no necesita micrófono, cámara ni ubicación: los bloqueamos.
+    // La cámara sí se usa: el escáner de códigos de la Caja. Con self
+    // queda habilitada solo para nuestro propio sitio, no para contenido
+    // de terceros incrustado. El micrófono y la ubicación siguen cerrados
+    // porque la app no los necesita.
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    value: "camera=(self), microphone=(), geolocation=(), interest-cohort=()"
   },
   {
     // Evita que el navegador cargue recursos por http:// dentro de una página https://
