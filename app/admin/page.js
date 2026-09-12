@@ -70,6 +70,22 @@ function Dashboard() {
 
         {/* Control de notificaciones: va arriba de todo porque sin esto
             no te enterás de las ventas hasta que entrás a mirar. */}
+        {/* La caja va primero: es lo que más se usa en el mostrador */}
+        <Link
+          href="/admin/caja"
+          className="block bg-gradient-to-br from-green-600 to-green-700 text-white p-5 rounded-2xl shadow-sm mb-4"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-extrabold text-lg">🧾 Caja</p>
+              <p className="text-xs text-green-100 mt-0.5">
+                Cobrar escaneando, con vuelto automático
+              </p>
+            </div>
+            <span className="text-3xl">→</span>
+          </div>
+        </Link>
+
         <div className="mb-5">
           <ControlNotificaciones esAdmin={true} />
         </div>
