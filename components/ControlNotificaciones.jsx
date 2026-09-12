@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { ADMINS, ADMINS_TELEFONOS } from "@/lib/config";
 
 // Control de notificaciones, pensado para que lo use cualquiera.
 //
@@ -9,11 +10,9 @@ import { supabase } from "@/lib/supabaseClient";
 // sin códigos ni términos técnicos. La mayoría de los clientes de la app
 // no son gente que vaya a revisar la configuración del navegador.
 
-const ADMINS = {
-  "maricelcanumir@gmail.com": { telefono: "2944396888", nombre: "Maricel" },
-  "martinnm.mcc@gmail.com": { telefono: "2944636224", nombre: "Martin" },
-  "patagoniavolt@gmail.com": { telefono: "2944906160", nombre: "Patagonia Volt" }
-};
+// Los celulares del negocio salen de la configuración, no del código:
+// así la app sirve para cualquier comercio sin tocar nada.
+const ADMINS_LISTA = ADMINS_TELEFONOS;
 
 function soportado() {
   try {
@@ -45,7 +44,10 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
     (async () => {
       try {
         const { data } = await supabase.auth.getSession();
-        const admin = ADMINS[data?.session?.user?.email];
+        const email = (data?.session?.user?.email || "").toLowerCase();
+        const i = ADMINS.indexOf(email);
+        const admin = i >= 0 ? ADMINS_LISTA[i] : null;
+
         if (admin) {
           setTelefonoReal(admin.telefono);
           setNombreAdmin(admin.nombre);
@@ -98,7 +100,7 @@ export default function ControlNotificaciones({ telefono, esAdmin = false }) {
 
       const registrados = new Set((data || []).map((s) => s.telefono));
       setEstadoAdmins(
-        Object.values(ADMINS).map((a) => ({ ...a, activo: registrados.has(a.telefono) }))
+        ADMINS_LISTA.map((a) => ({ ...a, activo: registrados.has(a.telefono) }))
       );
     } catch (e) {}
   }

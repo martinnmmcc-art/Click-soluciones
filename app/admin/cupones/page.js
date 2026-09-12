@@ -1,5 +1,7 @@
 "use client";
 
+import { NEGOCIO as CFG } from "@/lib/config";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
@@ -107,7 +109,7 @@ function Cupones() {
           : "") +
         `⏰ Válido hasta el ${vence}\n\n` +
         `Es solo para vos y por única vez. Ponelo al finalizar la compra:\n` +
-        `https://www.bolsonclick.com.ar`;
+        `${CFG.sitio}`;
 
       window.open(
         `https://wa.me/${wa(elegido.telefono)}?text=${encodeURIComponent(mensaje)}`,
@@ -403,7 +405,7 @@ function Cupones() {
                               `🎟️ Código: *${c.codigo}*\n` +
                               `💰 ${c.porcentaje}% de descuento\n` +
                               `⏰ Vence el ${new Date(c.vence_en).toLocaleDateString("es-AR")}\n\n` +
-                              `https://www.bolsonclick.com.ar`
+                              `${CFG.sitio}`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"

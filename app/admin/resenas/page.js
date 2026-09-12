@@ -1,5 +1,7 @@
 "use client";
 
+import { NEGOCIO as CFG } from "@/lib/config";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
@@ -92,7 +94,7 @@ function Resenas() {
       `Si te sirvió, ¿me dejarías una opinión en la app? Le sirve un montón a ` +
       `otros vecinos que están dudando si comprarlo.\n\n` +
       `Entrá acá y tocá "Contá qué te pareció":\n` +
-      `https://www.bolsonclick.com.ar/producto/${c.productoId}\n\n` +
+      `${CFG.sitio}/producto/${c.productoId}\n\n` +
       `¡Gracias! 🙌`
     );
   }

@@ -1,5 +1,7 @@
 "use client";
 
+import { NEGOCIO as CFG } from "@/lib/config";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
@@ -13,7 +15,7 @@ function wa(tel) {
   return `549${n}`;
 }
 
-const SITIO = "https://www.bolsonclick.com.ar";
+const SITIO = CFG.sitio;
 
 function Oportunidades() {
   const [vista, setVista] = useState("carritos");
