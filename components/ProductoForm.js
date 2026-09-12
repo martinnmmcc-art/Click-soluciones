@@ -468,6 +468,15 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         </label>
       </div>
 
+      {/* Código de barras: solo tiene sentido en productos ya creados,
+          porque hace falta el id para asociarlo. */}
+      {producto?.id && (
+        <CodigoBarras
+          productoId={producto.id}
+          codigoActual={producto.codigo_barras}
+        />
+      )}
+
       <button disabled={guardando} className="btn-primary mt-2">
         {guardando ? "Guardando..." : submitLabel}
       </button>

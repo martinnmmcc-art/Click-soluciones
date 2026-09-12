@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import EscanerCodigo from "@/components/EscanerCodigo";
 
 // Caja: para cobrar en el mostrador.
 //
@@ -14,147 +15,6 @@ import { formatPrice } from "@/lib/whatsapp";
 
 // Billetes que más circulan, para calcular el vuelto de un toque
 const BILLETES = [1000, 2000, 5000, 10000, 20000];
-
-function Escaner({ onLeer, activo, onCerrar }) {
-  const video = useRef(null);
-  const [error, setError] = useState("");
-  const [soportado, setSoportado] = useState(true);
-
-  useEffect(() => {
-    if (!activo) return;
-
-    let stream = null;
-    let detector = null;
-    let seguir = true;
-
-    async function arrancar() {
-      // El lector de códigos viene en el navegador: no hace falta instalar
-      // nada, pero solo está en Chrome de Android.
-      if (!("BarcodeDetector" in window)) {
-        setSoportado(false);
-        return;
-      }
-
-      try {
-        detector = new window.BarcodeDetector({
-          formats: [
-            "ean_13", "ean_8", "upc_a", "upc_e",
-            "code_128", "code_39", "qr_code", "itf"
-          ]
-        });
-
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }
-        });
-
-        if (video.current) {
-          video.current.srcObject = stream;
-          await video.current.play();
-        }
-
-        // Miramos la imagen varias veces por segundo hasta encontrar un código
-        async function buscar() {
-          if (!seguir || !video.current) return;
-
-          try {
-            const codigos = await detector.detect(video.current);
-            if (codigos.length > 0) {
-              const valor = codigos[0].rawValue;
-              if (valor) {
-                // Vibramos para confirmar sin tener que mirar la pantalla
-                try {
-                  navigator.vibrate?.(60);
-                } catch (e) {}
-                onLeer(valor);
-                return;
-              }
-            }
-          } catch (e) {}
-
-          if (seguir) setTimeout(buscar, 250);
-        }
-
-        buscar();
-      } catch (e) {
-        setError(
-          e.name === "NotAllowedError"
-            ? "No diste permiso para usar la cámara."
-            : "No se pudo abrir la cámara: " + e.message
-        );
-      }
-    }
-
-    arrancar();
-
-    return () => {
-      seguir = false;
-      if (stream) stream.getTracks().forEach((t) => t.stop());
-    };
-  }, [activo, onLeer]);
-
-  if (!activo) return null;
-
-  return (
-    <div className="fixed inset-0 z-[80] bg-black flex flex-col">
-      <div className="flex justify-between items-center p-4 bg-black/80">
-        <p className="text-white text-sm font-bold">Apuntá al código</p>
-        <button onClick={onCerrar} className="text-white text-2xl px-2">
-          ×
-        </button>
-      </div>
-
-      {!soportado ? (
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl p-5 max-w-sm">
-            <p className="font-bold text-sm text-gray-800">
-              Este navegador no puede escanear
-            </p>
-            <p className="text-xs text-gray-600 mt-2">
-              El lector de códigos funciona en Chrome para Android. Desde iPhone
-              o desde la computadora, buscá el producto por nombre.
-            </p>
-            <button
-              onClick={onCerrar}
-              className="w-full bg-brand-blue text-white text-sm font-bold py-2.5 rounded-xl mt-3"
-            >
-              Buscar por nombre
-            </button>
-          </div>
-        </div>
-      ) : error ? (
-        <div className="flex-1 flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl p-5 max-w-sm">
-            <p className="font-bold text-sm text-red-700">{error}</p>
-            <button
-              onClick={onCerrar}
-              className="w-full bg-brand-blue text-white text-sm font-bold py-2.5 rounded-xl mt-3"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 relative">
-          <video
-            ref={video}
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-
-          {/* Marco guía */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-64 h-40 border-4 border-white/80 rounded-2xl" />
-          </div>
-
-          <p className="absolute bottom-8 left-0 right-0 text-center text-white text-xs px-6">
-            Acercá el código de barras del producto
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
 
 function Caja() {
   const [items, setItems] = useState([]);
@@ -324,8 +184,8 @@ function Caja() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-40">
-      <Escaner
-        activo={escaneando}
+      <EscanerCodigo
+        abierto={escaneando}
         onLeer={porCodigo}
         onCerrar={() => setEscaneando(false)}
       />
