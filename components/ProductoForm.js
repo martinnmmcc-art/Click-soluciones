@@ -470,10 +470,10 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
 
       {/* Código de barras: solo tiene sentido en productos ya creados,
           porque hace falta el id para asociarlo. */}
-      {producto?.id && (
+      {initialData?.id && (
         <CodigoBarras
-          productoId={producto.id}
-          codigoActual={producto.codigo_barras}
+          productoId={initialData.id}
+          codigoActual={initialData.codigo_barras}
         />
       )}
 
