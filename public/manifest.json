@@ -2,7 +2,7 @@
   "name": "Bolson Click",
   "short_name": "Bolson Click",
   "description": "Productos importados en El Bolsón y la Comarca Andina. Entrega local.",
-  "start_url": "/",
+  "start_url": "/?fuente=app",
   "display": "standalone",
   "background_color": "#F7F9FC",
   "theme_color": "#1560D4",
@@ -28,7 +28,8 @@
     }
   ],
   "categories": [
-    "shopping"
+    "shopping",
+    "business"
   ],
   "lang": "es-AR",
   "shortcuts": [
@@ -65,5 +66,13 @@
         }
       ]
     }
-  ]
+  ],
+  "id": "/",
+  "scope": "/",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "dir": "ltr",
+  "prefer_related_applications": false
 }

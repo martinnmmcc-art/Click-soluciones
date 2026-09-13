@@ -1,6 +1,9 @@
 "use client";
 
+import { NEGOCIO as CFG } from "@/lib/config";
+
 import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import { FaWhatsapp } from "react-icons/fa";
 
 // Botón flotante de WhatsApp con un mensajito que aparece solo.
@@ -37,7 +40,22 @@ function fueCerradaHoy() {
 }
 
 export default function WhatsAppFloatingButton() {
-  const telefono = "5492944396888";
+  // No lo mostramos al admin: cuando estás cobrando en la caja o cargando
+  // productos, el botón y el mensajito tapan la pantalla y no sirven para
+  // nada, porque el negocio no se escribe a sí mismo.
+  const [esNegocio, setEsNegocio] = useState(false);
+
+  useEffect(() => {
+    async function revisar() {
+      try {
+        const { data } = await supabase.auth.getSession();
+        setEsNegocio(!!data?.session?.user);
+      } catch (e) {}
+    }
+    revisar();
+  }, []);
+
+  const telefono = CFG.whatsapp;
   const [mostrarBurbuja, setMostrarBurbuja] = useState(false);
   const [saludo, setSaludo] = useState(SALUDOS[0]);
 
@@ -77,6 +95,8 @@ Gracias 🙌`
   );
 
   const link = `https://wa.me/${telefono}?text=${mensaje}`;
+
+  if (esNegocio) return null;
 
   return (
     <div className="fixed bottom-20 right-4 z-40 md:bottom-6 flex items-end gap-2">
