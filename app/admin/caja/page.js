@@ -6,6 +6,11 @@ import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import EscanerCodigo from "@/components/EscanerCodigo";
+import {
+  catalogoLocal, guardarCatalogo, fechaCatalogo,
+  buscarPorCodigoLocal, buscarPorNombreLocal,
+  encolarVenta, ventasPendientes, sincronizarVentas, hayConexion
+} from "@/lib/cajaOffline";
 
 // Caja: para cobrar en el mostrador.
 //
@@ -27,6 +32,73 @@ function Caja() {
   const [recibido, setRecibido] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [ultimaVenta, setUltimaVenta] = useState(null);
+  const [conexion, setConexion] = useState(true);
+  const [pendientes, setPendientes] = useState(0);
+  const [sincronizando, setSincronizando] = useState(false);
+  const [productosGuardados, setProductosGuardados] = useState(0);
+
+  // Datos del cliente: opcionales. En el mostrador muchas veces no hace
+  // falta, pero si el cliente quiere que le quede registrado, se carga.
+  const [conCliente, setConCliente] = useState(false);
+  const [nombreCliente, setNombreCliente] = useState("");
+  const [telefonoCliente, setTelefonoCliente] = useState("");
+
+  // Guardamos el catálogo propio para poder cobrar sin señal
+  async function actualizarCatalogo() {
+    if (!hayConexion()) return;
+    try {
+      const { data } = await supabase
+        .from("Productos")
+        .select("id, nombre, precio, precio_oferta, stock, codigo_barras, bajo_pedido")
+        .or("bajo_pedido.is.null,bajo_pedido.eq.false")
+        .eq("activo", true);
+
+      if (data) setProductosGuardados(guardarCatalogo(data));
+    } catch (e) {}
+  }
+
+  async function enviarPendientes() {
+    if (!hayConexion() || ventasPendientes().length === 0) return;
+
+    setSincronizando(true);
+    try {
+      const r = await sincronizarVentas(supabase);
+      setPendientes(ventasPendientes().length);
+      if (r.enviadas > 0) {
+        avisar(`✓ Se enviaron ${r.enviadas} venta(s) que estaban pendientes`, 4000);
+        actualizarCatalogo();
+      }
+    } finally {
+      setSincronizando(false);
+    }
+  }
+
+  useEffect(() => {
+    setConexion(hayConexion());
+    setPendientes(ventasPendientes().length);
+    setProductosGuardados(catalogoLocal().length);
+
+    actualizarCatalogo();
+    enviarPendientes();
+
+    // Cuando vuelve la señal, mandamos lo que quedó pendiente
+    function alVolver() {
+      setConexion(true);
+      enviarPendientes();
+      actualizarCatalogo();
+    }
+    function alCortarse() {
+      setConexion(false);
+    }
+
+    window.addEventListener("online", alVolver);
+    window.addEventListener("offline", alCortarse);
+    return () => {
+      window.removeEventListener("online", alVolver);
+      window.removeEventListener("offline", alCortarse);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const total = items.reduce(
     (a, i) => a + Number(i.precio) * Number(i.cantidad),
@@ -59,8 +131,13 @@ function Caja() {
   async function porCodigo(codigo) {
     setEscaneando(false);
 
-    const { data } = await supabase.rpc("buscar_por_codigo", { p_codigo: codigo });
-    const p = data?.[0];
+    // Buscamos primero en el celular: es instantáneo y funciona sin señal
+    let p = buscarPorCodigoLocal(codigo);
+
+    if (!p && hayConexion()) {
+      const { data } = await supabase.rpc("buscar_por_codigo", { p_codigo: codigo });
+      p = data?.[0];
+    }
 
     if (!p) {
       avisar(`❌ Código ${codigo} sin producto asociado`, 4000);
@@ -78,6 +155,11 @@ function Caja() {
       return;
     }
 
+    if (!hayConexion()) {
+      setResultados(buscarPorNombreLocal(texto));
+      return;
+    }
+
     const { data } = await supabase
       .from("Productos")
       .select("id, nombre, precio, precio_oferta, stock, imagen_url, bajo_pedido")
@@ -86,7 +168,7 @@ function Caja() {
       .order("stock", { ascending: false })
       .limit(8);
 
-    setResultados(data || []);
+    setResultados(data?.length ? data : buscarPorNombreLocal(texto));
   }
 
   function cambiarCantidad(id, delta) {
@@ -106,35 +188,87 @@ function Caja() {
     }
 
     setGuardando(true);
-    try {
-      const { data, error } = await supabase.rpc("venta_caja", {
-        p_items: items.map((i) => ({
-          id: i.id,
-          nombre: i.nombre,
-          cantidad: i.cantidad,
-          precio: i.precio
-        })),
-        p_metodo_pago: metodo,
-        p_total: total,
-        p_pagado: total
-      });
 
-      if (error) {
-        avisar("No se pudo cobrar: " + error.message, 5000);
+    const productos = items.map((i) => ({
+      id: i.id,
+      nombre: i.nombre,
+      cantidad: i.cantidad,
+      precio: i.precio
+    }));
+
+    const datosVenta = {
+      items: productos,
+      metodo_pago: metodo,
+      total,
+      pagado: total,
+      nombre_cliente: conCliente ? nombreCliente.trim() : null,
+      telefono: conCliente ? telefonoCliente.trim() : null
+    };
+
+    try {
+      // Sin señal la venta igual se cobra: queda guardada y se envía sola
+      // cuando vuelva la conexión.
+      if (!hayConexion()) {
+        const guardada = encolarVenta(datosVenta);
+        setPendientes(ventasPendientes().length);
+
+        setUltimaVenta({
+          numero: "Pendiente de enviar",
+          total,
+          vuelto: metodo === "efectivo" ? vuelto : 0,
+          recibido: Number(recibido || 0),
+          metodo,
+          sinSenal: true
+        });
+
+        setItems([]);
+        setRecibido("");
+        setCobrando(false);
+        setConCliente(false);
+        setNombreCliente("");
+        setTelefonoCliente("");
         return;
       }
 
-      setUltimaVenta({
-        numero: data?.[0]?.numero,
-        total,
-        vuelto: metodo === "efectivo" ? vuelto : 0,
-        recibido: Number(recibido || 0),
-        metodo
+      const { data, error } = await supabase.rpc("venta_caja", {
+        p_items: productos,
+        p_metodo_pago: metodo,
+        p_total: total,
+        p_pagado: total,
+        p_nombre_cliente: datosVenta.nombre_cliente,
+        p_telefono: datosVenta.telefono
       });
+
+      if (error) {
+        // Si falla el envío, no perdemos la venta: la guardamos igual
+        encolarVenta(datosVenta);
+        setPendientes(ventasPendientes().length);
+
+        setUltimaVenta({
+          numero: "Guardada para enviar",
+          total,
+          vuelto: metodo === "efectivo" ? vuelto : 0,
+          recibido: Number(recibido || 0),
+          metodo,
+          sinSenal: true
+        });
+      } else {
+        setUltimaVenta({
+          numero: data?.[0]?.numero,
+          total,
+          vuelto: metodo === "efectivo" ? vuelto : 0,
+          recibido: Number(recibido || 0),
+          metodo
+        });
+        actualizarCatalogo();
+      }
 
       setItems([]);
       setRecibido("");
       setCobrando(false);
+      setConCliente(false);
+      setNombreCliente("");
+      setTelefonoCliente("");
     } finally {
       setGuardando(false);
     }
@@ -163,6 +297,13 @@ function Caja() {
                 Recibiste ${formatPrice(ultimaVenta.recibido)}
               </p>
             </div>
+          )}
+
+          {ultimaVenta.sinSenal && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-300 rounded-xl p-3 mt-4">
+              📴 Sin señal: la venta quedó guardada en el celular. Se envía
+              sola cuando vuelvas a tener conexión y ahí se descuenta el stock.
+            </p>
           )}
 
           {ultimaVenta.metodo === "transferencia" && (
@@ -197,6 +338,36 @@ function Caja() {
             Ir al panel →
           </Link>
         </div>
+
+        {/* Estado de la conexión: importante saberlo antes de cobrar */}
+        {(!conexion || pendientes > 0) && (
+          <div
+            className={`rounded-xl p-3 mb-3 border-2 ${
+              conexion
+                ? "bg-blue-50 border-blue-300"
+                : "bg-amber-50 border-amber-400"
+            }`}
+          >
+            <p className="text-sm font-bold text-gray-800">
+              {conexion ? "📤 Ventas por enviar" : "📴 Estás sin señal"}
+            </p>
+            <p className="text-[11px] text-gray-700 mt-0.5">
+              {!conexion
+                ? `Podés cobrar igual: se guarda y se envía sola cuando vuelva la señal. Tenés ${productosGuardados} productos guardados.`
+                : `Hay ${pendientes} venta(s) esperando enviarse.`}
+            </p>
+
+            {conexion && pendientes > 0 && (
+              <button
+                onClick={enviarPendientes}
+                disabled={sincronizando}
+                className="w-full bg-brand-blue text-white text-xs font-bold py-2 rounded-lg mt-2 disabled:opacity-50"
+              >
+                {sincronizando ? "Enviando..." : "Enviar ahora"}
+              </button>
+            )}
+          </div>
+        )}
 
         {mensaje && (
           <div className="bg-white border-2 border-brand-blue rounded-xl p-3 mb-3">
@@ -401,6 +572,35 @@ function Caja() {
                       </div>
                     )}
                   </>
+                )}
+
+                {/* Cliente: opcional. En el mostrador casi nunca hace falta,
+                    pero si quiere que le quede registrado, se carga. */}
+                <label className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+                  <input
+                    type="checkbox"
+                    checked={conCliente}
+                    onChange={(e) => setConCliente(e.target.checked)}
+                  />
+                  Anotar a nombre de un cliente
+                </label>
+
+                {conCliente && (
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      value={nombreCliente}
+                      onChange={(e) => setNombreCliente(e.target.value)}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      placeholder="Nombre"
+                    />
+                    <input
+                      value={telefonoCliente}
+                      onChange={(e) => setTelefonoCliente(e.target.value)}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                      placeholder="Celular"
+                      inputMode="numeric"
+                    />
+                  </div>
                 )}
 
                 <div className="flex gap-2">

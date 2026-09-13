@@ -8,7 +8,7 @@
 //     actualiza en segundo plano. Son inmutables, no hay riesgo de versión vieja.
 //   - Datos de productos: primero la red; sin internet, la última copia guardada.
 
-const VERSION = "v7";
+const VERSION = "v8";
 const CACHE_APP = `bolsonclick-app-${VERSION}`;
 const CACHE_DATOS = `bolsonclick-datos-${VERSION}`;
 const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
@@ -22,11 +22,26 @@ const RUTAS_BASE = [
   "/login",
   "/offline",
   "/manifest.json",
-  // Pantallas del negocio: hacen falta para armar pedidos en zonas sin señal
+  // Pantallas del negocio: hacen falta para trabajar en zonas sin señal.
+  // La caja es la más importante: si el cliente está con la plata en la
+  // mano, hay que poder cobrar aunque no haya datos.
   "/admin",
+  "/admin/caja",
   "/admin/pedidos",
   "/admin/productos",
   "/admin/clientes",
+  "/admin/ventas-cerradas",
+  "/admin/resumen-clientes",
+  "/admin/balance",
+  "/admin/ofertas",
+  "/admin/cupones",
+  "/admin/resenas",
+  "/admin/oportunidades",
+  "/admin/fotos",
+  "/admin/categorias",
+  "/admin/promocionar",
+  "/admin/compras-proveedor",
+  "/admin/gastos-generales",
   // Pantallas del cliente: en la Comarca la señal se corta seguido y tiene
   // que poder mirar, armar el carrito y confirmar igual.
   "/checkout",
