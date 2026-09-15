@@ -139,7 +139,10 @@ function Promocionar() {
         .eq("activo", true)
         .not("imagen_url", "is", null)
         .order("fecha_ingreso", { ascending: false, nullsFirst: false })
-        .limit(80);
+        // Sin límite: son los productos propios, no llegan a ser tantos.
+        // Con el límite de 80 quedaban afuera los más viejos y no se
+        // podían promocionar aunque tuvieran stock.
+        .limit(500);
 
       setProductos(data || []);
       setLoading(false);
