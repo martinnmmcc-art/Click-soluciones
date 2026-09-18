@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CATEGORIAS } from "@/lib/categorias";
 import { supabase } from "@/lib/supabaseClient";
 import CodigoBarras from "@/components/CodigoBarras";
+import CalculadoraPrecio from "@/components/CalculadoraPrecio";
 
 // Convierte un link de YouTube normal al formato que se puede incrustar,
 // para que el video se vea dentro de la ficha del producto.
@@ -42,6 +43,11 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
     stock: initialData?.stock ?? 0,
     stock_minimo: initialData?.stock_minimo ?? 3,
     costo: initialData?.costo ?? "",
+    pct_transferencia: initialData?.pct_transferencia ?? 3,
+    pct_dolar: initialData?.pct_dolar ?? 5,
+    pct_transporte: initialData?.pct_transporte ?? 15,
+    pct_ganancia: initialData?.pct_ganancia ?? 80,
+    precio_manual: initialData?.precio_manual ?? false,
     margen_porcentaje: initialData?.margen_porcentaje ?? "",
     costo_envio: initialData?.costo_envio ?? "",
     video_url: initialData?.video_url || "",
@@ -95,6 +101,20 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
   function handleChange(e) {
     const { name, type, checked, value } = e.target;
     setForm({ ...form, [name]: type === "checkbox" ? checked : value });
+  }
+
+  // La calculadora nos avisa cada vez que cambia un porcentaje, y con eso
+  // actualizamos el precio. Si el precio es manual, no lo tocamos.
+  function alCambiarCalculo(datos) {
+    setForm((prev) => ({
+      ...prev,
+      pct_transferencia: datos.pct_transferencia,
+      pct_dolar: datos.pct_dolar,
+      pct_transporte: datos.pct_transporte,
+      pct_ganancia: datos.pct_ganancia,
+      precio_manual: datos.precio_manual,
+      precio: datos.precio_manual ? prev.precio : datos.precio_calculado
+    }));
   }
 
   // costo / margen / envío: al tocarlos, recalculamos el precio final solo
@@ -212,10 +232,10 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         <p className="text-sm font-bold text-gray-700 mb-2">
           💰 Calculadora de precio
         </p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 mb-3">
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">
-              Costo
+              Costo del proveedor
             </label>
             <input
               name="costo"
@@ -229,21 +249,7 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
           </div>
           <div>
             <label className="text-xs font-medium text-gray-600 block mb-1">
-              Margen %
-            </label>
-            <input
-              name="margen_porcentaje"
-              type="number"
-              step="0.1"
-              value={form.margen_porcentaje}
-              onChange={handleChangeCalculadora}
-              className="input-field"
-              placeholder="%"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">
-              Envío
+              Flete del pedido
             </label>
             <input
               name="costo_envio"
@@ -256,10 +262,21 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
             />
           </div>
         </div>
-        <p className="text-[11px] text-gray-500 mt-2">
-          Precio final = costo + margen % sobre el costo + envío. Se completa solo abajo, en
-          &quot;Precio&quot; — lo podés ajustar a mano si querés.
-        </p>
+
+        {/* Desglose con cada recargo editable */}
+        <CalculadoraPrecio
+          costo={form.costo}
+          costoEnvio={form.costo_envio}
+          valores={{
+            pct_transferencia: form.pct_transferencia,
+            pct_dolar: form.pct_dolar,
+            pct_transporte: form.pct_transporte,
+            pct_ganancia: form.pct_ganancia
+          }}
+          precioActual={form.precio}
+          precioManual={form.precio_manual}
+          onCambio={alCambiarCalculo}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
