@@ -232,6 +232,18 @@ function ListaProductos() {
           </p>
         )}
 
+        <Link
+          href={`/admin/porcentajes?tipo=${tab}`}
+          className={`flex items-center justify-between rounded-xl px-4 py-3 mb-3 font-semibold text-sm border ${
+            tab === "a-pedido"
+              ? "bg-purple-50 border-purple-200 text-purple-700"
+              : "bg-blue-50 border-blue-200 text-brand-blue"
+          }`}
+        >
+          <span>% Cambiar porcentajes de todos juntos</span>
+          <span className="text-xs font-bold">{tab === "a-pedido" ? "A pedido" : "Tengo"} ›</span>
+        </Link>
+
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
