@@ -306,6 +306,16 @@ function Dashboard() {
             <span className="text-2xl">⬇️</span>
           </Link>
 
+          <Link href="/admin/porcentajes" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Porcentajes de precio</p>
+              <p className="text-sm text-gray-500">
+                Cambiar transporte, ganancia y recargos de muchos productos juntos
+              </p>
+            </div>
+            <span className="text-2xl">📊</span>
+          </Link>
+
           <Link href="/admin/compras-proveedor" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Compras a proveedor</p>

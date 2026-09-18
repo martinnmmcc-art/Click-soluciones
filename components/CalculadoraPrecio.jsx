@@ -5,15 +5,15 @@ import { useEffect, useState } from "react";
 // Desglosa el precio paso a paso, con cada recargo editable.
 //
 // Sirve para dos cosas: entender de dónde sale el precio final, y poder
-// ajustar un recargo puntual sin tocar el resto. Por ejemplo, un producto
-// que retirás vos del local no lleva transporte, o uno que querés vender
-// más barato para moverlo lleva menos ganancia.
+// ajustar un recargo puntual sin tocar el resto. El flete va siempre como
+// porcentaje (Transporte, 15% por defecto): no hay un monto de flete aparte.
+// Para cambiar los porcentajes de muchos productos juntos está
+// /admin/porcentajes.
 
 const REDONDEO = 50;
 
 export default function CalculadoraPrecio({
   costo,
-  costoEnvio = 0,
   valores = {},
   precioActual,
   precioManual = false,
@@ -29,12 +29,11 @@ export default function CalculadoraPrecio({
   const [manual, setManual] = useState(precioManual);
 
   const base = Number(costo) || 0;
-  const envio = Number(costoEnvio) || 0;
 
   // Los recargos se aplican uno sobre otro, en orden
   const conTransferencia = base * (1 + Number(pct.transferencia || 0) / 100);
   const conDolar = conTransferencia * (1 + Number(pct.dolar || 0) / 100);
-  const conTransporte = conDolar * (1 + Number(pct.transporte || 0) / 100) + envio;
+  const conTransporte = conDolar * (1 + Number(pct.transporte || 0) / 100);
   const ganancia = conTransporte * (Number(pct.ganancia || 0) / 100);
   const sinRedondear = conTransporte + ganancia;
   const precioFinal = Math.ceil(sinRedondear / REDONDEO) * REDONDEO;
@@ -72,7 +71,7 @@ export default function CalculadoraPrecio({
       clave: "transporte",
       etiqueta: "Transporte",
       ayuda: "El flete hasta acá",
-      resultado: conTransporte - envio
+      resultado: conTransporte
     },
     {
       clave: "ganancia",
@@ -130,17 +129,6 @@ export default function CalculadoraPrecio({
         </div>
       ))}
 
-      {envio > 0 && (
-        <div className="flex justify-between items-center text-xs py-1.5 border-b border-blue-100">
-          <span className="text-gray-600">
-            Flete repartido
-            <span className="block text-[10px] text-gray-400">
-              Del pedido en el que vino
-            </span>
-          </span>
-          <span className="font-bold text-gray-800">+${fmt(envio)}</span>
-        </div>
-      )}
 
       {/* Resultado */}
       <div className="bg-white rounded-lg p-2.5 mt-2">

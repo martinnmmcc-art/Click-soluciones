@@ -14,23 +14,35 @@ const PROVEEDOR = "nextcell";
 const BASE = "https://nextcell.com.ar/wp-json/wc/store/v1";
 
 // --- Fórmula de precios de Bolson Click ---
-// costo crudo del proveedor
+// Es la misma que usa la calculadora de cada producto y la herramienta
+// de porcentajes masivos (/admin/porcentajes), aplicada en este orden:
+//   costo crudo del proveedor
 //   + 3% que cobra el proveedor por transferencia
 //   + 5% por variación del dólar
+//   + 15% de transporte (el flete va siempre como %, nunca un monto aparte)
 //   + 80% de ganancia
-//   + flete estimado (14,5% del costo, el mismo % que salió el último pedido)
-const RECARGO_TRANSFERENCIA = 0.03;
-const RECARGO_DOLAR = 0.05;
-const MARKUP = 0.8;
-const FLETE_ESTIMADO = 0.145;
+// Redondeado a $50 hacia arriba.
+const PCT_DEFECTO = {
+  pct_transferencia: 3,
+  pct_dolar: 5,
+  pct_transporte: 15,
+  pct_ganancia: 80
+};
 
-function calcularPrecios(costoCrudo) {
+function calcularPrecios(costoCrudo, porcentajes = {}) {
   const costo = Number(costoCrudo) || 0;
-  const flete = costo * FLETE_ESTIMADO;
-  const bruto = costo * (1 + RECARGO_TRANSFERENCIA) * (1 + RECARGO_DOLAR) * (1 + MARKUP) + flete;
-  // Redondeo a $50 hacia arriba, como el resto del catálogo
+  const pct = { ...PCT_DEFECTO };
+  for (const k of Object.keys(PCT_DEFECTO)) {
+    if (porcentajes[k] !== null && porcentajes[k] !== undefined) pct[k] = Number(porcentajes[k]);
+  }
+  const bruto =
+    costo *
+    (1 + pct.pct_transferencia / 100) *
+    (1 + pct.pct_dolar / 100) *
+    (1 + pct.pct_transporte / 100) *
+    (1 + pct.pct_ganancia / 100);
   const precio = Math.ceil(bruto / 50) * 50;
-  return { costo, flete: Math.round(flete * 100) / 100, precio };
+  return { costo, precio, pct };
 }
 
 // Los precios de la Store API vienen en la unidad mínima (centavos).
@@ -252,7 +264,7 @@ export async function POST(request) {
     const refs = productos.map((p) => String(p.id));
     const { data: existentes } = await supabase
       .from("Productos")
-      .select("id, proveedor_ref, costo, categoria, bajo_pedido, imagen_url_4, imagen_url_5, imagen_url_6")
+      .select("id, proveedor_ref, costo, categoria, bajo_pedido, imagen_url_4, imagen_url_5, imagen_url_6, pct_transferencia, pct_dolar, pct_transporte, pct_ganancia, precio_manual")
       .eq("proveedor", PROVEEDOR)
       .in("proveedor_ref", refs);
 
@@ -300,7 +312,7 @@ export async function POST(request) {
         continue;
       }
 
-      const { flete, precio } = calcularPrecios(costo);
+      const { precio, pct } = calcularPrecios(costo);
       // Si su categoría está excluida, no lo traemos
       if (listaExcluidas.has(categoriaDeProducto(p))) {
         omitidos++;
@@ -353,8 +365,12 @@ export async function POST(request) {
           };
           if (cambioPrecio) {
             cambios.costo = costo;
-            cambios.costo_envio = flete;
-            cambios.precio = precio;
+            cambios.costo_envio = 0;
+            // Respetamos los porcentajes que ya tenga ese producto, y si
+            // tiene el precio puesto a mano no se lo tocamos.
+            if (!yaExiste.precio_manual) {
+              cambios.precio = calcularPrecios(costo, yaExiste).precio;
+            }
             cambios.precio_proveedor_actualizado = new Date().toISOString();
           }
           await supabase.from("Productos").update(cambios).eq("id", yaExiste.id);
@@ -388,7 +404,8 @@ export async function POST(request) {
         imagen_url_5: p.images?.[4]?.src || null,
         imagen_url_6: p.images?.[5]?.src || null,
         costo,
-        costo_envio: flete,
+        costo_envio: 0,
+        ...pct,
         precio,
         stock: 0,
         bajo_pedido: true,

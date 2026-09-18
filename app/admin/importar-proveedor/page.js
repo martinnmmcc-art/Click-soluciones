@@ -155,7 +155,7 @@ function ImportarProveedor() {
         </h1>
         <p className="text-xs text-gray-500 mb-5">
           Trae los productos del proveedor como <b>&quot;a pedido&quot;</b> (stock 0), con la foto,
-          la descripción y el precio ya calculado con tu fórmula: costo + 3% + 5% + 80% + 14,5% de flete.
+          la descripción y el precio ya calculado con tu fórmula: costo + 3% + 5% + 15% de transporte + 80% de ganancia.
         </p>
 
         {cargandoCats && (
@@ -369,7 +369,7 @@ function ImportarProveedor() {
             <li>Los productos entran como <b>a pedido</b>, con stock 0: no se venden como disponibles.</li>
             <li>Nunca se duplica nada: si ya importaste un producto, lo reconoce.</li>
             <li>Las fotos se muestran desde la web del proveedor. Si él las borra, se dejan de ver.</li>
-            <li>El flete es estimado (14,5%). Cuando pidas el producto de verdad, ajustá el costo real.</li>
+            <li>El transporte es un 15% estimado. Si querés cambiarlo para muchos productos juntos, usá Porcentajes de precio.</li>
             <li>Conviene repetir la importación cada tanto para mantener los precios al día.</li>
           </ul>
         </div>

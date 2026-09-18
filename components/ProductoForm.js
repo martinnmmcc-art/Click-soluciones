@@ -18,12 +18,11 @@ export function normalizarVideoUrl(url) {
   return u;
 }
 
-function calcularPrecio(costo, margen, envio) {
+function calcularPrecio(costo, margen) {
   const c = Number(costo) || 0;
   const m = Number(margen) || 0;
-  const e = Number(envio) || 0;
   if (c <= 0) return "";
-  const precio = c * (1 + m / 100) + e;
+  const precio = c * (1 + m / 100);
   return Math.round(precio * 100) / 100;
 }
 
@@ -49,7 +48,6 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
     pct_ganancia: initialData?.pct_ganancia ?? 80,
     precio_manual: initialData?.precio_manual ?? false,
     margen_porcentaje: initialData?.margen_porcentaje ?? "",
-    costo_envio: initialData?.costo_envio ?? "",
     video_url: initialData?.video_url || "",
   });
   const [subiendoVideo, setSubiendoVideo] = useState(false);
@@ -117,16 +115,14 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
     }));
   }
 
-  // costo / margen / envío: al tocarlos, recalculamos el precio final solo
+  // costo / margen: al tocarlos, recalculamos el precio final solo
   function handleChangeCalculadora(e) {
     const { name, value } = e.target;
     const nuevoForm = { ...form, [name]: value };
 
     const costo = name === "costo" ? value : nuevoForm.costo;
     const margen = name === "margen_porcentaje" ? value : nuevoForm.margen_porcentaje;
-    const envio = name === "costo_envio" ? value : nuevoForm.costo_envio;
-
-    const precioCalculado = calcularPrecio(costo, margen, envio);
+    const precioCalculado = calcularPrecio(costo, margen);
     if (precioCalculado !== "") {
       nuevoForm.precio = precioCalculado;
       setPrecioAutocalculado(true);
@@ -167,7 +163,8 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         stock_minimo: Number(form.stock_minimo) || 0,
         costo: form.costo !== "" ? Number(form.costo) : null,
         margen_porcentaje: form.margen_porcentaje !== "" ? Number(form.margen_porcentaje) : null,
-        costo_envio: form.costo_envio !== "" ? Number(form.costo_envio) : 0,
+        // El flete ya va dentro del % de Transporte: nunca un monto aparte
+        costo_envio: 0,
         video_url: form.video_url ? normalizarVideoUrl(form.video_url) : null,
       });
     } catch (err) {
@@ -232,41 +229,24 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         <p className="text-sm font-bold text-gray-700 mb-2">
           💰 Calculadora de precio
         </p>
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">
-              Costo del proveedor
-            </label>
-            <input
-              name="costo"
-              type="number"
-              step="0.01"
-              value={form.costo}
-              onChange={handleChangeCalculadora}
-              className="input-field"
-              placeholder="$"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-medium text-gray-600 block mb-1">
-              Flete del pedido
-            </label>
-            <input
-              name="costo_envio"
-              type="number"
-              step="0.01"
-              value={form.costo_envio}
-              onChange={handleChangeCalculadora}
-              className="input-field"
-              placeholder="$"
-            />
-          </div>
+        <div className="mb-3">
+          <label className="text-xs font-medium text-gray-600 block mb-1">
+            Costo del proveedor
+          </label>
+          <input
+            name="costo"
+            type="number"
+            step="0.01"
+            value={form.costo}
+            onChange={handleChangeCalculadora}
+            className="input-field"
+            placeholder="$"
+          />
         </div>
 
         {/* Desglose con cada recargo editable */}
         <CalculadoraPrecio
           costo={form.costo}
-          costoEnvio={form.costo_envio}
           valores={{
             pct_transferencia: form.pct_transferencia,
             pct_dolar: form.pct_dolar,
