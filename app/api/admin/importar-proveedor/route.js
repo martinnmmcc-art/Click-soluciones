@@ -252,7 +252,7 @@ export async function POST(request) {
     const refs = productos.map((p) => String(p.id));
     const { data: existentes } = await supabase
       .from("Productos")
-      .select("id, proveedor_ref, costo, categoria, imagen_url_4, imagen_url_5, imagen_url_6")
+      .select("id, proveedor_ref, costo, categoria, bajo_pedido, imagen_url_4, imagen_url_5, imagen_url_6")
       .eq("proveedor", PROVEEDOR)
       .in("proveedor_ref", refs);
 
@@ -287,6 +287,7 @@ export async function POST(request) {
 
     const aInsertar = [];
     let actualizados = 0;
+    let protegidos = 0;
     let omitidos = 0;
 
     for (const p of productos) {
@@ -322,8 +323,14 @@ export async function POST(request) {
       const yaExiste = mapaExistentes.get(ref);
 
       if (yaExiste) {
-        // Solo actualizamos si el precio del proveedor cambió y así lo pidieron
-        const cambioPrecio = actualizar_precios && Number(yaExiste.costo) !== costo;
+        // Nunca tocamos el costo de mercadería que ya compraste: ese es lo
+        // que pagaste de verdad y es la base para calcular tu ganancia. Si
+        // el proveedor sube el precio, eso vale para el próximo pedido, no
+        // para lo que ya tenés en el depósito.
+        const esTuyo = yaExiste.bajo_pedido === false;
+
+        const cambioPrecio =
+          actualizar_precios && !esTuyo && Number(yaExiste.costo) !== costo;
         const categoriaCorrecta = categoriaDeProducto(p);
         const cambioCategoria = yaExiste.categoria !== categoriaCorrecta;
 
@@ -354,6 +361,11 @@ export async function POST(request) {
           actualizados++;
         } else {
           omitidos++;
+        }
+
+        // Contamos los que protegimos, para poder avisarlo
+        if (esTuyo && actualizar_precios && Number(yaExiste.costo) !== costo) {
+          protegidos++;
         }
         continue;
       }
@@ -404,6 +416,7 @@ export async function POST(request) {
       importados,
       actualizados,
       omitidos,
+      protegidos,
       pagina,
       total_paginas: totalPaginas,
       hay_mas: pagina < totalPaginas
