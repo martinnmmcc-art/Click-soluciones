@@ -9,10 +9,50 @@ import { useRecordarPosicion, useRestaurarAlDibujar } from "@/lib/useRecordarPos
 import { formatPrice } from "@/lib/whatsapp";
 import { nombreCategoria } from "@/lib/categorias";
 
+// Filtros rápidos de la lista. Los de stock solo aplican a "Tengo".
+const FILTROS = [
+  { valor: "todos", etiqueta: "Todos" },
+  { valor: "con-stock", etiqueta: "✅ Con stock", soloTengo: true },
+  { valor: "sin-stock", etiqueta: "❌ Sin stock", soloTengo: true },
+  { valor: "stock-bajo", etiqueta: "⚠️ Stock bajo", soloTengo: true },
+  { valor: "inactivos", etiqueta: "🚫 Inactivos" }
+];
+
+// Formas de ordenar la lista (se ordena en la base, no solo lo cargado)
+const ORDENES = [
+  { valor: "nuevos", etiqueta: "Más nuevos primero", campo: "created_at", asc: false },
+  { valor: "modificados", etiqueta: "Modificados recientemente", campo: "actualizado_en", asc: false },
+  { valor: "precio-alto", etiqueta: "Precio: mayor a menor", campo: "precio", asc: false },
+  { valor: "precio-bajo", etiqueta: "Precio: menor a mayor", campo: "precio", asc: true },
+  { valor: "mas-stock", etiqueta: "Más stock primero", campo: "stock", asc: false },
+  { valor: "menos-stock", etiqueta: "Menos stock primero", campo: "stock", asc: true },
+  { valor: "nombre", etiqueta: "Nombre A-Z", campo: "nombre", asc: true },
+  { valor: "viejos", etiqueta: "Más viejos primero", campo: "created_at", asc: true }
+];
+
+const CLAVE_FILTROS = "admin-productos-filtros";
+
+function leerFiltros() {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(sessionStorage.getItem(CLAVE_FILTROS) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function formatearFecha(iso) {
+  return new Date(iso).toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
 function ListaProductos() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const filtro = searchParams.get("filtro"); // "sin-stock" | null
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [duplicandoId, setDuplicandoId] = useState(null);
@@ -20,6 +60,16 @@ function ListaProductos() {
   const tabInicial = searchParams.get("tab") === "a-pedido" ? "a-pedido" : "tengo";
   const [tab, setTab] = useState(tabInicial); // "tengo" | "a-pedido"
   const [busqueda, setBusqueda] = useState("");
+  // Filtros y orden de la lista. "sin-stock" puede venir desde el panel.
+  // Se recuerdan mientras la pestaña del navegador esté abierta, así al volver
+  // de editar un producto la lista sigue filtrada y ordenada igual.
+  const filtrosGuardados = leerFiltros();
+  const [mostrar, setMostrar] = useState(
+    searchParams.get("filtro") === "sin-stock" ? "sin-stock" : filtrosGuardados.mostrar || "todos"
+  ); // todos | con-stock | sin-stock | stock-bajo | inactivos
+  const [orden, setOrden] = useState(filtrosGuardados.orden || "nuevos");
+  const [categoria, setCategoria] = useState(filtrosGuardados.categoria || "");
+  const [categorias, setCategorias] = useState([]);
   const [hayMas, setHayMas] = useState(false);
   const [cargandoMas, setCargandoMas] = useState(false);
   const [totalTab, setTotalTab] = useState(0);
@@ -28,7 +78,13 @@ function ListaProductos() {
   const [conteos, setConteos] = useState({ tengo: 0, aPedido: 0 });
 
   // Recuerda en qué parte de la lista estaba antes de entrar a editar
-  const posicion = useRecordarPosicion("admin-productos", { tab, busqueda });
+  const posicion = useRecordarPosicion("admin-productos", {
+    tab,
+    busqueda,
+    mostrar,
+    orden,
+    categoria
+  });
   const { alSalir } = posicion;
 
   // Cuando la lista ya está dibujada, volvemos a la posición donde estaba
@@ -50,7 +106,20 @@ function ListaProductos() {
       q = q.ilike("nombre", `%${busqueda.trim()}%`);
     }
 
-    return q.order("created_at", { ascending: false });
+    if (categoria) q = q.eq("categoria", categoria);
+
+    // Qué productos mostrar
+    if (mostrar === "con-stock") q = q.gt("stock", 0);
+    if (mostrar === "sin-stock") q = q.or("stock.is.null,stock.lte.0");
+    if (mostrar === "stock-bajo") q = q.eq("stock_bajo", true);
+    if (mostrar === "inactivos") q = q.eq("activo", false);
+
+    // En qué orden
+    const o = ORDENES.find((x) => x.valor === orden) || ORDENES[0];
+    q = q.order(o.campo, { ascending: o.asc, nullsFirst: false });
+    // Desempate fijo para que "Ver más" no repita ni saltee productos
+    if (o.campo !== "id") q = q.order("id", { ascending: false });
+    return q;
   }
 
   async function cargarProductos() {
@@ -77,7 +146,25 @@ function ListaProductos() {
     const t = setTimeout(cargarProductos, busqueda ? 400 : 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, busqueda]);
+  }, [tab, busqueda, mostrar, orden, categoria]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(CLAVE_FILTROS, JSON.stringify({ mostrar, orden, categoria }));
+    } catch {}
+  }, [mostrar, orden, categoria]);
+
+  // "Stock bajo" no tiene sentido en los productos a pedido
+  useEffect(() => {
+    if (tab === "a-pedido" && ["con-stock", "sin-stock", "stock-bajo"].includes(mostrar)) {
+      setMostrar("todos");
+    }
+  }, [tab, mostrar]);
+
+  // Categorías que existen de verdad en la base, para el filtro
+  useEffect(() => {
+    supabase.rpc("categorias_productos").then(({ data }) => setCategorias(data || []));
+  }, []);
 
   // Cuántos productos hay de cada tipo, para mostrar en las pestañas
   useEffect(() => {
@@ -159,10 +246,9 @@ function ListaProductos() {
     (p) => !p.bajo_pedido && Number(p.stock || 0) <= Number(p.stock_minimo ?? 3)
   ).length;
 
-  const productosMostrados =
-    filtro === "sin-stock"
-      ? productos.filter((p) => !p.bajo_pedido && p.stock !== null && Number(p.stock) <= 0)
-      : productos;
+  const productosMostrados = productos;
+  const filtrosDeTab = tab === "a-pedido" ? FILTROS.filter((f) => !f.soloTengo) : FILTROS;
+  const hayFiltros = mostrar !== "todos" || orden !== "nuevos" || categoria !== "";
 
   return (
     <main className="min-h-screen bg-brand-bg">
@@ -251,21 +337,71 @@ function ListaProductos() {
           placeholder={`Buscar entre ${totalTab} productos...`}
         />
 
-        {filtro === "sin-stock" && (
-          <div className="flex items-center justify-between bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 mb-4 text-sm font-semibold">
-            <span>Mostrando solo productos sin stock ({productosMostrados.length})</span>
-            <Link href="/admin/productos" className="underline text-xs">
-              Ver todos
-            </Link>
-          </div>
-        )}
+        {/* FILTROS Y ORDEN */}
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-2 -mx-1 px-1">
+          {filtrosDeTab.map((f) => (
+            <button
+              key={f.valor}
+              onClick={() => setMostrar(f.valor)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold border transition ${
+                mostrar === f.valor
+                  ? "bg-gray-800 text-white border-gray-800"
+                  : "bg-white text-gray-600 border-gray-200"
+              }`}
+            >
+              {f.etiqueta}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-2">
+          <select
+            value={orden}
+            onChange={(e) => setOrden(e.target.value)}
+            className="text-xs border border-gray-200 rounded-xl px-2 py-2 bg-white"
+          >
+            {ORDENES.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.etiqueta}
+              </option>
+            ))}
+          </select>
+          <select
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            className="text-xs border border-gray-200 rounded-xl px-2 py-2 bg-white"
+          >
+            <option value="">Todas las categorías</option>
+            {categorias.map((c) => (
+              <option key={c.categoria} value={c.categoria}>
+                {nombreCategoria(c.categoria)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-gray-500 mb-3 px-1">
+          <span>{loading ? "Buscando..." : `${totalTab} productos`}</span>
+          {hayFiltros && (
+            <button
+              onClick={() => {
+                setMostrar("todos");
+                setOrden("nuevos");
+                setCategoria("");
+              }}
+              className="text-brand-blue font-semibold"
+            >
+              Quitar filtros
+            </button>
+          )}
+        </div>
 
         {loading ? (
           <p className="text-center text-gray-400 py-10">Cargando...</p>
         ) : productosMostrados.length === 0 ? (
           <div className="card p-6 text-center text-gray-500">
-            {filtro === "sin-stock"
-              ? "No tenés productos sin stock 🎉"
+            {hayFiltros || busqueda
+              ? "No hay productos con esos filtros."
               : tab === "a-pedido"
               ? "Todavía no cargaste productos a pedido."
               : "Todavía no hay productos cargados."}
@@ -305,6 +441,11 @@ function ListaProductos() {
                       )}
                       {!p.activo && " · Inactivo"}
                     </p>
+                    {orden === "modificados" && p.actualizado_en && (
+                      <p className="text-[11px] text-gray-400">
+                        Modificado {formatearFecha(p.actualizado_en)}
+                      </p>
+                    )}
                     <p className="text-brand-blueDark font-bold text-sm mt-0.5">
                       ${formatPrice(p.precio_oferta || p.precio)}
                     </p>
@@ -335,7 +476,7 @@ function ListaProductos() {
               );
             })}
 
-            {hayMas && !filtro && (
+            {hayMas && (
               <button
                 onClick={cargarMas}
                 disabled={cargandoMas}
