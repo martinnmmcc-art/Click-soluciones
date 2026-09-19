@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import Header from "@/components/Header";
+import DesgloseAdmin from "@/components/DesgloseAdmin";
 import BotonFavorito from "@/components/BotonFavorito";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
@@ -239,6 +240,8 @@ export default function ProductoDetallePage() {
             </span>
           )}
         </div>
+
+        <DesgloseAdmin producto={producto} />
 
         {sinStock && (
           <span className="inline-block mt-2 bg-gray-700 text-white text-xs font-bold px-3 py-1 rounded-full">

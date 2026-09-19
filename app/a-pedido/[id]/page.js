@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
+import DesgloseAdmin from "@/components/DesgloseAdmin";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice, buildWhatsAppLink, whatsappAPedidoMessage } from "@/lib/whatsapp";
 
@@ -115,6 +116,8 @@ export default function APedidoDetallePage() {
             Este producto no está en stock ahora, lo pedimos especialmente a nuestro proveedor. Consultanos por WhatsApp para confirmar precio final y tiempo de entrega.
           </p>
         </div>
+
+        <DesgloseAdmin producto={producto} />
 
         <a
           href={linkWhatsapp}
