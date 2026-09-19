@@ -6,12 +6,13 @@ import { supabase } from "@/lib/supabaseClient";
 import CodigoBarras from "@/components/CodigoBarras";
 import CalculadoraPrecio from "@/components/CalculadoraPrecio";
 import VideoProducto from "@/components/VideoProducto";
-import { normalizarVideoUrl, esLinkCorto } from "@/lib/video";
+import { normalizarVideoUrl, esLinkCorto, infoVideo } from "@/lib/video";
 
 export { normalizarVideoUrl };
 
-// Los links cortos (vm.tiktok.com, fb.watch...) no dicen qué video es:
-// se abren en el servidor para obtener el link completo.
+// Convierte el link pegado al reproductor que se ve dentro de la app.
+// Los links cortos (vm.tiktok.com, fb.watch, facebook.com/share/...) no
+// dicen qué video es: se abren en el servidor para obtener el link completo.
 async function prepararVideo(url) {
   if (!url) return null;
   let final = url.trim();
@@ -59,6 +60,19 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
   });
   const [subiendoVideo, setSubiendoVideo] = useState(false);
   const [errorVideo, setErrorVideo] = useState("");
+  const [preparandoVideo, setPreparandoVideo] = useState(false);
+
+  // Apenas pegás el link, se convierte y se muestra el video para probarlo
+  async function convertirLinkVideo(valor) {
+    const texto = String(valor || "").trim();
+    if (!texto || texto.startsWith("https://www.youtube.com/embed/")) return;
+    setPreparandoVideo(true);
+    const listo = await prepararVideo(texto);
+    setPreparandoVideo(false);
+    if (listo) setForm((prev) => ({ ...prev, video_url: listo }));
+  }
+
+  const infoDelVideo = form.video_url ? infoVideo(form.video_url) : null;
   const [precioAutocalculado, setPrecioAutocalculado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -372,19 +386,39 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
             name="video_url"
             value={form.video_url}
             onChange={handleChange}
+            onPaste={(e) => {
+              const pegado = e.clipboardData.getData("text");
+              if (pegado) {
+                e.preventDefault();
+                setForm((prev) => ({ ...prev, video_url: pegado.trim() }));
+                convertirLinkVideo(pegado);
+              }
+            }}
+            onBlur={(e) => convertirLinkVideo(e.target.value)}
             className="input-field"
             placeholder="Link de YouTube, Instagram, TikTok, Facebook..."
           />
           <p className="text-[11px] text-gray-400 mt-1">
-            Sirve YouTube, Instagram, TikTok, Facebook, Vimeo o X. Copiá el link con el botón
-            "Compartir" de la app y pegalo acá. El video tiene que ser público.
+            Sirve YouTube, Instagram, TikTok, Facebook o Vimeo. Copiá el link con el botón
+            "Compartir" de la app y pegalo acá. El video se reproduce dentro de la tienda,
+            sin mandar al cliente afuera. Tiene que ser un video público.
           </p>
         </div>
 
         {form.video_url && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-xs font-semibold text-green-700">✓ Video cargado</p>
+              {preparandoVideo ? (
+                <p className="text-xs font-semibold text-brand-blue">Buscando el video...</p>
+              ) : infoDelVideo?.tipo === "invalido" || esLinkCorto(form.video_url) ? (
+                <p className="text-xs font-semibold text-red-600">
+                  ✗ Este link no se puede reproducir dentro de la app
+                </p>
+              ) : (
+                <p className="text-xs font-semibold text-green-700">
+                  ✓ Video de {infoDelVideo?.red} listo. Probalo acá abajo
+                </p>
+              )}
               <button
                 type="button"
                 onClick={() => setForm({ ...form, video_url: "" })}
@@ -393,12 +427,16 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
                 Quitar
               </button>
             </div>
-            {esLinkCorto(form.video_url) ? (
-              <p className="text-[11px] text-gray-500">
-                Es un link corto: se va a mostrar el video cuando guardes el producto.
+            {!preparandoVideo && (infoDelVideo?.tipo === "invalido" || esLinkCorto(form.video_url)) ? (
+              <p className="text-[11px] text-red-600">
+                Probá abrir el video en la red social y copiar el link desde "Compartir" → "Copiar
+                link" otra vez, o descargá el video y subilo con el botón de arriba. Si se guarda
+                así, el video no se va a mostrar en la tienda.
               </p>
             ) : (
-              <VideoProducto url={normalizarVideoUrl(form.video_url)} titulo="Vista previa" compacto />
+              !preparandoVideo && (
+                <VideoProducto url={form.video_url} titulo="Vista previa" compacto />
+              )
             )}
           </div>
         )}
