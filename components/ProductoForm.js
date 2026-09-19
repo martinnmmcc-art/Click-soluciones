@@ -5,17 +5,24 @@ import { CATEGORIAS } from "@/lib/categorias";
 import { supabase } from "@/lib/supabaseClient";
 import CodigoBarras from "@/components/CodigoBarras";
 import CalculadoraPrecio from "@/components/CalculadoraPrecio";
+import VideoProducto from "@/components/VideoProducto";
+import { normalizarVideoUrl, esLinkCorto } from "@/lib/video";
 
-// Convierte un link de YouTube normal al formato que se puede incrustar,
-// para que el video se vea dentro de la ficha del producto.
-export function normalizarVideoUrl(url) {
-  if (!url) return "";
-  const u = url.trim();
+export { normalizarVideoUrl };
 
-  const yt = u.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/);
-  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
-
-  return u;
+// Los links cortos (vm.tiktok.com, fb.watch...) no dicen qué video es:
+// se abren en el servidor para obtener el link completo.
+async function prepararVideo(url) {
+  if (!url) return null;
+  let final = url.trim();
+  if (esLinkCorto(final)) {
+    try {
+      const res = await fetch(`/api/resolver-video?url=${encodeURIComponent(final)}`);
+      const data = await res.json();
+      if (data?.url) final = data.url;
+    } catch {}
+  }
+  return normalizarVideoUrl(final);
 }
 
 function calcularPrecio(costo, margen) {
@@ -165,7 +172,7 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         margen_porcentaje: form.margen_porcentaje !== "" ? Number(form.margen_porcentaje) : null,
         // El flete ya va dentro del % de Transporte: nunca un monto aparte
         costo_envio: 0,
-        video_url: form.video_url ? normalizarVideoUrl(form.video_url) : null,
+        video_url: await prepararVideo(form.video_url),
       });
     } catch (err) {
       setError(err.message || "Ocurrió un error al guardar.");
@@ -359,17 +366,18 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
 
         <div>
           <label className="text-xs font-medium text-gray-600 block mb-1">
-            O pegá un link de YouTube
+            O pegá el link del video
           </label>
           <input
             name="video_url"
             value={form.video_url}
             onChange={handleChange}
             className="input-field"
-            placeholder="https://youtube.com/... o link del video subido"
+            placeholder="Link de YouTube, Instagram, TikTok, Facebook..."
           />
           <p className="text-[11px] text-gray-400 mt-1">
-            Para videos largos conviene YouTube: no ocupa espacio de la app y carga más rápido.
+            Sirve YouTube, Instagram, TikTok, Facebook, Vimeo o X. Copiá el link con el botón
+            "Compartir" de la app y pegalo acá. El video tiene que ser público.
           </p>
         </div>
 
@@ -385,15 +393,12 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
                 Quitar
               </button>
             </div>
-            {form.video_url.includes("youtube.com/embed") ? (
-              <iframe
-                src={form.video_url}
-                className="w-full aspect-video rounded-lg"
-                allowFullScreen
-                title="Vista previa"
-              />
+            {esLinkCorto(form.video_url) ? (
+              <p className="text-[11px] text-gray-500">
+                Es un link corto: se va a mostrar el video cuando guardes el producto.
+              </p>
             ) : (
-              <video src={form.video_url} controls className="w-full rounded-lg max-h-52" />
+              <VideoProducto url={normalizarVideoUrl(form.video_url)} titulo="Vista previa" compacto />
             )}
           </div>
         )}

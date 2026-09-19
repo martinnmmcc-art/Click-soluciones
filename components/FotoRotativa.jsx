@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { esArchivoDeVideo } from "@/lib/video";
 
 // Muestra las fotos de un producto rotándolas, y si tiene un video corto
 // también lo reproduce dentro de la rotación.
@@ -53,7 +54,9 @@ export default function FotoRotativa({
   // La conexión solo se puede consultar en el navegador, nunca al generar
   // la página en el servidor.
   useEffect(() => {
-    if (video && !String(video).includes("youtube") && !conexionLimitada()) {
+    // Solo los videos subidos (archivo) se reproducen solos en las listas.
+    // Los de YouTube, Instagram, TikTok, etc. se ven en la ficha del producto.
+    if (video && esArchivoDeVideo(video) && !conexionLimitada()) {
       setVideoUsable(video);
     } else {
       setVideoUsable(null);

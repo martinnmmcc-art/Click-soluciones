@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Header from "@/components/Header";
 import DesgloseAdmin from "@/components/DesgloseAdmin";
+import VideoProducto from "@/components/VideoProducto";
 import BotonFavorito from "@/components/BotonFavorito";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
@@ -198,23 +199,7 @@ export default function ProductoDetallePage() {
       {producto.video_url && (
         <div className="max-w-2xl mx-auto px-4 mt-4">
           <p className="text-sm font-bold text-gray-800 mb-2">🎥 Mirá el producto en video</p>
-          {producto.video_url.includes("youtube.com/embed") ? (
-            <iframe
-              src={producto.video_url}
-              className="w-full aspect-video rounded-2xl border border-gray-100"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              title={`Video de ${producto.nombre}`}
-            />
-          ) : (
-            <video
-              src={producto.video_url}
-              controls
-              playsInline
-              preload="metadata"
-              className="w-full rounded-2xl border border-gray-100 bg-black"
-            />
-          )}
+          <VideoProducto url={producto.video_url} titulo={`Video de ${producto.nombre}`} />
         </div>
       )}
 

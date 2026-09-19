@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import DesgloseAdmin from "@/components/DesgloseAdmin";
+import VideoProducto from "@/components/VideoProducto";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice, buildWhatsAppLink, whatsappAPedidoMessage } from "@/lib/whatsapp";
 
@@ -101,6 +102,14 @@ export default function APedidoDetallePage() {
           </div>
         )}
       </div>
+
+      {/* VIDEO DEL PRODUCTO */}
+      {producto.video_url && (
+        <div className="max-w-2xl mx-auto px-4 mt-4">
+          <p className="text-sm font-bold text-gray-800 mb-2">🎥 Mirá el producto en video</p>
+          <VideoProducto url={producto.video_url} titulo={`Video de ${producto.nombre}`} />
+        </div>
+      )}
 
       <div className="max-w-2xl mx-auto px-4 mt-6">
         <h1 className="text-2xl font-extrabold text-gray-800">{producto.nombre}</h1>
