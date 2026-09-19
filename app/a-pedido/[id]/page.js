@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import { supabase } from "@/lib/supabaseClient";
-import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
+import { formatPrice, buildWhatsAppLink, whatsappAPedidoMessage } from "@/lib/whatsapp";
 
 export default function APedidoDetallePage() {
   const params = useParams();
@@ -57,9 +57,7 @@ export default function APedidoDetallePage() {
 
   const listaImagenes = [producto.imagen_url, producto.imagen_url_2, producto.imagen_url_3].filter(Boolean);
 
-  const linkWhatsapp = buildWhatsAppLink(
-    `Hola! 👋 Vi "${producto.nombre}" en la sección de productos a pedido de Bolson Click. ¿Me contás precio final y tiempo de entrega?`
-  );
+  const linkWhatsapp = buildWhatsAppLink(whatsappAPedidoMessage(producto));
 
   return (
     <main className="pb-12">

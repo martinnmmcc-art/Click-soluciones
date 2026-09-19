@@ -19,6 +19,7 @@ import BottomNav from "@/components/BottomNav";
 import ProtegerContenido from "@/components/ProtegerContenido";
 
 export const metadata = {
+  metadataBase: new URL("https://www.bolsonclick.com.ar"),
   title: "Bolson Click | Productos para el hogar",
   description:
     "Iluminación, cocina y organización para tu hogar. Comprá fácil y rápido en Bolson Click.",

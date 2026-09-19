@@ -6,7 +6,7 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
 import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
-import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
+import { formatPrice, buildWhatsAppLink, whatsappAPedidoMessage } from "@/lib/whatsapp";
 import FotoRotativa from "@/components/FotoRotativa";
 import { fotosDe } from "@/lib/imagenProducto";
 
@@ -167,10 +167,8 @@ export default function APedidoPage() {
     setCargandoMas(false);
   }
 
-  function mensajeConsulta(nombre) {
-    return buildWhatsAppLink(
-      `Hola! 👋 Vi "${nombre}" en la sección de productos a pedido de Bolson Click. ¿Me contás precio final y tiempo de entrega?`
-    );
+  function mensajeConsulta(producto) {
+    return buildWhatsAppLink(whatsappAPedidoMessage(producto));
   }
 
   const productosFiltrados = productos;
@@ -314,7 +312,7 @@ export default function APedidoPage() {
                     </span>
                   )}
                   <a
-                    href={mensajeConsulta(prod.nombre)}
+                    href={mensajeConsulta(prod)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full bg-purple-600 text-white text-[11px] font-bold py-2 rounded-xl shadow-sm text-center"
