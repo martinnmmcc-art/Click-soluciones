@@ -153,7 +153,13 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(request))
+        .catch(async () => {
+          // Sin señal (o muy débil): se usa la copia guardada y se avisa a
+          // la app, para que el panel muestre que los datos pueden estar viejos.
+          const guardado = await caches.match(request);
+          avisarDatosDesdeCopia();
+          return guardado || Response.error();
+        })
     );
     return;
   }
@@ -180,6 +186,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 });
+
+async function avisarDatosDesdeCopia() {
+  try {
+    const ventanas = await self.clients.matchAll({ type: "window" });
+    ventanas.forEach((v) => v.postMessage({ tipo: "datos-desde-copia" }));
+  } catch (e) {}
+}
 
 // Permite forzar la actualización desde la app
 self.addEventListener("message", (event) => {

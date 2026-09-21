@@ -10,6 +10,7 @@ import ComprobantePedido from "@/components/ComprobantePedido";
 import { leerCatalogoOffline } from "@/lib/catalogoOffline";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
 import DescargarOffline from "@/components/DescargarOffline";
+import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
 import {
   ESTADOS_ENTREGA,
   ESTADOS_PAGO,
@@ -94,72 +95,83 @@ function PanelVentas() {
   const [nuevoDescuentoTipo, setNuevoDescuentoTipo] = useState("");
   const [nuevoDescuentoValor, setNuevoDescuentoValor] = useState("");
 
-  useEffect(() => {
-    async function cargarPedidos() {
-      try {
-        const res = await fetch("/api/admin/pedidos");
-        const result = await res.json();
-        if (res.ok) setPedidos(result.pedidos || []);
-      } catch (e) {
-        console.error(e.message);
-      }
-      setLoading(false);
+  async function cargarPedidos() {
+    try {
+      const res = await fetch("/api/admin/pedidos", { cache: "no-store" });
+      const result = await res.json();
+      if (res.ok) setPedidos(result.pedidos || []);
+    } catch (e) {
+      console.error(e.message);
     }
+    setLoading(false);
+  }
+
+  async function traerTanda(desde, TANDA) {
+    const { data, error } = await supabase
+      .from("Productos")
+      .select("id, nombre, precio, precio_oferta, stock, bajo_pedido")
+      .order("nombre", { ascending: true })
+      .range(desde, desde + TANDA - 1);
+    if (error) {
+      console.error(error.message);
+      return [];
+    }
+    return data || [];
+  }
+
+  // Supabase devuelve como máximo 1000 filas por consulta. Con más de 2000
+  // productos, pedirlos de una sola vez dejaba afuera todo lo que caía
+  // después del corte alfabético (por ejemplo, lo que empieza con Z).
+  async function cargarProductos() {
+    const TANDA = 1000;
+    let todos = [];
+    let desde = 0;
+
+    while (true) {
+      const tanda = await traerTanda(desde, TANDA);
+      todos = todos.concat(tanda);
+      if (tanda.length < TANDA) break;
+      desde += TANDA;
+      if (desde > 20000) break; // freno de seguridad
+    }
+
+    if (todos.length > 0) {
+      setProductos(todos);
+      setSinConexion(false);
+    } else {
+      // Sin internet: usamos la copia guardada en el celular
+      const guardados = leerCatalogoOffline();
+      if (guardados.length > 0) {
+        setProductos(guardados);
+        setSinConexion(true);
+      }
+    }
+  }
+
+  // Clientes ya registrados o que compraron antes, para autocompletar
+  // sus datos y no tener que escribirlos de nuevo en cada venta.
+  async function cargarClientes() {
+    const { data } = await supabase
+      .from("clientes")
+      .select("id, nombre, telefono, localidad, direccion, email")
+      .order("nombre", { ascending: true });
+    if (data) setClientes(data);
+  }
+
+  // Pedidos, stock y clientes se actualizan solos: al volver la señal, al
+  // volver a la app, cuando cambia algo en la base y cada un minuto.
+  // Así, por ejemplo, al eliminar un pedido el stock devuelto se ve enseguida.
+  useActualizarSolo(async () => {
+    await Promise.all([cargarPedidos(), cargarProductos(), cargarClientes()]);
+  });
+
+  useEffect(() => {
     cargarPedidos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    async function traerTanda(desde, TANDA) {
-      const { data, error } = await supabase
-        .from("Productos")
-        .select("id, nombre, precio, precio_oferta, stock, bajo_pedido")
-        .order("nombre", { ascending: true })
-        .range(desde, desde + TANDA - 1);
-      if (error) {
-        console.error(error.message);
-        return [];
-      }
-      return data || [];
-    }
-
-    // Supabase devuelve como máximo 1000 filas por consulta. Con más de 2000
-    // productos, pedirlos de una sola vez dejaba afuera todo lo que caía
-    // después del corte alfabético (por ejemplo, lo que empieza con Z).
-    async function cargarProductos() {
-      const TANDA = 1000;
-      let todos = [];
-      let desde = 0;
-
-      while (true) {
-        const tanda = await traerTanda(desde, TANDA);
-        todos = todos.concat(tanda);
-        if (tanda.length < TANDA) break;
-        desde += TANDA;
-        if (desde > 20000) break; // freno de seguridad
-      }
-
-      if (todos.length > 0) {
-        setProductos(todos);
-      } else {
-        // Sin internet: usamos la copia guardada en el celular
-        const guardados = leerCatalogoOffline();
-        if (guardados.length > 0) {
-          setProductos(guardados);
-          setSinConexion(true);
-        }
-      }
-    }
     cargarProductos();
-
-    // Clientes ya registrados o que compraron antes, para autocompletar
-    // sus datos y no tener que escribirlos de nuevo en cada venta.
-    async function cargarClientes() {
-      const { data } = await supabase
-        .from("clientes")
-        .select("id, nombre, telefono, localidad, direccion, email")
-        .order("nombre", { ascending: true });
-      if (data) setClientes(data);
-    }
     cargarClientes();
 
     // Cada vez que se registra alguien nuevo, aparece acá sin recargar la app
@@ -304,6 +316,8 @@ function PanelVentas() {
 
       if (res.ok) {
         setPedidos((prev) => prev.filter((p) => p.id !== pedidoId));
+        // El stock que tenía reservado vuelve: lo traemos al toque
+        pedirActualizacion("pedido-eliminado");
       } else {
         alert("No se pudo eliminar el pedido: " + result.error);
       }

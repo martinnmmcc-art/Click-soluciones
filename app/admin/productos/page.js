@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRecordarPosicion, useRestaurarAlDibujar } from "@/lib/useRecordarPosicion";
 import { formatPrice } from "@/lib/whatsapp";
 import { nombreCategoria } from "@/lib/categorias";
+import { useActualizarSolo } from "@/lib/datosFrescos";
 
 // Filtros rápidos de la lista. Los de stock solo aplican a "Tengo".
 const FILTROS = [
@@ -133,6 +134,20 @@ function ListaProductos() {
     setLoading(false);
   }
 
+  // Actualización silenciosa: vuelve a traer lo que ya está en pantalla
+  // (misma cantidad, mismos filtros) sin mover la lista ni mostrar "cargando".
+  async function refrescarEnSilencio() {
+    const cantidad = Math.max(productos.length, POR_TANDA);
+    const { data, error, count } = await consultaBase().range(0, cantidad - 1);
+    if (error) throw new Error(error.message);
+    setProductos(data || []);
+    setTotalTab(count || 0);
+    setHayMas((data?.length || 0) === cantidad);
+    await contar();
+  }
+
+  useActualizarSolo(refrescarEnSilencio);
+
   async function cargarMas() {
     setCargandoMas(true);
     const desde = productos.length;
@@ -167,9 +182,8 @@ function ListaProductos() {
   }, []);
 
   // Cuántos productos hay de cada tipo, para mostrar en las pestañas
-  useEffect(() => {
-    async function contar() {
-      const [tengo, aPedido] = await Promise.all([
+  async function contar() {
+    const [tengo, aPedido] = await Promise.all([
         supabase
           .from("Productos")
           .select("id", { count: "exact", head: true })
@@ -178,10 +192,13 @@ function ListaProductos() {
           .from("Productos")
           .select("id", { count: "exact", head: true })
           .eq("bajo_pedido", true)
-      ]);
-      setConteos({ tengo: tengo.count || 0, aPedido: aPedido.count || 0 });
-    }
+    ]);
+    setConteos({ tengo: tengo.count || 0, aPedido: aPedido.count || 0 });
+  }
+
+  useEffect(() => {
     contar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleEliminar(id) {

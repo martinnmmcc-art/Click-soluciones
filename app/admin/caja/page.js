@@ -6,6 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import EscanerCodigo from "@/components/EscanerCodigo";
+import { useActualizarSolo } from "@/lib/datosFrescos";
 import {
   catalogoLocal, guardarCatalogo, fechaCatalogo,
   buscarPorCodigoLocal, buscarPorNombreLocal,
@@ -56,6 +57,12 @@ function Caja() {
       if (data) setProductosGuardados(guardarCatalogo(data));
     } catch (e) {}
   }
+
+  // El catálogo del mostrador (precios y stock) se mantiene al día solo
+  useActualizarSolo(async () => {
+    await enviarPendientes();
+    await actualizarCatalogo();
+  });
 
   async function enviarPendientes() {
     if (!hayConexion() || ventasPendientes().length === 0) return;

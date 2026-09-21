@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useAdmin } from "@/context/AdminContext";
+import DatosSiempreAlDia from "@/components/DatosSiempreAlDia";
 
 export default function AdminGuard({ children }) {
   const { isAdmin, loading } = useAdmin();
@@ -28,5 +29,11 @@ export default function AdminGuard({ children }) {
     );
   }
 
-  return children;
+  // En todas las pantallas del panel: datos siempre al día + aviso de estado
+  return (
+    <>
+      {children}
+      <DatosSiempreAlDia />
+    </>
+  );
 }
