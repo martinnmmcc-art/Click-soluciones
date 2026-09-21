@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NEGOCIO as CFG } from "@/lib/config";
+import { PAGOS_QUE_CIERRAN } from "@/lib/estadosPedido";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -77,7 +78,7 @@ export async function PATCH(req) {
   const debeConvertirseAVenta =
     !pedidoActual.stock_descontado &&
     (convertir_a_venta === true ||
-      (estadoFinal === "entregado" && estadoPagoFinal === "pagado"));
+      (estadoFinal === "entregado" && PAGOS_QUE_CIERRAN.includes(estadoPagoFinal)));
 
   if (debeConvertirseAVenta) {
     // Una sola llamada descuenta el stock de todos los productos.

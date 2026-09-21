@@ -12,7 +12,8 @@ import { EVENTO_ESTADO, pedirActualizacion } from "@/lib/datosFrescos";
 //    la app, cuando la base avisa que algo cambió, y cada un minuto.
 //    También actualiza la copia guardada en el celular (para usar sin señal).
 //
-// 2) Muestra arriba de todo un renglón chico con el estado: si los datos están al día
+// 2) Muestra un renglón chico con el estado, fijo arriba de todas las
+//    pantallas del panel (va dentro de la barra de app/admin/layout.js): si los datos están al día
 //    o si estás viendo la copia guardada porque no hay señal.
 
 // Revisión "por las dudas" (los cambios de la base ya llegan en vivo):
@@ -167,7 +168,6 @@ export default function DatosSiempreAlDia() {
       className={`w-full flex justify-center border-b ${
         problema ? "bg-orange-100 border-orange-200" : "bg-gray-50 border-gray-100"
       }`}
-      style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
       <button
         onClick={() => actualizarTodo("manual")}

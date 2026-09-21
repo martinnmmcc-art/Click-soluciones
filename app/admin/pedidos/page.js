@@ -15,7 +15,8 @@ import {
   ESTADOS_ENTREGA,
   ESTADOS_PAGO,
   OPCIONES_ENTREGA as LISTA_ENTREGA,
-  OPCIONES_PAGO as LISTA_PAGO
+  OPCIONES_PAGO as LISTA_PAGO,
+  ventaCerrada
 } from "@/lib/estadosPedido";
 
 // Los estados viven en lib/estadosPedido.js para que el panel y lo que ve
@@ -763,12 +764,8 @@ function PanelVentas() {
 
   // En este panel quedan solo los pedidos que todavía requieren acción:
   // sin entregar o sin cobrar. Los cerrados van a "Ventas cerradas".
-  const pedidosAbiertos = pedidosPorCliente.filter(
-    (p) => !(p.estado === "entregado" && p.estado_pago === "pagado")
-  );
-  const pedidosCerradosCount = pedidos.filter(
-    (p) => p.estado === "entregado" && p.estado_pago === "pagado"
-  ).length;
+  const pedidosAbiertos = pedidosPorCliente.filter((p) => !ventaCerrada(p));
+  const pedidosCerradosCount = pedidos.filter((p) => ventaCerrada(p)).length;
 
   // La lista de abajo muestra solo lo que falta atender...
   const pedidosFiltrados = filtrarPorFecha(pedidosAbiertos);

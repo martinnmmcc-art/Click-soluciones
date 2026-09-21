@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useAdmin } from "@/context/AdminContext";
-import DatosSiempreAlDia from "@/components/DatosSiempreAlDia";
 
 export default function AdminGuard({ children }) {
   const { isAdmin, loading } = useAdmin();
@@ -29,12 +28,7 @@ export default function AdminGuard({ children }) {
     );
   }
 
-  // En todas las pantallas del panel: datos siempre al día + aviso de
-  // estado arriba de todo (no tapa nada: ocupa su propio renglón)
-  return (
-    <>
-      <DatosSiempreAlDia />
-      {children}
-    </>
-  );
+  // El aviso de "datos al día" vive en app/admin/layout.js, fijo arriba
+  // de todas las pantallas del panel.
+  return children;
 }

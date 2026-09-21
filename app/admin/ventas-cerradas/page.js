@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import Header from "@/components/Header";
 import { formatPrice } from "@/lib/whatsapp";
+import { ventaCerrada } from "@/lib/estadosPedido";
 
 function telefonoParaWhatsapp(tel) {
   let limpio = (tel || "").replace(/\D/g, "");
@@ -33,11 +34,10 @@ function VentasCerradas() {
     cargar();
   }, []);
 
-  // Una venta está cerrada cuando ya se entregó Y está pagada.
-  // Todo lo demás sigue en el panel de ventas, para no perderlo de vista.
-  const cerradas = pedidos.filter(
-    (p) => p.estado === "entregado" && p.estado_pago === "pagado"
-  );
+  // Una venta está cerrada cuando ya se entregó Y está pagada (o el cliente
+  // pagó de más y le quedó saldo a favor). Todo lo demás sigue en el panel
+  // de pedidos, para no perderlo de vista.
+  const cerradas = pedidos.filter((p) => ventaCerrada(p));
 
   // Agrupamos por cliente
   const porCliente = {};
@@ -161,9 +161,17 @@ function VentasCerradas() {
                                   : ""}
                               </p>
                             </div>
-                            <span className="font-extrabold text-gray-800 text-sm">
-                              ${formatPrice(p.total)}
-                            </span>
+                            <div className="text-right">
+                              <span className="font-extrabold text-gray-800 text-sm">
+                                ${formatPrice(p.total)}
+                              </span>
+                              {p.estado_pago === "a_favor" &&
+                                Number(p.monto_pagado || 0) > Number(p.total || 0) && (
+                                  <p className="text-[11px] font-bold text-green-700">
+                                    💚 A favor ${formatPrice(Number(p.monto_pagado) - Number(p.total))}
+                                  </p>
+                                )}
+                            </div>
                           </div>
 
                           {p.items_pedido?.length > 0 && (
