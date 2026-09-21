@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import DatosSiempreAlDia from "@/components/DatosSiempreAlDia";
 import { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAdmin } from "@/context/AdminContext";
@@ -16,6 +17,10 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
   const { cantidadTotal } = useCart();
   const { isAdmin } = useAdmin();
   const router = useRouter();
+  const pathname = usePathname() || "";
+  // Como admin, el aviso "🟢 Al día" también se ve en la tienda (Inicio,
+  // Catálogo, productos...). En el panel ya lo pone app/admin/layout.js.
+  const mostrarEstadoDatos = isAdmin && !pathname.startsWith("/admin");
 
   function handleSearch(e) {
     e.preventDefault();
@@ -27,6 +32,11 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-gray-100 px-4 pt-4 pb-3">
+      {mostrarEstadoDatos && (
+        <div className="-mx-4 -mt-4 mb-3">
+          <DatosSiempreAlDia />
+        </div>
+      )}
       <div className="flex items-center justify-between mb-3">
         <Link href="/" className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl overflow-hidden relative">

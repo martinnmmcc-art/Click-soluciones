@@ -11,6 +11,7 @@ import { leerCatalogoOffline } from "@/lib/catalogoOffline";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
 import DescargarOffline from "@/components/DescargarOffline";
 import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
+import { saldoAFavorDe } from "@/lib/saldoFavor";
 import {
   ESTADOS_ENTREGA,
   ESTADOS_PAGO,
@@ -95,6 +96,9 @@ function PanelVentas() {
   const [errorNuevo, setErrorNuevo] = useState("");
   const [nuevoDescuentoTipo, setNuevoDescuentoTipo] = useState("");
   const [nuevoDescuentoValor, setNuevoDescuentoValor] = useState("");
+  // Usar el saldo a favor del cliente en el pedido nuevo (sí por defecto)
+  const [usarSaldoNuevo, setUsarSaldoNuevo] = useState(true);
+  const [aplicandoSaldoId, setAplicandoSaldoId] = useState(null);
 
   async function cargarPedidos() {
     try {
@@ -326,6 +330,32 @@ function PanelVentas() {
       alert("Error de conexión al eliminar el pedido.");
     }
     setGuardandoId(null);
+  }
+
+  // Usa el saldo a favor que el cliente tiene en otros pedidos para pagar
+  // este. La plata se pasa de un pedido al otro (no se duplica).
+  async function usarSaldoEnPedido(pedido, disponible) {
+    const debe = Number(pedido.total || 0) - Number(pedido.monto_pagado || 0);
+    const usar = Math.min(disponible, debe);
+    if (usar <= 0) return;
+    const ok = window.confirm(
+      `${pedido.nombre_cliente || "El cliente"} tiene $${formatPrice(disponible)} a favor.\n\n` +
+        `¿Usar $${formatPrice(usar)} para pagar el pedido #${pedido.id}?`
+    );
+    if (!ok) return;
+
+    setAplicandoSaldoId(pedido.id);
+    const { data, error } = await supabase.rpc("aplicar_saldo_a_favor", {
+      p_pedido_id: pedido.id,
+      p_maximo: null
+    });
+    setAplicandoSaldoId(null);
+    if (error) {
+      alert("No se pudo aplicar el saldo: " + error.message);
+      return;
+    }
+    await cargarPedidos();
+    if (Number(data) > 0) pedirActualizacion("saldo-aplicado");
   }
 
   async function agregarProductoAPedido(pedidoId, producto) {
@@ -639,6 +669,9 @@ function PanelVentas() {
     nuevoDescuentoValor
   );
   const montoDescuentoNuevo = subtotalNuevoPedido - totalNuevoPedido;
+  // Lo que el cliente tiene a favor de pedidos anteriores
+  const saldoFavorNuevo = saldoAFavorDe(pedidos, nuevoForm.telefono_cliente);
+  const saldoAUsarNuevo = usarSaldoNuevo ? Math.min(saldoFavorNuevo, totalNuevoPedido) : 0;
 
   function resetFormNuevo() {
     setSugerenciasCliente([]);
@@ -693,6 +726,7 @@ function PanelVentas() {
           total: totalNuevoPedido,
           estado: "pendiente"
         },
+        aplicar_saldo: saldoFavorNuevo > 0 && usarSaldoNuevo,
         items: nuevoItems.map((i) => ({
           producto_id: i.producto_id,
           nombre_producto: i.nombre_producto,
@@ -736,7 +770,11 @@ function PanelVentas() {
         items_pedido: nuevoItems,
       });
       resetFormNuevo();
+      setUsarSaldoNuevo(true);
       setMostrarFormNuevo(false);
+      if (result.saldo_aplicado > 0) {
+        alert(`Se usaron $${formatPrice(result.saldo_aplicado)} del saldo a favor del cliente.`);
+      }
     } catch (err) {
       // Si se cortó el internet justo al guardar, no perdemos el pedido
       if (typeof navigator !== "undefined" && !navigator.onLine) {
@@ -1179,6 +1217,56 @@ function PanelVentas() {
                     ${formatPrice(totalNuevoPedido)}
                   </span>
                 </div>
+
+                {saldoFavorNuevo > 0 && (
+                  <div className="mt-2 rounded-xl border-2 border-green-300 bg-green-50 p-3">
+                    <p className="text-sm font-bold text-green-800">
+                      💚 {nuevoForm.nombre_cliente || "Este cliente"} tiene ${formatPrice(saldoFavorNuevo)} a favor
+                    </p>
+                    <p className="text-xs text-green-700 mb-2">¿Lo usamos para pagar esta venta?</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setUsarSaldoNuevo(true)}
+                        className={`py-2 rounded-lg text-sm font-bold border ${
+                          usarSaldoNuevo
+                            ? "bg-green-600 text-white border-green-600"
+                            : "bg-white text-green-700 border-green-300"
+                        }`}
+                      >
+                        Sí, usarlo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUsarSaldoNuevo(false)}
+                        className={`py-2 rounded-lg text-sm font-bold border ${
+                          !usarSaldoNuevo
+                            ? "bg-gray-700 text-white border-gray-700"
+                            : "bg-white text-gray-600 border-gray-300"
+                        }`}
+                      >
+                        No, guardarlo
+                      </button>
+                    </div>
+                    {usarSaldoNuevo && totalNuevoPedido > 0 && (
+                      <div className="mt-2 space-y-0.5 text-sm">
+                        <div className="flex justify-between text-green-700 font-semibold">
+                          <span>Saldo a favor</span>
+                          <span>-${formatPrice(saldoAUsarNuevo)}</span>
+                        </div>
+                        <div className="flex justify-between font-extrabold text-gray-800">
+                          <span>Le queda por pagar</span>
+                          <span>${formatPrice(totalNuevoPedido - saldoAUsarNuevo)}</span>
+                        </div>
+                        {saldoFavorNuevo > saldoAUsarNuevo && (
+                          <p className="text-[11px] text-green-700">
+                            Le siguen quedando ${formatPrice(saldoFavorNuevo - saldoAUsarNuevo)} a favor.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <p className="text-[11px] text-gray-400 mt-2">
@@ -1508,10 +1596,24 @@ function PanelVentas() {
                   {(() => {
                     const saldo = Number(pedido.total || 0) - Number(pedido.monto_pagado || 0);
                     if (saldo > 0) {
+                      const disponible = saldoAFavorDe(pedidos, pedido.telefono_cliente, pedido.id);
                       return (
-                        <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg">
-                          Debe ${formatPrice(saldo)}
-                        </span>
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className="text-xs font-bold text-red-700 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg">
+                            Debe ${formatPrice(saldo)}
+                          </span>
+                          {disponible > 0 && (
+                            <button
+                              onClick={() => usarSaldoEnPedido(pedido, disponible)}
+                              disabled={aplicandoSaldoId === pedido.id}
+                              className="text-xs font-bold text-white bg-green-600 px-3 py-1.5 rounded-lg disabled:opacity-50"
+                            >
+                              {aplicandoSaldoId === pedido.id
+                                ? "Aplicando..."
+                                : `💚 Usar $${formatPrice(Math.min(disponible, saldo))} a favor`}
+                            </button>
+                          )}
+                        </div>
                       );
                     }
                     if (saldo < 0) {
@@ -1528,6 +1630,12 @@ function PanelVentas() {
                     );
                   })()}
                 </div>
+
+                {Number(pedido.saldo_aplicado || 0) > 0 && (
+                  <p className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 mb-3">
+                    💚 Se usaron ${formatPrice(pedido.saldo_aplicado)} de saldo a favor para pagar este pedido
+                  </p>
+                )}
 
                 <div className="space-y-2">
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Productos del carrito:</p>

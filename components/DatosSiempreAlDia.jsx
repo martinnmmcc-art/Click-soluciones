@@ -46,13 +46,22 @@ export default function DatosSiempreAlDia() {
   const [, forzarRender] = useState(0);
   const demora = useRef(null);
 
-  function actualizarTodo(motivo) {
+  async function actualizarTodo(motivo) {
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
     setActualizando(true);
+    // Las pantallas abiertas recargan sus datos
     pedirActualizacion(motivo);
-    // La copia del celular (sirve para trabajar sin señal)
-    sincronizarCambios().catch(() => {});
-    setTimeout(() => setActualizando(false), 1500);
+    // Y la copia del celular (sirve para trabajar sin señal). Si responde
+    // bien, los datos están al día aunque la pantalla no tenga nada que
+    // recargar (por ejemplo en la tienda).
+    try {
+      const res = await sincronizarCambios();
+      if (!res?.error) {
+        setUltima(Date.now());
+        setDesdeCopia(false);
+      }
+    } catch (e) {}
+    setTimeout(() => setActualizando(false), 600);
   }
 
   // Varios avisos juntos (por ejemplo al guardar un pedido cambian el

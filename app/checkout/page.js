@@ -51,6 +51,30 @@ export default function CheckoutPage() {
   const [cuponAplicado, setCuponAplicado] = useState(null);
   const [validandoCupon, setValidandoCupon] = useState(false);
   const [errorCupon, setErrorCupon] = useState("");
+  // Saldo a favor de compras anteriores (pagó de más): se descuenta solo
+  const [saldoFavor, setSaldoFavor] = useState(0);
+  const [usarSaldo, setUsarSaldo] = useState(true);
+
+  useEffect(() => {
+    const tel = normalizarTelefono(form.telefono_cliente || "");
+    if (tel.replace(/\D/g, "").length < 8) {
+      setSaldoFavor(0);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/saldo-a-favor?telefono=${encodeURIComponent(tel)}`);
+        const data = await res.json();
+        setSaldoFavor(Number(data.saldo || 0));
+      } catch (e) {
+        setSaldoFavor(0);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [form.telefono_cliente]);
+
+  const totalConCupon = total - (cuponAplicado?.descuento || 0);
+  const saldoAUsar = usarSaldo ? Math.min(saldoFavor, totalConCupon) : 0;
 
   async function aplicarCupon() {
     setErrorCupon("");
@@ -237,6 +261,7 @@ export default function CheckoutPage() {
             total,
             estado: "pendiente"
           },
+          aplicar_saldo: saldoFavor > 0 && usarSaldo,
           items: items.map((i) => ({
             producto_id: i.id,
             nombre_producto: i.nombre,
@@ -689,12 +714,50 @@ export default function CheckoutPage() {
               </>
             )}
 
+            {saldoFavor > 0 && (
+              <div className="mb-3 rounded-xl bg-green-50 border border-green-200 p-3">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={usarSaldo}
+                    onChange={(e) => setUsarSaldo(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm text-green-800">
+                    <b>💚 Tenés ${formatPrice(saldoFavor)} a favor</b> de compras anteriores.
+                    <br />
+                    <span className="text-xs">Usarlo para pagar esta compra.</span>
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {saldoAUsar > 0 && (
+              <>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="text-gray-500">Total de la compra</span>
+                  <span className="text-gray-600">${formatPrice(totalConCupon)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm mb-2 pb-2 border-b border-gray-100">
+                  <span className="text-green-700 font-semibold">Tu saldo a favor</span>
+                  <span className="text-green-700 font-bold">-${formatPrice(saldoAUsar)}</span>
+                </div>
+              </>
+            )}
+
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-gray-700">Total</span>
+              <span className="font-semibold text-gray-700">
+                {saldoAUsar > 0 ? "Te queda por pagar" : "Total"}
+              </span>
               <span className="text-xl font-extrabold text-brand-blueDark">
-                ${formatPrice(total - (cuponAplicado?.descuento || 0))}
+                ${formatPrice(totalConCupon - saldoAUsar)}
               </span>
             </div>
+            {saldoAUsar > 0 && saldoFavor > saldoAUsar && (
+              <p className="text-[11px] text-green-700 mt-1">
+                Te siguen quedando ${formatPrice(saldoFavor - saldoAUsar)} a favor para la próxima.
+              </p>
+            )}
           </div>
 
           {/* CREAR CUENTA: sin fricción, con los datos que ya completó */}
