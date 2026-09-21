@@ -29,11 +29,12 @@ export default function AdminGuard({ children }) {
     );
   }
 
-  // En todas las pantallas del panel: datos siempre al día + aviso de estado
+  // En todas las pantallas del panel: datos siempre al día + aviso de
+  // estado arriba de todo (no tapa nada: ocupa su propio renglón)
   return (
     <>
-      {children}
       <DatosSiempreAlDia />
+      {children}
     </>
   );
 }
