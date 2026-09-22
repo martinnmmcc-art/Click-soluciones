@@ -7,6 +7,7 @@ import Image from "next/image";
 import Header from "@/components/Header";
 import DesgloseAdmin from "@/components/DesgloseAdmin";
 import VideoProducto from "@/components/VideoProducto";
+import OpinionesTienda from "@/components/OpinionesTienda";
 import BotonFavorito from "@/components/BotonFavorito";
 import { supabase } from "@/lib/supabaseClient";
 import { useCart } from "@/context/CartContext";
@@ -306,6 +307,9 @@ export default function ProductoDetallePage() {
             </>
           )}
         </div>
+
+        {/* Confianza en el momento de la duda (se prende desde el panel) */}
+        <OpinionesTienda variante="producto" />
 
         {/* DESCRIPCIÓN, CARACTERÍSTICAS Y ACCESORIOS */}
         <div className="mt-10 border-t border-gray-100 pt-8 space-y-6">

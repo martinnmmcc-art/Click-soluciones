@@ -10,7 +10,7 @@ import InstalarApp from "@/components/InstalarApp";
 import MuroRegistro from "@/components/MuroRegistro";
 import LimiteDeError from "@/components/LimiteDeError";
 import AvisoDeuda from "@/components/AvisoDeuda";
-import AvisoOpinar from "@/components/AvisoOpinar";
+import BotonOpinar from "@/components/BotonOpinar";
 import AvisoCupon from "@/components/AvisoCupon";
 import MensajesCliente from "@/components/MensajesCliente";
 import RegistrarOrigen from "@/components/RegistrarOrigen";
@@ -72,9 +72,6 @@ export default function RootLayout({ children }) {
                   <AvisoCupon />
                 </LimiteDeError>
                 <LimiteDeError>
-                  <AvisoOpinar />
-                </LimiteDeError>
-                <LimiteDeError>
                   <MensajesCliente />
                 </LimiteDeError>
                 <LimiteDeError>
@@ -86,6 +83,9 @@ export default function RootLayout({ children }) {
                 <div className="container-app pb-24">{children}</div>
                 <LimiteDeError>
                   <WhatsAppFloatingButton />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <BotonOpinar />
                 </LimiteDeError>
                 <BottomNav />
               </AuthGuard>

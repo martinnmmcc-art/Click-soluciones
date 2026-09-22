@@ -43,6 +43,31 @@ function Opiniones() {
   const [respondiendo, setRespondiendo] = useState(null);
   const [textoRespuesta, setTextoRespuesta] = useState("");
   const [trabajandoId, setTrabajandoId] = useState(null);
+  const [mostrarEnApp, setMostrarEnApp] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("ajustes_app")
+      .select("valor")
+      .eq("clave", "mostrar_opiniones_tienda")
+      .maybeSingle()
+      .then(({ data }) => setMostrarEnApp(data?.valor === true));
+  }, []);
+
+  async function cambiarMostrarEnApp() {
+    const nuevo = !mostrarEnApp;
+    const ok = window.confirm(
+      nuevo
+        ? "¿Mostrar las opiniones publicadas en la app? Se van a ver en la ficha de cada producto y al confirmar la compra."
+        : "¿Dejar de mostrar las opiniones en la app? No se borra nada."
+    );
+    if (!ok) return;
+    const { error } = await supabase
+      .from("ajustes_app")
+      .upsert({ clave: "mostrar_opiniones_tienda", valor: nuevo, actualizado_en: new Date().toISOString() });
+    if (error) return alert("No se pudo cambiar: " + error.message);
+    setMostrarEnApp(nuevo);
+  }
 
   async function cargar() {
     const { data, error } = await supabase
@@ -111,6 +136,35 @@ function Opiniones() {
             <b>{promedio.toFixed(1)}</b> con {publicadas.length} publicada{publicadas.length === 1 ? "" : "s"}
           </p>
         )}
+        {/* Interruptor general: si está apagado, los clientes no ven ninguna */}
+        <button
+          onClick={cambiarMostrarEnApp}
+          className={`w-full flex items-center justify-between rounded-2xl border-2 p-3 mb-3 text-left ${
+            mostrarEnApp ? "border-green-300 bg-green-50" : "border-gray-200 bg-white"
+          }`}
+        >
+          <span>
+            <span className="block text-sm font-bold text-gray-800">
+              {mostrarEnApp ? "👁 Se muestran en la app" : "🙈 Todavía no se muestran en la app"}
+            </span>
+            <span className="block text-[11px] text-gray-500">
+              Van en la ficha de cada producto (debajo de Comprar) y al confirmar la compra.
+              Solo las publicadas.
+            </span>
+          </span>
+          <span
+            className={`flex-shrink-0 w-11 h-6 rounded-full relative transition ${
+              mostrarEnApp ? "bg-green-500" : "bg-gray-300"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
+                mostrarEnApp ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </span>
+        </button>
+
         <p className="text-xs mb-4">
           <Link href="/admin/resenas" className="text-brand-blue font-semibold">
             Ver opiniones de productos →

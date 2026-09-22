@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { leerOrigen } from "@/components/RegistrarOrigen";
 import { avisarAdmin } from "@/lib/avisarAdmin";
 import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
+import OpinionesTienda from "@/components/OpinionesTienda";
 import {
   encolarPedidoCliente,
   sincronizarColaCliente,
@@ -258,9 +259,14 @@ export default function CheckoutPage() {
               form.metodo_entrega === "envio" ? form.direccion_envio : null,
             metodo_pago: form.metodo_pago,
             nota_cliente: nota || null,
+            // El total real lo calcula el servidor: si hay cupón, lo valida
+            // allá y guarda el descuento (así el pedido no queda "debiendo"
+            // la parte descontada).
+            subtotal: total,
             total,
             estado: "pendiente"
           },
+          cupon: cuponAplicado?.codigo || null,
           aplicar_saldo: saldoFavor > 0 && usarSaldo,
           items: items.map((i) => ({
             producto_id: i.id,
@@ -330,16 +336,7 @@ export default function CheckoutPage() {
         }
       }
 
-      // Marcamos el cupón como usado: es de un solo uso
-      if (cuponAplicado && result?.pedido?.id) {
-        supabase
-          .rpc("usar_cupon", {
-            p_codigo: cuponAplicado.codigo,
-            p_pedido_id: result.pedido.id
-          })
-          .then(() => {})
-          .catch(() => {});
-      }
+      // El cupón lo marca como usado el servidor al guardar el pedido
 
       clearCart();
       router.push(
@@ -802,6 +799,9 @@ export default function CheckoutPage() {
           <button disabled={enviando} className="btn-primary">
             {enviando ? "Confirmando pedido..." : "Confirmar pedido"}
           </button>
+
+          {/* Una línea de confianza antes del último paso (se prende desde el panel) */}
+          <OpinionesTienda variante="checkout" />
         </form>
       </div>
     </main>

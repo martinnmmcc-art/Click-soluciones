@@ -12,7 +12,6 @@ import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
 import BotonFavorito from "@/components/BotonFavorito";
 import FotoRotativa from "@/components/FotoRotativa";
-import OpinionesTienda from "@/components/OpinionesTienda";
 import { fotosDe, urlImagen } from "@/lib/imagenProducto";
 
 export default function HomePage() {
@@ -303,9 +302,6 @@ export default function HomePage() {
           </div>
         </div>
       )}
-
-      {/* Opiniones de clientes sobre la tienda (las publica un admin) */}
-      <OpinionesTienda />
 
       <div className="max-w-md mx-auto px-4 mt-4">
         {/* Corte visual: sin esto, al desplazarse no se nota que terminaron

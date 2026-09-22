@@ -4,87 +4,87 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Estrellas from "@/components/Estrellas";
 import { supabase } from "@/lib/supabaseClient";
-import { etiquetaAspecto } from "@/lib/opiniones";
 
-// Sección del inicio con lo que opinan los clientes sobre la tienda.
-// Muestra solo las que un admin publicó (primero las destacadas) y un
-// botón para dejar la propia.
+// Prueba social: lo que opinan los clientes de Bolson Click.
+//
+// Dónde se muestra y por qué (criterio de marketing):
+//  - "producto": justo debajo de los botones de compra. Es el momento de
+//    la duda ("¿será confiable?"), y ahí una opinión real pesa más que
+//    cualquier descuento. Formato corto: puntaje + 2 frases.
+//  - "checkout": una sola línea de confianza antes de confirmar el pedido,
+//    para bajar la ansiedad del último paso sin distraer.
+//
+// Se prende y se apaga desde el panel (Opiniones sobre la tienda →
+// "Mostrar en la app"). Mientras esté apagado, no se ve nada.
 
-function fechaCorta(iso) {
-  return new Date(iso).toLocaleDateString("es-AR", { month: "short", year: "numeric" });
-}
-
-export default function OpinionesTienda() {
-  const [opiniones, setOpiniones] = useState([]);
-  const [resumen, setResumen] = useState(null);
+function useOpiniones(limite) {
+  const [datos, setDatos] = useState({ opiniones: [], cantidad: 0, promedio: 0 });
 
   useEffect(() => {
-    supabase.rpc("opiniones_publicas", { p_limite: 12 }).then(({ data }) => setOpiniones(data || []));
-    supabase.rpc("resumen_opiniones_tienda").then(({ data }) => setResumen(data?.[0] || null));
-  }, []);
+    let vivo = true;
+    Promise.all([
+      supabase.rpc("resumen_opiniones_tienda"),
+      limite > 0 ? supabase.rpc("opiniones_publicas", { p_limite: limite }) : Promise.resolve({ data: [] })
+    ]).then(([res, lista]) => {
+      if (!vivo) return;
+      const r = res.data?.[0];
+      setDatos({
+        opiniones: (lista.data || []).filter((o) => o.texto && o.estrellas >= 4),
+        cantidad: Number(r?.cantidad || 0),
+        promedio: Number(r?.promedio || 0)
+      });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [limite]);
 
-  const cantidad = Number(resumen?.cantidad || 0);
+  return datos;
+}
+
+export default function OpinionesTienda({ variante = "producto" }) {
+  const { opiniones, cantidad, promedio } = useOpiniones(variante === "producto" ? 6 : 0);
+
+  // Apagado desde el panel o todavía sin opiniones publicadas: no se muestra
+  if (cantidad === 0) return null;
+
+  const puntaje = promedio.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+  if (variante === "checkout") {
+    return (
+      <Link
+        href="/opiniones"
+        className="flex items-center justify-center gap-1.5 text-[11px] text-gray-500 py-2"
+      >
+        <Estrellas valor={promedio} tamano="text-[11px]" />
+        <b className="text-gray-700">{puntaje}</b> · {cantidad} cliente{cantidad === 1 ? "" : "s"} ya compraron y
+        opinaron
+      </Link>
+    );
+  }
 
   return (
-    <div className="mt-6 bg-gradient-to-b from-amber-50 to-transparent py-4">
-      <div className="max-w-md mx-auto px-4 mb-3 flex items-end justify-between gap-2">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xl">💬</span>
-            <h2 className="font-black text-gray-800 text-base leading-none">Lo que dicen nuestros clientes</h2>
-          </div>
-          {cantidad > 0 ? (
-            <p className="text-[11px] text-amber-800 mt-1 ml-7 flex items-center gap-1">
-              <Estrellas valor={Number(resumen.promedio)} tamano="text-[11px]" />
-              <b>{Number(resumen.promedio).toLocaleString("es-AR")}</b> · {cantidad} opinión
-              {cantidad === 1 ? "" : "es"}
-            </p>
-          ) : (
-            <p className="text-[11px] text-amber-800 mt-1 ml-7">¡Sé el primero en contarnos cómo te fue!</p>
-          )}
-        </div>
-        <Link
-          href="/opinar"
-          className="flex-shrink-0 text-xs font-bold text-white bg-amber-500 px-3 py-2 rounded-xl shadow-sm"
-        >
-          ⭐ Opinar
-        </Link>
-      </div>
+    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-3">
+      <Link href="/opiniones" className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-xs text-gray-700">
+          <Estrellas valor={promedio} tamano="text-xs" />
+          <b>{puntaje}</b>
+          <span className="text-gray-500">
+            · {cantidad} cliente{cantidad === 1 ? "" : "s"} opinaron de Bolson Click
+          </span>
+        </span>
+        <span className="text-[11px] font-bold text-amber-700">Ver ›</span>
+      </Link>
 
       {opiniones.length > 0 && (
-        <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-none">
-          {opiniones.map((o) => (
-            <div
-              key={o.id}
-              className={`flex-shrink-0 w-64 bg-white rounded-2xl p-3 shadow-sm border ${
-                o.destacada ? "border-amber-300" : "border-gray-100"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <Estrellas valor={o.estrellas} tamano="text-sm" />
-                <span className="text-[10px] text-gray-400">{fechaCorta(o.created_at)}</span>
-              </div>
-              {o.texto && <p className="text-[13px] text-gray-700 mt-2 line-clamp-5">“{o.texto}”</p>}
-              {o.aspectos?.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {o.aspectos.slice(0, 3).map((a) => (
-                    <span key={a} className="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                      {etiquetaAspecto(a)}
-                    </span>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs font-bold text-gray-800 mt-2">
+        <div className="flex gap-2 overflow-x-auto mt-2 pb-1 scrollbar-none">
+          {opiniones.slice(0, 4).map((o) => (
+            <div key={o.id} className="flex-shrink-0 w-56 bg-white rounded-xl p-2.5 border border-amber-100">
+              <p className="text-[12px] text-gray-700 line-clamp-3">“{o.texto}”</p>
+              <p className="text-[11px] font-bold text-gray-800 mt-1">
                 {o.nombre}
-                {o.localidad && <span className="font-normal text-gray-500"> · {o.localidad}</span>}
+                {o.verificada && <span className="font-semibold text-green-700"> · ✓ Compró</span>}
               </p>
-              {o.verificada && <p className="text-[10px] text-green-700 font-semibold">✓ Compró en Bolson Click</p>}
-              {o.respuesta && (
-                <div className="mt-2 bg-blue-50 rounded-lg p-2">
-                  <p className="text-[10px] font-bold text-brand-blue">Respuesta de Bolson Click</p>
-                  <p className="text-[11px] text-gray-700 line-clamp-3">{o.respuesta}</p>
-                </div>
-              )}
             </div>
           ))}
         </div>

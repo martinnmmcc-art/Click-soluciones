@@ -12,9 +12,39 @@ export async function POST(req) {
   // Quitamos campos que no maneja el cliente (el saldo lo calcula la base)
   const { saldo_aplicado, saldo_cedido, ...pedidoLimpio } = body.pedido || {};
 
+  // Cupón de descuento: se valida acá (no en el celular) y el descuento se
+  // guarda en el pedido. Así el total queda bien y el cliente no figura
+  // debiendo la parte que le descontamos.
+  const subtotal = Number(pedidoLimpio.subtotal ?? pedidoLimpio.total ?? 0);
+  let cuponUsado = null;
+  if (body.cupon) {
+    const unidades = (body.items || []).reduce((a, i) => a + Number(i.cantidad || 0), 0);
+    const { data: validacion } = await supabaseAdmin.rpc("validar_cupon", {
+      p_codigo: body.cupon,
+      p_telefono: pedidoLimpio.telefono_cliente,
+      p_total: subtotal
+    });
+    const r = validacion?.[0];
+    if (r?.valido) {
+      const pct =
+        unidades >= 2 && Number(r.porcentaje_segundo) > Number(r.porcentaje)
+          ? Number(r.porcentaje_segundo)
+          : Number(r.porcentaje);
+      const descuento = Math.round((subtotal * pct) / 100);
+      cuponUsado = { codigo: String(body.cupon).trim().toUpperCase(), pct, descuento };
+      pedidoLimpio.descuento_tipo = "monto";
+      pedidoLimpio.descuento_valor = descuento;
+      pedidoLimpio.total = Math.max(0, subtotal - descuento);
+      const marca = `[Cupón ${cuponUsado.codigo} -${pct}%]`;
+      pedidoLimpio.nota_cliente = pedidoLimpio.nota_cliente
+        ? `${pedidoLimpio.nota_cliente} ${marca}`
+        : marca;
+    }
+  }
+
   const pedidoAInsertar = {
     ...pedidoLimpio,
-    subtotal: body.pedido.subtotal ?? body.pedido.total,
+    subtotal,
     tipo_pedido: "presupuesto",
     stock_descontado: false,
   };
@@ -40,6 +70,11 @@ export async function POST(req) {
 
   if (errItems) {
     return Response.json({ error: errItems.message }, { status: 400 });
+  }
+
+  // El cupón es de un solo uso: queda marcado con este pedido
+  if (cuponUsado) {
+    await supabaseAdmin.rpc("usar_cupon", { p_codigo: cuponUsado.codigo, p_pedido_id: pedido.id });
   }
 
   // Saldo a favor: si el cliente pagó de más en pedidos anteriores y se
