@@ -10,6 +10,7 @@ import InstalarApp from "@/components/InstalarApp";
 import MuroRegistro from "@/components/MuroRegistro";
 import LimiteDeError from "@/components/LimiteDeError";
 import AvisoDeuda from "@/components/AvisoDeuda";
+import AvisoOpinar from "@/components/AvisoOpinar";
 import AvisoCupon from "@/components/AvisoCupon";
 import MensajesCliente from "@/components/MensajesCliente";
 import RegistrarOrigen from "@/components/RegistrarOrigen";
@@ -69,6 +70,9 @@ export default function RootLayout({ children }) {
                 </LimiteDeError>
                 <LimiteDeError>
                   <AvisoCupon />
+                </LimiteDeError>
+                <LimiteDeError>
+                  <AvisoOpinar />
                 </LimiteDeError>
                 <LimiteDeError>
                   <MensajesCliente />

@@ -138,6 +138,9 @@ export default function DatosSiempreAlDia() {
       .on("postgres_changes", { event: "*", schema: "public", table: "clientes" }, () =>
         actualizarEnUnRato("cambio-clientes")
       )
+      .on("postgres_changes", { event: "*", schema: "public", table: "opiniones_tienda" }, () =>
+        actualizarEnUnRato("cambio-opiniones")
+      )
       .subscribe((estado) => {
         // Al reconectarse el canal (después de un corte) puede haberse
         // perdido algún cambio: se actualiza todo por las dudas.

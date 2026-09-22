@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
+import Link from "next/link";
 
 export default function CuentaPage() {
   const [tipoUsuario, setTipoUsuario] = useState(null); // 'admin' o 'cliente'
@@ -89,6 +90,21 @@ export default function CuentaPage() {
               {tipoUsuario === "admin" ? datos?.email : (datos?.telefono || datos?.phone || "Usuario Conectado")}
             </p>
           </div>
+
+          {tipoUsuario === "cliente" && (
+            <Link
+              href="/opinar"
+              className="flex items-center justify-between w-full bg-amber-50 border border-amber-300 rounded-xl p-3"
+            >
+              <span>
+                <span className="block text-sm font-bold text-amber-800">⭐ Opiná sobre Bolson Click</span>
+                <span className="block text-[11px] text-amber-700">
+                  Contanos cómo fue tu compra, la atención y la app
+                </span>
+              </span>
+              <span className="text-amber-700 font-bold">›</span>
+            </Link>
+          )}
 
           <button
             onClick={cerrarSesion}

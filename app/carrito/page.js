@@ -398,6 +398,15 @@ export default function CarritoPage() {
                         </a>
                       )}
 
+                      {pedido.estado === "entregado" && (
+                        <Link
+                          href={`/opinar?pedido=${pedido.id}`}
+                          className="flex items-center justify-center gap-1.5 mt-3 w-full py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-800 text-xs font-bold"
+                        >
+                          ⭐ Opinar sobre esta compra
+                        </Link>
+                      )}
+
                       {(!pedido.estado || pedido.estado === "pendiente") && editandoId !== pedido.id && (
                         <div className="flex gap-3 mt-3">
                           <button

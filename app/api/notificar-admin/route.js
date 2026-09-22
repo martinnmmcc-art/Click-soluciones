@@ -30,6 +30,10 @@ const PLANTILLAS = {
     titulo: "⭐ Nueva opinión para aprobar",
     cuerpo: `${e.nombre || "Un cliente"} opinó sobre ${e.detalle}`
   }),
+  opinion_tienda: (e) => ({
+    titulo: "💬 Opinión sobre la tienda para revisar",
+    cuerpo: `${e.nombre || "Un cliente"} dejó ${e.detalle}`
+  }),
   registro: (e) => ({
     titulo: "🎉 Cliente nuevo",
     cuerpo: `${e.nombre || "Alguien"} (${e.telefono}) se registró en la app`
@@ -98,9 +102,13 @@ export async function POST(request) {
 
     // Al tocar la notificación se abre WhatsApp con esa persona, así podés
     // escribirle al toque si no sabe cómo contactarse.
-    const urlDestino = telefono
-      ? `https://wa.me/${telefonoParaWhatsapp(telefono)}`
-      : "/admin/actividad";
+    // Las opiniones sobre la tienda abren directo la pantalla para revisarlas.
+    const urlDestino =
+      tipo === "opinion_tienda"
+        ? "/admin/opiniones"
+        : telefono
+          ? `https://wa.me/${telefonoParaWhatsapp(telefono)}`
+          : "/admin/actividad";
 
     const payload = JSON.stringify({
       title: titulo,

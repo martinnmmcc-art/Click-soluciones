@@ -396,6 +396,16 @@ function Dashboard() {
             <span className="text-2xl">🛍️</span>
           </Link>
 
+          <Link href="/admin/opiniones" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
+            <div>
+              <p className="font-semibold text-gray-800">Opiniones sobre la tienda</p>
+              <p className="text-sm text-gray-500">
+                Revisar lo que dicen de la compra y la app, y elegir cuáles se muestran
+              </p>
+            </div>
+            <span className="text-2xl">💬</span>
+          </Link>
+
           <Link href="/admin/resenas" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
             <div>
               <p className="font-semibold text-gray-800">Opiniones de clientes</p>
