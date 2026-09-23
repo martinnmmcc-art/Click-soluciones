@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import ControlNotificaciones from "@/components/ControlNotificaciones";
+import EstadoOffline from "@/components/EstadoOffline";
 import { useAdmin } from "@/context/AdminContext";
 
 // Muestra los importes siempre con 2 decimales, como en un resumen bancario.
@@ -85,6 +86,10 @@ function Dashboard() {
             <span className="text-3xl">→</span>
           </div>
         </Link>
+
+        <div className="mb-4">
+          <EstadoOffline />
+        </div>
 
         <div className="mb-5">
           <ControlNotificaciones esAdmin={true} />

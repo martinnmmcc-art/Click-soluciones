@@ -8,7 +8,7 @@
 //     actualiza en segundo plano. Son inmutables, no hay riesgo de versión vieja.
 //   - Datos de productos: primero la red; sin internet, la última copia guardada.
 
-const VERSION = "v8";
+const VERSION = "v9";
 const CACHE_APP = `bolsonclick-app-${VERSION}`;
 const CACHE_DATOS = `bolsonclick-datos-${VERSION}`;
 const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
@@ -52,8 +52,17 @@ const RUTAS_BASE = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_APP).then((cache) =>
-      // Si alguna ruta falla no queremos que se caiga toda la instalación
-      Promise.allSettled(RUTAS_BASE.map((ruta) => cache.add(ruta)))
+      // Guardamos cada pantalla de dos formas: la página completa y la
+      // versión que pide Next al navegar dentro de la app. Sin la segunda,
+      // moverse entre pantallas sin señal no funciona.
+      Promise.allSettled([
+        ...RUTAS_BASE.map((ruta) => cache.add(ruta)),
+        ...RUTAS_BASE.map((ruta) =>
+          fetch(ruta, { headers: { RSC: "1" } })
+            .then((res) => (res.ok ? cache.put(ruta + "?_rsc=1", res) : null))
+            .catch(() => null)
+        )
+      ])
     )
   );
   self.skipWaiting();
@@ -78,6 +87,18 @@ function esImagen(url) {
 
 function esArchivoDeApp(url) {
   return url.pathname.startsWith("/_next/static") || url.pathname.startsWith("/icons/");
+}
+
+// Next.js no recarga la página al navegar: pide los datos con un formato
+// interno (RSC). Esas peticiones hay que guardarlas igual, si no, moverse
+// dentro de la app sin señal no funciona aunque las páginas estén guardadas.
+function esNavegacionInterna(request, url) {
+  return (
+    url.origin === self.location.origin &&
+    (url.search.includes("_rsc=") ||
+      request.headers.get("RSC") === "1" ||
+      request.headers.get("Next-Router-Prefetch") === "1")
+  );
 }
 
 function esDatosProductos(url) {
@@ -142,6 +163,34 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // --- Navegación interna de Next: red primero, guardamos para después ---
+  if (esNavegacionInterna(request, url)) {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copia = res.clone();
+            caches.open(CACHE_APP).then((c) => c.put(request, copia));
+          }
+          return res;
+        })
+        .catch(async () => {
+          const guardado = await caches.match(request);
+          if (guardado) return guardado;
+
+          // Si no tenemos esa vista guardada, probamos sin el parámetro
+          // interno: muchas veces la página completa sí está.
+          const limpia = new URL(request.url);
+          limpia.searchParams.delete("_rsc");
+          const alternativa = await caches.match(limpia.pathname);
+          if (alternativa) return alternativa;
+
+          return Response.error();
+        })
+    );
+    return;
+  }
+
   // --- Datos de productos: red primero, cache como respaldo ---
   if (esDatosProductos(url)) {
     event.respondWith(
@@ -184,6 +233,26 @@ self.addEventListener("fetch", (event) => {
         })
     );
     return;
+  }
+
+  // --- Cualquier otra cosa del sitio: si no hay señal, buscamos en lo
+  //     guardado antes de dar error. Cubre archivos que no entran en las
+  //     categorías de arriba. ---
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res && res.status === 200 && request.method === "GET") {
+            const copia = res.clone();
+            caches.open(CACHE_APP).then((c) => c.put(request, copia));
+          }
+          return res;
+        })
+        .catch(async () => {
+          const guardado = await caches.match(request);
+          return guardado || Response.error();
+        })
+    );
   }
 });
 
