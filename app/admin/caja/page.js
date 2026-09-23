@@ -10,7 +10,10 @@ import { useActualizarSolo } from "@/lib/datosFrescos";
 import {
   catalogoLocal, guardarCatalogo, fechaCatalogo,
   buscarPorCodigoLocal, buscarPorNombreLocal,
-  encolarVenta, ventasPendientes, sincronizarVentas, hayConexion
+  encolarVenta, ventasPendientes, sincronizarVentas, hayConexion,
+  guardarClientes, buscarClienteLocal,
+  guardarPedidos, pedidosLocales, encolarCambio,
+  cambiosPendientes, sincronizarCambios, totalPendiente
 } from "@/lib/cajaOffline";
 
 // Caja: para cobrar en el mostrador.
@@ -43,6 +46,46 @@ function Caja() {
   const [conCliente, setConCliente] = useState(false);
   const [nombreCliente, setNombreCliente] = useState("");
   const [telefonoCliente, setTelefonoCliente] = useState("");
+  const [sugerenciasCliente, setSugerenciasCliente] = useState([]);
+
+  // Para agregar productos a un pedido que ya existe
+  const [modo, setModo] = useState("venta"); // venta | agregar
+  const [pedidosAbiertos, setPedidosAbiertos] = useState([]);
+  const [pedidoElegido, setPedidoElegido] = useState(null);
+  const [buscandoPedido, setBuscandoPedido] = useState("");
+
+  // Buscamos clientes: primero en el celular, así funciona sin señal
+  async function buscarCliente(texto) {
+    setNombreCliente(texto);
+    if (texto.trim().length < 2) {
+      setSugerenciasCliente([]);
+      return;
+    }
+
+    const locales = buscarClienteLocal(texto);
+    if (locales.length > 0 || !hayConexion()) {
+      setSugerenciasCliente(locales);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("clientes")
+      .select("id, nombre, telefono, localidad")
+      .or(`nombre.ilike.%${texto.trim()}%,telefono.ilike.%${texto.replace(/\D/g, "")}%`)
+      .limit(8);
+
+    setSugerenciasCliente(data || []);
+  }
+
+  async function cargarPedidosAbiertos() {
+    if (!hayConexion()) {
+      setPedidosAbiertos(pedidosLocales());
+      return;
+    }
+
+    const { data } = await supabase.rpc("pedidos_abiertos");
+    setPedidosAbiertos(data || []);
+  }
 
   // Guardamos el catálogo propio para poder cobrar sin señal
   async function actualizarCatalogo() {
@@ -55,6 +98,21 @@ function Caja() {
         .eq("activo", true);
 
       if (data) setProductosGuardados(guardarCatalogo(data));
+
+      // Clientes: sin esto, al armar un pedido sin señal no aparece ninguno
+      const { data: clientes } = await supabase
+        .from("clientes")
+        .select("id, nombre, telefono, localidad, direccion");
+      if (clientes) guardarClientes(clientes);
+
+      // Pedidos abiertos, para poder modificarlos sin señal
+      const { data: pedidos } = await supabase
+        .from("pedidos")
+        .select("id, numero_pedido, nombre_cliente, telefono_cliente, total, monto_pagado, estado, estado_pago, created_at, items_pedido(producto_id, nombre_producto, cantidad, precio_unitario)")
+        .neq("estado", "cancelado")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (pedidos) guardarPedidos(pedidos);
     } catch (e) {}
   }
 
@@ -65,15 +123,26 @@ function Caja() {
   });
 
   async function enviarPendientes() {
-    if (!hayConexion() || ventasPendientes().length === 0) return;
+    if (!hayConexion() || totalPendiente() === 0) return;
 
     setSincronizando(true);
     try {
       const r = await sincronizarVentas(supabase);
-      setPendientes(ventasPendientes().length);
-      if (r.enviadas > 0) {
-        avisar(`✓ Se enviaron ${r.enviadas} venta(s) que estaban pendientes`, 4000);
+      const c = await sincronizarCambios(supabase);
+
+      setPendientes(totalPendiente());
+
+      if (r.enviadas > 0 || c.aplicados > 0) {
+        const partes = [];
+        if (r.enviadas > 0) partes.push(`${r.enviadas} venta(s)`);
+        if (c.aplicados > 0) partes.push(`${c.aplicados} cambio(s)`);
+        avisar(`✓ Se enviaron ${partes.join(" y ")}`, 4000);
         actualizarCatalogo();
+        cargarPedidosAbiertos();
+      }
+
+      if (r.fallaron > 0 || c.fallaron > 0) {
+        avisar("Algunos cambios no se pudieron enviar. Se reintentan solos.", 5000);
       }
     } finally {
       setSincronizando(false);
@@ -82,8 +151,9 @@ function Caja() {
 
   useEffect(() => {
     setConexion(hayConexion());
-    setPendientes(ventasPendientes().length);
+    setPendientes(totalPendiente());
     setProductosGuardados(catalogoLocal().length);
+    cargarPedidosAbiertos();
 
     actualizarCatalogo();
     enviarPendientes();
@@ -184,6 +254,67 @@ function Caja() {
         .map((x) => (x.id === id ? { ...x, cantidad: x.cantidad + delta } : x))
         .filter((x) => x.cantidad > 0)
     );
+  }
+
+  // Suma los productos del carrito a un pedido que ya existe
+  async function agregarAlPedido() {
+    if (!pedidoElegido || items.length === 0) return;
+
+    setGuardando(true);
+
+    const productos = items.map((i) => ({
+      id: i.id,
+      nombre: i.nombre,
+      cantidad: i.cantidad,
+      precio: i.precio
+    }));
+
+    try {
+      if (!hayConexion()) {
+        encolarCambio({
+          tipo: "agregar_items",
+          pedido_id: pedidoElegido.id,
+          items: productos
+        });
+
+        setPendientes(totalPendiente());
+        avisar(
+          `📴 Sin señal: se van a agregar ${productos.length} producto(s) al pedido ` +
+            `${pedidoElegido.numero_pedido} cuando vuelva la conexión.`,
+          5000
+        );
+      } else {
+        const { data, error } = await supabase.rpc("agregar_items_pedido", {
+          p_pedido_id: pedidoElegido.id,
+          p_items: productos
+        });
+
+        if (error) {
+          // No perdemos el cambio: queda guardado para reintentar
+          encolarCambio({
+            tipo: "agregar_items",
+            pedido_id: pedidoElegido.id,
+            items: productos
+          });
+          setPendientes(totalPendiente());
+          avisar("Se guardó para enviar: " + error.message, 5000);
+        } else {
+          avisar(
+            `✓ Agregado al pedido ${pedidoElegido.numero_pedido}. ` +
+              `Nuevo total: $${formatPrice(data?.[0]?.nuevo_total || 0)}`,
+            5000
+          );
+          cargarPedidosAbiertos();
+          actualizarCatalogo();
+        }
+      }
+
+      setItems([]);
+      setPedidoElegido(null);
+      setModo("venta");
+    } finally {
+      setGuardando(false);
+    }
   }
 
   async function cobrar() {
@@ -382,6 +513,110 @@ function Caja() {
           </div>
         )}
 
+        {/* Venta nueva o sumar a un pedido que ya existe */}
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => {
+              setModo("venta");
+              setPedidoElegido(null);
+            }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold ${
+              modo === "venta"
+                ? "bg-brand-blue text-white"
+                : "bg-white border border-gray-200 text-gray-600"
+            }`}
+          >
+            🧾 Venta nueva
+          </button>
+          <button
+            onClick={() => {
+              setModo("agregar");
+              cargarPedidosAbiertos();
+            }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold ${
+              modo === "agregar"
+                ? "bg-brand-blue text-white"
+                : "bg-white border border-gray-200 text-gray-600"
+            }`}
+          >
+            ➕ Sumar a un pedido
+          </button>
+        </div>
+
+        {/* Elegir a qué pedido sumarle */}
+        {modo === "agregar" && !pedidoElegido && (
+          <div className="bg-white rounded-2xl border-2 border-brand-blue p-3 mb-3">
+            <p className="text-xs font-bold text-gray-800 mb-2">
+              ¿A qué pedido le agregás?
+            </p>
+
+            <input
+              value={buscandoPedido}
+              onChange={(e) => setBuscandoPedido(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-2"
+              placeholder="Buscar por nombre o número..."
+            />
+
+            <div className="space-y-1.5 max-h-60 overflow-y-auto">
+              {pedidosAbiertos
+                .filter((p) => {
+                  const q = buscandoPedido.trim().toLowerCase();
+                  if (!q) return true;
+                  return (
+                    p.nombre_cliente?.toLowerCase().includes(q) ||
+                    p.numero_pedido?.toLowerCase().includes(q)
+                  );
+                })
+                .slice(0, 12)
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setPedidoElegido(p)}
+                    className="w-full text-left border border-gray-100 rounded-lg p-2.5"
+                  >
+                    <p className="text-xs font-bold text-gray-800">
+                      {p.nombre_cliente || "Sin nombre"}
+                    </p>
+                    <p className="text-[11px] text-gray-500">
+                      {p.numero_pedido} · ${formatPrice(p.total)}
+                      {Number(p.total) > Number(p.monto_pagado || 0) && (
+                        <span className="text-red-600 font-bold">
+                          {" "}· debe ${formatPrice(Number(p.total) - Number(p.monto_pagado || 0))}
+                        </span>
+                      )}
+                    </p>
+                  </button>
+                ))}
+
+              {pedidosAbiertos.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-4">
+                  No hay pedidos abiertos.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Pedido elegido */}
+        {modo === "agregar" && pedidoElegido && (
+          <div className="bg-blue-50 border-2 border-brand-blue rounded-xl p-3 mb-3 flex justify-between items-start">
+            <div>
+              <p className="text-xs font-bold text-gray-800">
+                Sumando a: {pedidoElegido.nombre_cliente}
+              </p>
+              <p className="text-[11px] text-gray-600">
+                {pedidoElegido.numero_pedido} · actual ${formatPrice(pedidoElegido.total)}
+              </p>
+            </div>
+            <button
+              onClick={() => setPedidoElegido(null)}
+              className="text-[11px] font-bold text-gray-500"
+            >
+              Cambiar
+            </button>
+          </div>
+        )}
+
         <button
           onClick={() => setEscaneando(true)}
           className="w-full bg-brand-blue text-white text-base font-bold py-5 rounded-2xl mb-3 shadow-sm"
@@ -504,12 +739,26 @@ function Caja() {
                   >
                     Vaciar
                   </button>
-                  <button
-                    onClick={() => setCobrando(true)}
-                    className="flex-1 bg-green-600 text-white text-base font-bold py-4 rounded-xl"
-                  >
-                    Cobrar ${formatPrice(total)}
-                  </button>
+                  {modo === "agregar" ? (
+                    <button
+                      onClick={agregarAlPedido}
+                      disabled={!pedidoElegido || guardando}
+                      className="flex-1 bg-brand-blue text-white text-base font-bold py-4 rounded-xl disabled:opacity-40"
+                    >
+                      {guardando
+                        ? "Agregando..."
+                        : pedidoElegido
+                        ? `Agregar al pedido`
+                        : "Elegí un pedido primero"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setCobrando(true)}
+                      className="flex-1 bg-green-600 text-white text-base font-bold py-4 rounded-xl"
+                    >
+                      Cobrar ${formatPrice(total)}
+                    </button>
+                  )}
                 </div>
               </>
             ) : (
@@ -594,12 +843,38 @@ function Caja() {
 
                 {conCliente && (
                   <div className="flex gap-2 mb-2">
-                    <input
-                      value={nombreCliente}
-                      onChange={(e) => setNombreCliente(e.target.value)}
-                      className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
-                      placeholder="Nombre"
-                    />
+                    <div className="flex-1 relative">
+                      <input
+                        value={nombreCliente}
+                        onChange={(e) => buscarCliente(e.target.value)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        placeholder="Nombre"
+                      />
+
+                      {sugerenciasCliente.length > 0 && (
+                        <div className="absolute z-20 left-0 right-0 bg-white border border-gray-200 rounded-lg mt-1 shadow-lg max-h-40 overflow-y-auto">
+                          {sugerenciasCliente.map((c) => (
+                            <button
+                              key={c.telefono}
+                              type="button"
+                              onClick={() => {
+                                setNombreCliente(c.nombre);
+                                setTelefonoCliente(c.telefono);
+                                setSugerenciasCliente([]);
+                              }}
+                              className="w-full text-left px-3 py-2 border-b border-gray-50 last:border-0"
+                            >
+                              <span className="block text-xs font-semibold text-gray-800">
+                                {c.nombre}
+                              </span>
+                              <span className="block text-[11px] text-gray-500">
+                                {c.telefono}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     <input
                       value={telefonoCliente}
                       onChange={(e) => setTelefonoCliente(e.target.value)}

@@ -13,6 +13,12 @@ import DescargarOffline from "@/components/DescargarOffline";
 import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
 import { saldoAFavorDe } from "@/lib/saldoFavor";
 import {
+  encolarCambio,
+  sincronizarCambios,
+  totalPendiente,
+  hayConexion
+} from "@/lib/cajaOffline";
+import {
   ESTADOS_ENTREGA,
   ESTADOS_PAGO,
   OPCIONES_ENTREGA as LISTA_ENTREGA,
@@ -62,6 +68,29 @@ function PanelVentas() {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [guardandoId, setGuardandoId] = useState(null);
+  const [avisoOffline, setAvisoOffline] = useState("");
+  const [cambiosEnEspera, setCambiosEnEspera] = useState(0);
+
+  // Al volver la señal mandamos los cambios que quedaron guardados
+  useEffect(() => {
+    setCambiosEnEspera(totalPendiente());
+
+    async function enviar() {
+      if (!hayConexion() || totalPendiente() === 0) return;
+      const r = await sincronizarCambios(supabase);
+      setCambiosEnEspera(totalPendiente());
+      if (r.aplicados > 0) {
+        setAvisoOffline(`✓ Se aplicaron ${r.aplicados} cambio(s) que estaban pendientes`);
+        setTimeout(() => setAvisoOffline(""), 5000);
+        cargar();
+      }
+    }
+
+    enviar();
+    window.addEventListener("online", enviar);
+    return () => window.removeEventListener("online", enviar);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [productos, setProductos] = useState([]);
   const [agregandoProductoA, setAgregandoProductoA] = useState(null);
@@ -230,6 +259,22 @@ function PanelVentas() {
     );
     setGuardandoId(pedidoId);
 
+    // Sin señal el cambio no se pierde: queda guardado y se aplica solo
+    // cuando vuelve la conexión.
+    if (!hayConexion()) {
+      encolarCambio({
+        tipo: "estado",
+        pedido_id: pedidoId,
+        campos: { [campo]: valor }
+      });
+      setGuardandoId(null);
+      setAvisoOffline(
+        "📴 Sin señal: el cambio quedó guardado y se aplica cuando vuelva la conexión."
+      );
+      setTimeout(() => setAvisoOffline(""), 5000);
+      return;
+    }
+
     try {
       const res = await fetch("/api/admin/pedidos", {
         method: "PATCH",
@@ -239,14 +284,31 @@ function PanelVentas() {
       const result = await res.json();
 
       if (!res.ok) {
-        alert("No se pudo guardar el cambio: " + result.error);
+        // Falló el envío: lo guardamos para reintentar en vez de perderlo
+        encolarCambio({
+          tipo: "estado",
+          pedido_id: pedidoId,
+          campos: { [campo]: valor }
+        });
+        setAvisoOffline(
+          "El cambio no se pudo enviar ahora. Quedó guardado y se reintenta solo."
+        );
+        setTimeout(() => setAvisoOffline(""), 5000);
       } else if (result.pedido) {
         setPedidos((prev) =>
           prev.map((p) => (p.id === pedidoId ? { ...p, ...result.pedido } : p))
         );
       }
     } catch (e) {
-      alert("Error de conexión al guardar el cambio.");
+      encolarCambio({
+        tipo: "estado",
+        pedido_id: pedidoId,
+        campos: { [campo]: valor }
+      });
+      setAvisoOffline(
+        "Se cortó la conexión. El cambio quedó guardado y se envía solo."
+      );
+      setTimeout(() => setAvisoOffline(""), 5000);
     }
     setGuardandoId(null);
   }
@@ -841,6 +903,21 @@ function PanelVentas() {
             {mostrarFormNuevo ? "Cancelar" : "+ Nuevo pedido"}
           </button>
         </div>
+
+        {/* Aviso de cambios guardados esperando enviarse */}
+        {(avisoOffline || cambiosEnEspera > 0) && (
+          <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3 mb-4">
+            {avisoOffline && (
+              <p className="text-xs font-bold text-gray-800">{avisoOffline}</p>
+            )}
+            {cambiosEnEspera > 0 && (
+              <p className="text-[11px] text-gray-700 mt-1">
+                📤 {cambiosEnEspera} cambio(s) esperando enviarse. Se mandan
+                solos cuando vuelva la señal.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* MODO SIN INTERNET */}
         {sinConexion && (
