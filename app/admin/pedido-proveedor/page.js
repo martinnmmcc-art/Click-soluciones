@@ -6,224 +6,359 @@ import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 
+// Pega el texto del pedido tal como sale de la web del proveedor, la app
+// interpreta cada línea y busca la foto. Es lo mismo que se hacía a mano en
+// el chat, ahora en un paso.
+//
+// El pedido queda en "camino": aparece sin precio en /proximamente para
+// que el cliente se anticipe. Al llegar, un botón carga todo a Productos
+// con stock, precio y foto.
 function PedidoProveedor() {
-  const [productos, setProductos] = useState([]);
+  const [vista, setVista] = useState("nuevo"); // nuevo | camino | recibidos
+  const [texto, setTexto] = useState("");
+  const [flete, setFlete] = useState("");
+  const [interpretando, setInterpretando] = useState(false);
+  const [items, setItems] = useState([]);
+  const [subtotal, setSubtotal] = useState(0);
+  const [guardando, setGuardando] = useState(false);
+  const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [pedido, setPedido] = useState([]); // {producto_id, nombre_producto, cantidad, costo_unitario}
-  const [busqueda, setBusqueda] = useState("");
+  const [recibiendoId, setRecibiendoId] = useState(null);
+
+  async function cargarPedidos() {
+    setLoading(true);
+    const { data } = await supabase
+      .from("pedidos_proveedor")
+      .select("*, lineas_pedido_proveedor(id, nombre, cantidad, precio_unitario, imagen_url, aplicada)")
+      .order("created_at", { ascending: false });
+    setPedidos(data || []);
+    setLoading(false);
+  }
 
   useEffect(() => {
-    async function cargar() {
-      const { data, error } = await supabase
-        .from("Productos")
-        .select("*")
-        .order("nombre", { ascending: true });
-      if (error) console.error(error.message);
-      const lista = data || [];
-      setProductos(lista);
-
-      // sugerencia automática: productos con stock <= stock mínimo
-      const sugeridos = lista
-        .filter((p) => Number(p.stock || 0) <= Number(p.stock_minimo ?? 3))
-        .map((p) => {
-          const minimo = Number(p.stock_minimo ?? 3);
-          const cantidadSugerida = Math.max(minimo * 2 - Number(p.stock || 0), 1);
-          return {
-            producto_id: p.id,
-            nombre_producto: p.nombre,
-            cantidad: cantidadSugerida,
-            costo_unitario: Number(p.costo || 0),
-          };
-        });
-      setPedido(sugeridos);
-      setLoading(false);
-    }
-    cargar();
+    cargarPedidos();
   }, []);
 
-  function agregarProducto(producto) {
-    setPedido((prev) => {
-      if (prev.find((i) => i.producto_id === producto.id)) return prev;
-      return [
-        ...prev,
-        {
-          producto_id: producto.id,
-          nombre_producto: producto.nombre,
-          cantidad: 1,
-          costo_unitario: Number(producto.costo || 0),
-        },
-      ];
-    });
-    setBusqueda("");
+  async function interpretar() {
+    if (!texto.trim()) return;
+    setInterpretando(true);
+    try {
+      const res = await fetch("/api/admin/interpretar-pedido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texto })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error);
+        return;
+      }
+
+      setItems(data.items);
+      setSubtotal(data.subtotal);
+    } finally {
+      setInterpretando(false);
+    }
   }
 
-  function quitarProducto(producto_id) {
-    setPedido((prev) => prev.filter((i) => i.producto_id !== producto_id));
+  function quitarItem(i) {
+    setItems((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  function cambiarCantidad(producto_id, cantidad) {
-    if (cantidad < 1) return;
-    setPedido((prev) =>
-      prev.map((i) => (i.producto_id === producto_id ? { ...i, cantidad } : i))
-    );
+  async function guardarComoEnCamino() {
+    if (items.length === 0) return;
+    setGuardando(true);
+
+    try {
+      const { data: pedido, error } = await supabase
+        .from("pedidos_proveedor")
+        .insert({
+          texto_original: texto,
+          subtotal,
+          flete: Number(flete) || 0,
+          estado: "en_camino"
+        })
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      const lineas = items.map((i) => ({
+        pedido_proveedor_id: pedido.id,
+        producto_id: i.producto_id,
+        nombre: i.nombre,
+        cantidad: i.cantidad,
+        precio_unitario: i.precio_unitario,
+        imagen_url: i.imagen_url
+      }));
+
+      await supabase.from("lineas_pedido_proveedor").insert(lineas);
+
+      // Los que no teníamos cargados van a "Próximo pedido" para que el
+      // cliente los vea sin precio y se anticipe.
+      const nuevos = items.filter((i) => !i.producto_id && i.imagen_url);
+      if (nuevos.length > 0) {
+        await supabase.from("proximo_pedido").insert(
+          nuevos.map((i) => ({
+            nombre: i.nombre,
+            imagen_url: i.imagen_url,
+            visible: true
+          }))
+        );
+      }
+
+      alert(
+        `✓ Pedido guardado como "en camino".\n\n${items.length} productos, ` +
+          `${nuevos.length} nuevos van a mostrarse en "Llega pronto".`
+      );
+
+      setTexto("");
+      setFlete("");
+      setItems([]);
+      setSubtotal(0);
+      setVista("camino");
+      cargarPedidos();
+    } catch (e) {
+      alert("No se pudo guardar: " + e.message);
+    } finally {
+      setGuardando(false);
+    }
   }
 
-  function cambiarCosto(producto_id, costo) {
-    setPedido((prev) =>
-      prev.map((i) =>
-        i.producto_id === producto_id ? { ...i, costo_unitario: Number(costo) || 0 } : i
+  async function marcarRecibido(pedido) {
+    if (
+      !confirm(
+        `¿Marcar como recibido "${pedido.numero_pedido || "este pedido"}"?\n\n` +
+          `Se va a sumar el stock, actualizar precios y sacarlos de "Próximo pedido".`
       )
-    );
+    )
+      return;
+
+    setRecibiendoId(pedido.id);
+    try {
+      const { data, error } = await supabase.rpc("recibir_pedido_proveedor", {
+        p_pedido_id: pedido.id
+      });
+
+      if (error) throw new Error(error.message);
+
+      const r = data?.[0];
+
+      // Sacamos de "Próximo pedido" los que ya llegaron
+      const nombres = (pedido.lineas_pedido_proveedor || []).map((l) => l.nombre);
+      if (nombres.length > 0) {
+        await supabase.from("proximo_pedido").delete().in("nombre", nombres);
+      }
+
+      alert(
+        `✓ Pedido recibido.\n\n` +
+          `${r.productos_actualizados} productos actualizados\n` +
+          `${r.productos_creados} productos nuevos creados`
+      );
+
+      cargarPedidos();
+    } catch (e) {
+      alert("No se pudo recibir: " + e.message);
+    } finally {
+      setRecibiendoId(null);
+    }
   }
 
-  const total = pedido.reduce((acc, i) => acc + i.cantidad * i.costo_unitario, 0);
-
-  async function descargarExcel() {
-    const XLSX = await import("xlsx");
-
-    const filas = pedido.map((i) => ({
-      Producto: i.nombre_producto,
-      Cantidad: i.cantidad,
-      "Costo unitario": i.costo_unitario,
-      Subtotal: i.cantidad * i.costo_unitario,
-    }));
-    filas.push({ Producto: "", Cantidad: "", "Costo unitario": "TOTAL", Subtotal: total });
-
-    const ws = XLSX.utils.json_to_sheet(filas);
-    ws["!cols"] = [{ wch: 35 }, { wch: 10 }, { wch: 15 }, { wch: 12 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Pedido");
-
-    const fecha = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `pedido-proveedor-${fecha}.xlsx`);
-  }
-
-  const productosFiltrados = busqueda.trim()
-    ? productos
-        .filter((p) => p.nombre?.toLowerCase().includes(busqueda.toLowerCase()))
-        .filter((p) => !pedido.find((i) => i.producto_id === p.id))
-        .slice(0, 8)
-    : [];
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-brand-bg">
-        <div className="container-app px-4 py-6 text-center text-gray-400">
-          Cargando productos...
-        </div>
-      </main>
-    );
-  }
+  const enCamino = pedidos.filter((p) => p.estado === "en_camino");
+  const recibidos = pedidos.filter((p) => p.estado === "recibido");
 
   return (
-    <main className="min-h-screen bg-brand-bg pb-20">
-      <div className="container-app px-4 py-6">
-        <Link href="/admin/productos" className="text-sm text-brand-blue font-medium">
-          ← Productos
+    <main className="min-h-screen bg-gray-50 pb-16">
+      <div className="max-w-2xl mx-auto px-4 py-6">
+        <Link href="/admin" className="text-sm text-brand-blue font-medium">
+          ← Panel
         </Link>
-        <h1 className="font-extrabold text-xl text-gray-800 mt-1 mb-1">
-          Pedido a proveedor
+        <h1 className="text-2xl font-extrabold text-gray-800 mt-1 mb-1">
+          Pedido al proveedor
         </h1>
-        <p className="text-sm text-gray-500 mb-4">
-          Sugerido según el stock mínimo de cada producto. Podés sacar, agregar o ajustar
-          cantidades antes de descargar.
+        <p className="text-xs text-gray-500 mb-4">
+          Pegá el texto tal cual sale de la web del proveedor.
         </p>
 
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Agregar otro producto por nombre..."
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            className="input-field"
-          />
-          {productosFiltrados.length > 0 && (
-            <div className="mt-2 space-y-1.5">
-              {productosFiltrados.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded-lg"
-                >
-                  <span className="text-gray-700">
-                    {p.nombre}{" "}
-                    <span className="text-gray-400">
-                      (stock: {p.stock ?? 0})
-                    </span>
-                  </span>
-                  <button
-                    onClick={() => agregarProducto(p)}
-                    className="text-xs font-bold text-white bg-brand-blue px-2.5 py-1 rounded-lg"
-                  >
-                    + Agregar
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="flex gap-2 mb-4">
+          {[
+            { id: "nuevo", label: "📋 Cargar" },
+            { id: "camino", label: `🚚 En camino (${enCamino.length})` },
+            { id: "recibidos", label: `✅ Recibidos (${recibidos.length})` }
+          ].map((v) => (
+            <button
+              key={v.id}
+              onClick={() => setVista(v.id)}
+              className={`flex-1 py-2 rounded-xl text-[11px] font-bold ${
+                vista === v.id
+                  ? "bg-brand-blue text-white"
+                  : "bg-white border border-gray-200 text-gray-600"
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
 
-        {pedido.length === 0 ? (
-          <div className="card p-6 text-center text-gray-500">
-            No hay productos con stock bajo, y todavía no agregaste ninguno a mano.
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2 mb-4">
-            {pedido.map((item) => (
-              <div key={item.producto_id} className="card p-3 flex items-center gap-2">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-gray-800 truncate">
-                    {item.nombre_producto}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <label className="text-xs text-gray-500">Cant.</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={item.cantidad}
-                      onChange={(e) =>
-                        cambiarCantidad(item.producto_id, parseInt(e.target.value) || 1)
-                      }
-                      className="w-16 text-sm border border-gray-200 rounded-lg px-2 py-1"
-                    />
-                    <label className="text-xs text-gray-500">Costo unit.</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={item.costo_unitario}
-                      onChange={(e) => cambiarCosto(item.producto_id, e.target.value)}
-                      className="w-24 text-sm border border-gray-200 rounded-lg px-2 py-1"
-                    />
-                  </div>
+        {vista === "nuevo" && (
+          <>
+            <div className="bg-white rounded-2xl border-2 border-brand-blue p-4 mb-4">
+              <p className="text-xs font-bold text-gray-700 mb-2">
+                Pegá el detalle del pedido
+              </p>
+              <textarea
+                value={texto}
+                onChange={(e) => setTexto(e.target.value)}
+                rows={8}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs font-mono"
+                placeholder={
+                  "Rollo Vinilo Blanco Con Gris WMA-003 60x200cm × 2\t$9.200,00\n" +
+                  "Toalla De Algodon De Baño 40x70Cm Blanco Oriental TOA-YW1 × 3\t$9.000,00\n" +
+                  "..."
+                }
+              />
+
+              <button
+                onClick={interpretar}
+                disabled={interpretando || !texto.trim()}
+                className="w-full bg-brand-blue text-white text-sm font-bold py-2.5 rounded-xl mt-2 disabled:opacity-50"
+              >
+                {interpretando ? "Buscando fotos..." : "Interpretar pedido"}
+              </button>
+            </div>
+
+            {items.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-4">
+                <p className="text-sm font-bold text-gray-800 mb-1">
+                  {items.length} productos · ${formatPrice(subtotal)}
+                </p>
+                <p className="text-[11px] text-gray-500 mb-3">
+                  Revisá que esté bien antes de guardar. Podés sacar los que sobren.
+                </p>
+
+                <div className="space-y-2 max-h-96 overflow-y-auto mb-3">
+                  {items.map((i, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-2 border-b border-gray-50 pb-2"
+                    >
+                      <div className="w-10 h-10 bg-gray-50 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
+                        {i.imagen_url ? (
+                          <img src={i.imagen_url} alt="" className="w-full h-full object-contain" />
+                        ) : (
+                          <span className="text-sm">📦</span>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-semibold text-gray-800 line-clamp-1">
+                          {i.nombre}
+                        </p>
+                        <p className="text-[10px] text-gray-500">
+                          {i.cantidad}x ${formatPrice(i.precio_unitario)}
+                          {i.producto_id && (
+                            <span className="text-green-700 font-bold"> · ya lo tenés</span>
+                          )}
+                          {!i.imagen_url && (
+                            <span className="text-amber-700 font-bold"> · sin foto</span>
+                          )}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => quitarItem(idx)}
+                        className="text-red-500 text-sm font-bold px-1"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-gray-800">
-                    ${formatPrice(item.cantidad * item.costo_unitario)}
-                  </p>
+
+                <label className="text-xs font-bold text-gray-600 block mb-1">
+                  Flete (estimado si todavía no lo sabés)
+                </label>
+                <input
+                  type="number"
+                  value={flete}
+                  onChange={(e) => setFlete(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3"
+                  placeholder="$"
+                />
+
+                <button
+                  onClick={guardarComoEnCamino}
+                  disabled={guardando}
+                  className="w-full bg-amber-600 text-white text-sm font-bold py-3 rounded-xl disabled:opacity-50"
+                >
+                  {guardando ? "Guardando..." : "🚚 Guardar como \"en camino\""}
+                </button>
+
+                <p className="text-[10px] text-gray-500 mt-2 text-center">
+                  Los productos nuevos van a mostrarse sin precio en &quot;Llega pronto&quot;
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {vista === "camino" && (
+          <div className="space-y-3">
+            {loading ? (
+              <p className="text-center text-gray-400 py-10">Cargando...</p>
+            ) : enCamino.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+                <p className="text-sm text-gray-600">No hay pedidos en camino.</p>
+              </div>
+            ) : (
+              enCamino.map((p) => (
+                <div key={p.id} className="bg-white rounded-2xl border-2 border-amber-300 p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">
+                        {new Date(p.fecha_pedido).toLocaleDateString("es-AR")}
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        {p.lineas_pedido_proveedor?.length || 0} productos · $
+                        {formatPrice(p.subtotal)}
+                        {p.flete > 0 && ` + $${formatPrice(p.flete)} flete`}
+                      </p>
+                    </div>
+                  </div>
+
                   <button
-                    onClick={() => quitarProducto(item.producto_id)}
-                    className="text-xs font-semibold text-red-500 mt-1"
+                    onClick={() => marcarRecibido(p)}
+                    disabled={recibiendoId === p.id}
+                    className="w-full bg-green-600 text-white text-sm font-bold py-3 rounded-xl disabled:opacity-50"
                   >
-                    Quitar
+                    {recibiendoId === p.id ? "Cargando..." : "✅ Marcar como llegado"}
                   </button>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
 
-        {pedido.length > 0 && (
-          <>
-            <div className="card p-4 flex items-center justify-between mb-4">
-              <span className="font-semibold text-gray-700">Total estimado</span>
-              <span className="text-lg font-extrabold text-brand-blueDark">
-                ${formatPrice(total)}
-              </span>
-            </div>
-
-            <button onClick={descargarExcel} className="btn-primary w-full">
-              ⬇️ Descargar Excel para el proveedor
-            </button>
-          </>
+        {vista === "recibidos" && (
+          <div className="space-y-2">
+            {recibidos.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+                <p className="text-sm text-gray-600">Todavía no recibiste ninguno.</p>
+              </div>
+            ) : (
+              recibidos.map((p) => (
+                <div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-3">
+                  <p className="text-xs font-bold text-gray-800">
+                    ✅ Recibido el {new Date(p.fecha_recibido).toLocaleDateString("es-AR")}
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    {p.lineas_pedido_proveedor?.length || 0} productos · ${formatPrice(p.subtotal)}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
         )}
       </div>
     </main>
@@ -236,4 +371,4 @@ export default function PedidoProveedorPage() {
       <PedidoProveedor />
     </AdminGuard>
   );
-    }
+}
