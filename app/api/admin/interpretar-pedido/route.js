@@ -9,10 +9,15 @@ const supabase = createClient(
 
 // Interpreta el texto de un pedido pegado tal cual como aparece en la web
 // del proveedor (Producto \t Total) y busca cada uno en el catálogo del
-// proveedor para traer su foto. Es lo mismo que se hacía a mano en el chat,
-// ahora automático.
+// proveedor para traer su foto.
+//
+// Solo vincula automáticamente a un producto que ya tenés cuando hay
+// coincidencia exacta o el mismo código del proveedor. Con familias de
+// productos parecidos (varios "Reflector...", varios "Cesto de Ropa...")
+// adivinar cuál es cuál puede terminar actualizando el producto equivocado
+// al recibir el pedido. Ante la duda, no vincula: lo marca para que el
+// admin decida a mano.
 
-// "Nombre Producto CODIGO x 2	$9.200,00" → { nombre, cantidad, precioUnitario }
 function parsearLinea(linea) {
   const m = linea.match(/^(.+?)\s*[×x]\s*(\d+)\s*\t?\s*\$?\s*([\d.,]+)\s*$/i);
   if (!m) return null;
@@ -34,12 +39,29 @@ function parsearLinea(linea) {
 
 function normalizar(texto) {
   return String(texto || "")
+    .replace(/×/g, "x") // el símbolo de multiplicación y la letra "x" se
+                         // usan indistintamente entre el proveedor y lo
+                         // que ya tenemos guardado (ej: "60×200cm" vs "60x200cm")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9 ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// El código del proveedor suele ser el último token con letras y números
+// mezclados (MELECH-721, WMA-087, CD29203/CD29191). Es lo más específico
+// del nombre y lo que realmente distingue una variante de otra.
+function extraerCodigo(nombre) {
+  const tokens = nombre.split(/\s+/);
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i];
+    if (/[A-Za-z]/.test(t) && /[0-9]/.test(t) && t.length >= 4) {
+      return t.toLowerCase();
+    }
+  }
+  return null;
 }
 
 export async function POST(request) {
@@ -64,25 +86,58 @@ export async function POST(request) {
       );
     }
 
-    // Buscamos cada producto en nuestra base (por si ya lo tenemos) y en
-    // el catálogo del proveedor (para traer la foto)
     const resultado = [];
 
     for (const item of items) {
-      const norm = normalizar(item.nombre);
+      const normItem = normalizar(item.nombre);
+      const codigoItem = extraerCodigo(item.nombre);
+      const primeraPalabra = normItem.split(" ")[0];
 
-      // ¿Ya lo tenemos cargado?
-      const { data: existentes } = await supabase
+      // Traemos candidatos con un filtro amplio (por la primera palabra),
+      // y la decisión de si vincular o no la tomamos acá, no en la base.
+      const { data: candidatos } = await supabase
         .from("Productos")
-        .select("id, nombre, imagen_url")
-        .or(`nombre_proveedor.ilike.%${item.nombre.slice(0, 30)}%,nombre.ilike.%${norm.split(" ").slice(0, 3).join("%")}%`)
-        .limit(1);
+        .select("id, nombre, nombre_proveedor, imagen_url")
+        .ilike("nombre_proveedor", `%${primeraPalabra}%`)
+        .limit(15);
 
-      const encontrado = existentes?.[0] || null;
+      let encontrado = null;
+      let sugerido = null;
+
+      for (const c of candidatos || []) {
+        const normCand = normalizar(c.nombre_proveedor || c.nombre);
+
+        // Coincidencia exacta del nombre completo del proveedor
+        if (normCand === normItem) {
+          encontrado = c;
+          break;
+        }
+
+        // Mismo código de proveedor: es lo que distingue variantes
+        // idénticas en nombre (dos "Reflector Lampara Solar..." con
+        // distinto código son productos distintos aunque se llamen igual)
+        if (codigoItem && normCand.includes(codigoItem)) {
+          encontrado = c;
+          break;
+        }
+      }
+
+      // Sin coincidencia exacta pero con candidatos parecidos: lo dejamos
+      // como sugerencia para que el admin confirme, sin vincular solo
+      if (!encontrado && candidatos?.length > 0) {
+        const parecido = candidatos.find((c) => {
+          const normCand = normalizar(c.nombre_proveedor || c.nombre);
+          const palabrasItem = normItem.split(" ").slice(0, 3).join(" ");
+          const palabrasCand = normCand.split(" ").slice(0, 3).join(" ");
+          return palabrasItem === palabrasCand;
+        });
+        if (parecido) {
+          sugerido = { id: parecido.id, nombre: parecido.nombre };
+        }
+      }
 
       let imagenUrl = encontrado?.imagen_url || null;
 
-      // Si no tenemos foto, buscamos en el catálogo del proveedor
       if (!imagenUrl) {
         try {
           const q = encodeURIComponent(item.nombre.split(" ").slice(0, 4).join(" "));
@@ -106,6 +161,7 @@ export async function POST(request) {
         cantidad: item.cantidad,
         precio_unitario: item.precioUnitario,
         producto_id: encontrado?.id || null,
+        sugerido,
         imagen_url: imagenUrl
       });
     }

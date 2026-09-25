@@ -62,6 +62,20 @@ function PedidoProveedor() {
     }
   }
 
+  function confirmarSugerido(i) {
+    setItems((prev) =>
+      prev.map((it, idx) =>
+        idx === i ? { ...it, producto_id: it.sugerido.id, sugerido: null } : it
+      )
+    );
+  }
+
+  function descartarSugerido(i) {
+    setItems((prev) =>
+      prev.map((it, idx) => (idx === i ? { ...it, sugerido: null } : it))
+    );
+  }
+
   function quitarItem(i) {
     setItems((prev) => prev.filter((_, idx) => idx !== i));
   }
@@ -264,6 +278,28 @@ function PedidoProveedor() {
                             <span className="text-amber-700 font-bold"> · sin foto</span>
                           )}
                         </p>
+
+                        {i.sugerido && (
+                          <div className="bg-amber-50 border border-amber-300 rounded-lg p-1.5 mt-1">
+                            <p className="text-[10px] text-amber-800">
+                              ¿Es lo mismo que <b>{i.sugerido.nombre}</b>?
+                            </p>
+                            <div className="flex gap-1.5 mt-1">
+                              <button
+                                onClick={() => confirmarSugerido(idx)}
+                                className="text-[10px] font-bold bg-amber-600 text-white px-2 py-0.5 rounded"
+                              >
+                                Sí, es este
+                              </button>
+                              <button
+                                onClick={() => descartarSugerido(idx)}
+                                className="text-[10px] font-bold text-gray-500 px-2 py-0.5"
+                              >
+                                No, es nuevo
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <button
