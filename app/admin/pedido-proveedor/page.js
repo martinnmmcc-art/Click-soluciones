@@ -24,6 +24,10 @@ function PedidoProveedor() {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [recibiendoId, setRecibiendoId] = useState(null);
+  const [borrandoId, setBorrandoId] = useState(null);
+  const [editando, setEditando] = useState(null); // pedido en edición
+  const [itemsEditando, setItemsEditando] = useState([]);
+  const [fleteEditando, setFleteEditando] = useState(0);
 
   async function cargarPedidos() {
     setLoading(true);
@@ -132,6 +136,90 @@ function PedidoProveedor() {
       setItems([]);
       setSubtotal(0);
       setVista("camino");
+      cargarPedidos();
+    } catch (e) {
+      alert("No se pudo guardar: " + e.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  async function borrarPedido(pedido) {
+    if (
+      !confirm(
+        `¿Borrar este pedido con ${pedido.lineas_pedido_proveedor?.length || 0} productos?\n\n` +
+          `No se toca el stock de nada, es solo sacarlo de la lista.`
+      )
+    )
+      return;
+
+    setBorrandoId(pedido.id);
+    try {
+      await supabase.from("pedidos_proveedor").delete().eq("id", pedido.id);
+      cargarPedidos();
+    } catch (e) {
+      alert("No se pudo borrar: " + e.message);
+    } finally {
+      setBorrandoId(null);
+    }
+  }
+
+  function empezarEdicion(pedido) {
+    setEditando(pedido.id);
+    setItemsEditando(
+      (pedido.lineas_pedido_proveedor || []).map((l) => ({ ...l }))
+    );
+    setFleteEditando(pedido.flete || 0);
+  }
+
+  function cambiarCantidadEdicion(idx, valor) {
+    setItemsEditando((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, cantidad: Number(valor) || 0 } : it))
+    );
+  }
+
+  function cambiarPrecioEdicion(idx, valor) {
+    setItemsEditando((prev) =>
+      prev.map((it, i) => (i === idx ? { ...it, precio_unitario: Number(valor) || 0 } : it))
+    );
+  }
+
+  function quitarItemEdicion(idx) {
+    setItemsEditando((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  async function guardarEdicion(pedido) {
+    setGuardando(true);
+    try {
+      // Actualizamos las líneas que quedaron
+      for (const item of itemsEditando) {
+        await supabase
+          .from("lineas_pedido_proveedor")
+          .update({ cantidad: item.cantidad, precio_unitario: item.precio_unitario })
+          .eq("id", item.id);
+      }
+
+      // Borramos las que se sacaron
+      const idsQueQuedan = itemsEditando.map((i) => i.id);
+      const idsOriginales = (pedido.lineas_pedido_proveedor || []).map((i) => i.id);
+      const aBorrar = idsOriginales.filter((id) => !idsQueQuedan.includes(id));
+
+      if (aBorrar.length > 0) {
+        await supabase.from("lineas_pedido_proveedor").delete().in("id", aBorrar);
+      }
+
+      // Recalculamos el subtotal
+      const nuevoSubtotal = itemsEditando.reduce(
+        (a, i) => a + i.cantidad * i.precio_unitario,
+        0
+      );
+      await supabase
+        .from("pedidos_proveedor")
+        .update({ subtotal: nuevoSubtotal, flete: fleteEditando })
+        .eq("id", pedido.id);
+
+      setEditando(null);
+      setItemsEditando([]);
       cargarPedidos();
     } catch (e) {
       alert("No se pudo guardar: " + e.message);
@@ -353,23 +441,104 @@ function PedidoProveedor() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="text-sm font-bold text-gray-800">
+                        Pedido {p.numero_pedido || "#" + p.id} ·{" "}
                         {new Date(p.fecha_pedido).toLocaleDateString("es-AR")}
                       </p>
                       <p className="text-[11px] text-gray-500">
                         {p.lineas_pedido_proveedor?.length || 0} productos · $
                         {formatPrice(p.subtotal)}
-                        {p.flete > 0 && ` + $${formatPrice(p.flete)} flete`}
+                        {p.flete > 0 ? ` + $${formatPrice(p.flete)} flete` : " · flete sin confirmar"}
                       </p>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => marcarRecibido(p)}
-                    disabled={recibiendoId === p.id}
-                    className="w-full bg-green-600 text-white text-sm font-bold py-3 rounded-xl disabled:opacity-50"
-                  >
-                    {recibiendoId === p.id ? "Cargando..." : "✅ Marcar como llegado"}
-                  </button>
+                  {editando === p.id ? (
+                    <div className="border-t border-gray-100 pt-3 mt-2">
+                      <div className="space-y-2 max-h-80 overflow-y-auto mb-3">
+                        {itemsEditando.map((item, idx) => (
+                          <div key={item.id} className="flex items-center gap-2 border-b border-gray-50 pb-2">
+                            <p className="flex-1 text-[11px] font-semibold text-gray-800 line-clamp-2">
+                              {item.nombre}
+                            </p>
+                            <input
+                              type="number"
+                              value={item.cantidad}
+                              onChange={(e) => cambiarCantidadEdicion(idx, e.target.value)}
+                              className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center"
+                            />
+                            <input
+                              type="number"
+                              value={item.precio_unitario}
+                              onChange={(e) => cambiarPrecioEdicion(idx, e.target.value)}
+                              className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center"
+                            />
+                            <button
+                              onClick={() => quitarItemEdicion(idx)}
+                              className="text-red-500 text-sm font-bold px-1"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+
+                      <label className="text-xs font-bold text-gray-600 block mb-1">
+                        Flete de este pedido
+                      </label>
+                      <input
+                        type="number"
+                        value={fleteEditando}
+                        onChange={(e) => setFleteEditando(Number(e.target.value) || 0)}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3"
+                        placeholder="$"
+                      />
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setEditando(null);
+                            setItemsEditando([]);
+                          }}
+                          className="px-4 text-xs font-bold text-gray-500"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => guardarEdicion(p)}
+                          disabled={guardando}
+                          className="flex-1 bg-brand-blue text-white text-sm font-bold py-2.5 rounded-xl disabled:opacity-50"
+                        >
+                          {guardando ? "Guardando..." : "Guardar cambios"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2 mb-2">
+                        <button
+                          onClick={() => empezarEdicion(p)}
+                          className="flex-1 bg-white border-2 border-brand-blue text-brand-blue text-xs font-bold py-2.5 rounded-xl"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() => borrarPedido(p)}
+                          disabled={borrandoId === p.id}
+                          className="px-4 bg-white border-2 border-red-300 text-red-600 text-xs font-bold rounded-xl disabled:opacity-50"
+                        >
+                          {borrandoId === p.id ? "..." : "🗑️"}
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => marcarRecibido(p)}
+                        disabled={recibiendoId === p.id}
+                        className="w-full bg-green-600 text-white text-sm font-bold py-3 rounded-xl disabled:opacity-50"
+                      >
+                        {recibiendoId === p.id ? "Cargando..." : "✅ Marcar como llegado"}
+                      </button>
+                    </>
+                  )}
                 </div>
               ))
             )}

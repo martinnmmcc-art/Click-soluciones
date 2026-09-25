@@ -91,6 +91,34 @@ function ProximoPedido() {
     cargar();
   }
 
+  const [subiendoFotoId, setSubiendoFotoId] = useState(null);
+
+  async function agregarFotoExistente(item, archivo) {
+    if (!archivo) return;
+    setSubiendoFotoId(item.id);
+    try {
+      const nombreArchivo = `proximo-${item.id}-${Date.now()}.jpg`;
+      const { error } = await supabase.storage
+        .from("fotos-productos")
+        .upload(nombreArchivo, archivo, { contentType: archivo.type });
+
+      if (error) throw new Error(error.message);
+
+      const { data } = supabase.storage.from("fotos-productos").getPublicUrl(nombreArchivo);
+
+      await supabase
+        .from("proximo_pedido")
+        .update({ imagen_url: data.publicUrl })
+        .eq("id", item.id);
+
+      cargar();
+    } catch (e) {
+      alert("No se pudo subir la foto: " + e.message);
+    } finally {
+      setSubiendoFotoId(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="max-w-2xl mx-auto px-4 py-6">
@@ -199,6 +227,19 @@ function ProximoPedido() {
                     </p>
                   )}
                 </div>
+
+                {!item.imagen_url && (
+                  <label className="text-[10px] font-bold text-brand-blue px-2 py-1 border border-brand-blue rounded-lg whitespace-nowrap cursor-pointer">
+                    {subiendoFotoId === item.id ? "..." : "📷 Foto"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => agregarFotoExistente(item, e.target.files?.[0])}
+                      disabled={subiendoFotoId === item.id}
+                    />
+                  </label>
+                )}
 
                 <button
                   onClick={() => alternarVisible(item)}
