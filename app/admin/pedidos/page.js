@@ -7,7 +7,12 @@ import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabaseClient";
 import ComprobantePedido from "@/components/ComprobantePedido";
-import { leerCatalogoOffline } from "@/lib/catalogoOffline";
+import {
+  leerCatalogoOffline,
+  leerClientesOffline,
+  leerPedidosOffline,
+  descargarDatosAdmin
+} from "@/lib/catalogoOffline";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
 import DescargarOffline from "@/components/DescargarOffline";
 import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
@@ -70,6 +75,25 @@ function PanelVentas() {
   const [guardandoId, setGuardandoId] = useState(null);
   const [avisoOffline, setAvisoOffline] = useState("");
   const [cambiosEnEspera, setCambiosEnEspera] = useState(0);
+  const [descargandoTodo, setDescargandoTodo] = useState(false);
+  const [avisoDescarga, setAvisoDescarga] = useState("");
+
+  async function descargarParaSinSenal() {
+    setDescargandoTodo(true);
+    setAvisoDescarga("");
+    try {
+      const r = await descargarDatosAdmin();
+      setAvisoDescarga(
+        `✓ Guardado: ${r.productos} productos, ${r.clientes} clientes, ${r.pedidos} pedidos.` +
+          (r.errores.length > 0 ? ` (${r.errores.length} con problemas)` : "")
+      );
+      setTimeout(() => setAvisoDescarga(""), 6000);
+    } catch (e) {
+      setAvisoDescarga("No se pudo descargar: " + e.message);
+    } finally {
+      setDescargandoTodo(false);
+    }
+  }
 
   // Al volver la señal mandamos los cambios que quedaron guardados
   useEffect(() => {
@@ -133,9 +157,16 @@ function PanelVentas() {
     try {
       const res = await fetch("/api/admin/pedidos", { cache: "no-store" });
       const result = await res.json();
-      if (res.ok) setPedidos(result.pedidos || []);
+      if (res.ok && result.pedidos?.length > 0) {
+        setPedidos(result.pedidos);
+      } else {
+        throw new Error("sin datos");
+      }
     } catch (e) {
-      console.error(e.message);
+      // Sin señal: mostramos los pedidos tal como quedaron guardados la
+      // última vez que hubo conexión, para poder seguir trabajando.
+      const guardados = leerPedidosOffline();
+      if (guardados.length > 0) setPedidos(guardados);
     }
     setLoading(false);
   }
@@ -185,11 +216,19 @@ function PanelVentas() {
   // Clientes ya registrados o que compraron antes, para autocompletar
   // sus datos y no tener que escribirlos de nuevo en cada venta.
   async function cargarClientes() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("clientes")
       .select("id, nombre, telefono, localidad, direccion, email")
       .order("nombre", { ascending: true });
-    if (data) setClientes(data);
+
+    if (data && data.length > 0) {
+      setClientes(data);
+    } else if (error || !data) {
+      // Sin señal, o la consulta falló: usamos la copia guardada, así el
+      // pedido se puede armar igual con el cliente ya cargado.
+      const guardados = leerClientesOffline();
+      if (guardados.length > 0) setClientes(guardados);
+    }
   }
 
   // Pedidos, stock y clientes se actualizan solos: al volver la señal, al
@@ -197,6 +236,12 @@ function PanelVentas() {
   // Así, por ejemplo, al eliminar un pedido el stock devuelto se ve enseguida.
   useActualizarSolo(async () => {
     await Promise.all([cargarPedidos(), cargarProductos(), cargarClientes()]);
+
+    // Con conexión, actualizamos la copia guardada en segundo plano: así
+    // la próxima vez que se corte la señal, los datos están al día.
+    if (typeof navigator !== "undefined" && navigator.onLine) {
+      descargarDatosAdmin().catch(() => {});
+    }
   });
 
   useEffect(() => {
@@ -903,6 +948,31 @@ function PanelVentas() {
             {mostrarFormNuevo ? "Cancelar" : "+ Nuevo pedido"}
           </button>
         </div>
+
+        {/* Descargar todo para poder trabajar sin señal */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-3 mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-gray-800">
+              📴 Preparar para trabajar sin señal
+            </p>
+            <p className="text-[11px] text-gray-500">
+              Guarda productos, clientes y pedidos abiertos en el celular
+            </p>
+          </div>
+          <button
+            onClick={descargarParaSinSenal}
+            disabled={descargandoTodo}
+            className="bg-brand-blue text-white text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap disabled:opacity-50"
+          >
+            {descargandoTodo ? "..." : "Descargar"}
+          </button>
+        </div>
+
+        {avisoDescarga && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 mb-3">
+            <p className="text-[11px] font-semibold text-gray-700">{avisoDescarga}</p>
+          </div>
+        )}
 
         {/* Aviso de cambios guardados esperando enviarse */}
         {(avisoOffline || cambiosEnEspera > 0) && (
