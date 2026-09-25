@@ -8,7 +8,6 @@ const supabase = createClient(
 );
 
 // Recargos que paga Bolson Click sobre el precio de lista del proveedor
-const MULT_COSTO = 1.03 * 1.05;
 
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
@@ -39,7 +38,7 @@ export async function GET(request) {
           .lt("created_at", fin.toISOString()),
         supabase
           .from("Productos")
-          .select("id, nombre, costo, costo_envio, stock, precio")
+          .select("id, nombre, costo, costo_envio, stock, precio, pct_transferencia, pct_dolar, pct_transporte")
           .or("bajo_pedido.is.null,bajo_pedido.eq.false")
           .eq("activo", true),
         supabase
@@ -58,11 +57,16 @@ export async function GET(request) {
     const todos = (pedidosRes.data || []).filter((p) => p.estado !== "cancelado");
     const productos = productosRes.data || [];
 
-    // Costo real de cada producto, para saber cuánto se gana en cada venta
+    // Costo real de cada producto, para saber cuánto se gana en cada venta.
+    // Usamos los porcentajes propios de cada producto (transferencia + dólar
+    // + transporte), no un multiplicador fijo: cada uno puede tener el suyo.
     const costoPorProducto = {};
     productos.forEach((p) => {
-      costoPorProducto[p.id] =
-        Number(p.costo || 0) * MULT_COSTO + Number(p.costo_envio || 0);
+      const base = Number(p.costo || 0);
+      const conTransferencia = base * (1 + Number(p.pct_transferencia || 0) / 100);
+      const conDolar = conTransferencia * (1 + Number(p.pct_dolar || 0) / 100);
+      const conTransporte = conDolar * (1 + Number(p.pct_transporte || 0) / 100);
+      costoPorProducto[p.id] = conTransporte + Number(p.costo_envio || 0);
     });
 
     function dentro(fechaTexto, desde, hasta) {

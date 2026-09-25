@@ -21,8 +21,8 @@ export default function CalculadoraPrecio({
 }) {
   const [pct, setPct] = useState({
     transferencia: valores.pct_transferencia ?? 3,
-    dolar: valores.pct_dolar ?? 5,
-    transporte: valores.pct_transporte ?? 15,
+    dolar: valores.pct_dolar ?? 0,
+    transporte: valores.pct_transporte ?? 10,
     ganancia: valores.pct_ganancia ?? 80
   });
 

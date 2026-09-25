@@ -301,6 +301,16 @@ function Dashboard() {
             <span className="text-2xl">🗂️</span>
           </Link>
 
+          <Link href="/admin/proximo-pedido" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
+            <div>
+              <p className="font-semibold text-gray-800">Próximo pedido</p>
+              <p className="text-sm text-gray-500">
+                Mostrar sin precio lo que ya encargaste al proveedor
+              </p>
+            </div>
+            <span className="text-2xl">🚚</span>
+          </Link>
+
           <Link href="/admin/importar-proveedor" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Importar de Next Cell</p>

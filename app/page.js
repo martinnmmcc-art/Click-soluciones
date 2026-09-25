@@ -176,6 +176,23 @@ export default function HomePage() {
       <BannerOferta />
       <BannerNovedades />
 
+      <Link href="/proximamente" className="block px-4 mt-3">
+        <div className="bg-gradient-to-r from-amber-400 to-amber-500 rounded-2xl p-3 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🚚</span>
+            <div>
+              <p className="text-sm font-extrabold text-amber-950 leading-tight">
+                Mirá lo que llega pronto
+              </p>
+              <p className="text-[11px] text-amber-900/80">
+                Reservalo antes de que se agote
+              </p>
+            </div>
+          </div>
+          <span className="text-amber-950 text-lg">→</span>
+        </div>
+      </Link>
+
       <div className="max-w-md mx-auto px-4 mt-3">
         <Link
           href="/a-pedido"
