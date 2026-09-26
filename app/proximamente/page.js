@@ -5,24 +5,52 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import { supabase } from "@/lib/supabaseClient";
 import { urlImagen } from "@/lib/imagenProducto";
+import { formatPrice } from "@/lib/whatsapp";
 
+// Todo lo que viene en el próximo pedido al proveedor: tanto lo nuevo como
+// lo que ya vendés y se está por reponer. El nombre siempre sale limpio
+// (nunca el texto crudo del proveedor, que podría delatar de dónde
+// compramos); a los que ya conocemos les mostramos el precio actual, a los
+// nuevos les avisamos que todavía no lo tienen.
 export default function ProximamentePage() {
   const [productos, setProductos] = useState([]);
+  const [manuales, setManuales] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function cargar() {
-      const { data } = await supabase
-        .from("proximo_pedido")
-        .select("*")
-        .eq("visible", true)
-        .order("orden", { ascending: true })
-        .order("created_at", { ascending: false });
-      setProductos(data || []);
+      const [{ data: enCamino }, { data: extra }] = await Promise.all([
+        supabase.rpc("productos_en_camino"),
+        supabase
+          .from("proximo_pedido")
+          .select("*")
+          .eq("visible", true)
+          .order("created_at", { ascending: false })
+      ]);
+
+      setProductos(enCamino || []);
+      setManuales(extra || []);
       setLoading(false);
     }
     cargar();
   }, []);
+
+  const todos = [
+    ...productos.map((p) => ({
+      key: `linea-${p.linea_id}`,
+      nombre: p.nombre,
+      imagen_url: p.imagen_url,
+      precio: p.precio,
+      cantidad: p.cantidad
+    })),
+    ...manuales.map((m) => ({
+      key: `manual-${m.id}`,
+      nombre: m.nombre,
+      imagen_url: m.imagen_url,
+      precio: null,
+      fecha_estimada: m.fecha_estimada
+    }))
+  ];
 
   return (
     <main className="min-h-screen bg-brand-bg pb-16">
@@ -35,14 +63,14 @@ export default function ProximamentePage() {
             Llega pronto
           </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Esto ya lo pedimos al proveedor. Todavía no tiene precio, pero
-            podés avisarnos que te interesa para reservarlo apenas llegue.
+            Esto ya lo pedimos al proveedor. Reservalo o avisanos que te
+            interesa antes de que se agote.
           </p>
         </div>
 
         {loading ? (
           <p className="text-center text-gray-400 py-10">Cargando...</p>
-        ) : productos.length === 0 ? (
+        ) : todos.length === 0 ? (
           <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
             <p className="text-sm text-gray-500">
               Por ahora no hay nada en camino. Mirá el{" "}
@@ -54,9 +82,9 @@ export default function ProximamentePage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {productos.map((p) => (
+            {todos.map((p) => (
               <div
-                key={p.id}
+                key={p.key}
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
               >
                 <div className="relative w-full aspect-square bg-gray-50 flex items-center justify-center">
@@ -80,9 +108,13 @@ export default function ProximamentePage() {
                     {p.nombre}
                   </p>
 
-                  {p.descripcion && (
-                    <p className="text-[10px] text-gray-500 line-clamp-2 mt-1">
-                      {p.descripcion}
+                  {p.precio ? (
+                    <p className="text-sm font-extrabold text-brand-blue mt-1">
+                      ${formatPrice(p.precio)}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-amber-700 font-semibold mt-1">
+                      Todavía sin precio
                     </p>
                   )}
 

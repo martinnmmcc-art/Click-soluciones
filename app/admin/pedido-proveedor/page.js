@@ -113,22 +113,12 @@ function PedidoProveedor() {
 
       await supabase.from("lineas_pedido_proveedor").insert(lineas);
 
-      // Los que no teníamos cargados van a "Próximo pedido" para que el
-      // cliente los vea sin precio y se anticipe.
-      const nuevos = items.filter((i) => !i.producto_id && i.imagen_url);
-      if (nuevos.length > 0) {
-        await supabase.from("proximo_pedido").insert(
-          nuevos.map((i) => ({
-            nombre: i.nombre,
-            imagen_url: i.imagen_url,
-            visible: true
-          }))
-        );
-      }
+      const nuevos = items.filter((i) => !i.producto_id).length;
 
       alert(
-        `✓ Pedido guardado como "en camino".\n\n${items.length} productos, ` +
-          `${nuevos.length} nuevos van a mostrarse en "Llega pronto".`
+        `✓ Pedido guardado como "en camino".\n\n` +
+          `${items.length} productos van a mostrarse en "Llega pronto" ` +
+          `(${nuevos} todavía sin precio, el resto con el precio que ya tenés).`
       );
 
       setTexto("");
@@ -246,12 +236,6 @@ function PedidoProveedor() {
       if (error) throw new Error(error.message);
 
       const r = data?.[0];
-
-      // Sacamos de "Próximo pedido" los que ya llegaron
-      const nombres = (pedido.lineas_pedido_proveedor || []).map((l) => l.nombre);
-      if (nombres.length > 0) {
-        await supabase.from("proximo_pedido").delete().in("nombre", nombres);
-      }
 
       alert(
         `✓ Pedido recibido.\n\n` +
