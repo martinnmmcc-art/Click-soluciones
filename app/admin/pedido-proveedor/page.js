@@ -25,6 +25,43 @@ function PedidoProveedor() {
   const [loading, setLoading] = useState(true);
   const [recibiendoId, setRecibiendoId] = useState(null);
   const [borrandoId, setBorrandoId] = useState(null);
+  const [subiendoFotoLinea, setSubiendoFotoLinea] = useState(null);
+
+  // Foto de un producto del pedido. Hace falta sobre todo en los nuevos:
+  // si el proveedor no tiene una foto que coincida con seguridad, preferimos
+  // que la saques vos antes que mostrar la de otro producto.
+  async function subirFotoLinea(linea, archivo) {
+    if (!archivo) return;
+    setSubiendoFotoLinea(linea.id);
+    try {
+      const nombreArchivo = `pedido-linea-${linea.id}-${Date.now()}.jpg`;
+      const { error } = await supabase.storage
+        .from("fotos-productos")
+        .upload(nombreArchivo, archivo, { contentType: archivo.type || "image/jpeg" });
+      if (error) throw new Error(error.message);
+
+      const { data } = supabase.storage.from("fotos-productos").getPublicUrl(nombreArchivo);
+
+      const { error: errUpd } = await supabase
+        .from("lineas_pedido_proveedor")
+        .update({ imagen_url: data.publicUrl })
+        .eq("id", linea.id);
+      if (errUpd) throw new Error(errUpd.message);
+
+      setItemsEditando((prev) =>
+        prev.map((it) => (it.id === linea.id ? { ...it, imagen_url: data.publicUrl } : it))
+      );
+      cargarPedidos();
+    } catch (e) {
+      alert("No se pudo subir la foto: " + e.message);
+    } finally {
+      setSubiendoFotoLinea(null);
+    }
+  }
+
+  function fotoDeLinea(l) {
+    return l.imagen_url || l.Productos?.imagen_url || null;
+  }
   const [editando, setEditando] = useState(null); // pedido en edición
   const [itemsEditando, setItemsEditando] = useState([]);
   const [fleteEditando, setFleteEditando] = useState(0);
@@ -33,7 +70,7 @@ function PedidoProveedor() {
     setLoading(true);
     const { data } = await supabase
       .from("pedidos_proveedor")
-      .select("*, lineas_pedido_proveedor(id, nombre, cantidad, precio_unitario, imagen_url, aplicada)")
+      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, imagen_url, aplicada, Productos(imagen_url))")
       .order("created_at", { ascending: false });
     setPedidos(data || []);
     setLoading(false);
@@ -433,6 +470,12 @@ function PedidoProveedor() {
                         {formatPrice(p.subtotal)}
                         {p.flete > 0 ? ` + $${formatPrice(p.flete)} flete` : " · flete sin confirmar"}
                       </p>
+                      {(p.lineas_pedido_proveedor || []).filter((l) => !fotoDeLinea(l)).length > 0 && (
+                        <p className="text-[11px] font-bold text-amber-700 mt-0.5">
+                          📷 {(p.lineas_pedido_proveedor || []).filter((l) => !fotoDeLinea(l)).length} sin foto
+                          — tocá Editar para agregarla
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -441,9 +484,38 @@ function PedidoProveedor() {
                       <div className="space-y-2 max-h-80 overflow-y-auto mb-3">
                         {itemsEditando.map((item, idx) => (
                           <div key={item.id} className="flex items-center gap-2 border-b border-gray-50 pb-2">
-                            <p className="flex-1 text-[11px] font-semibold text-gray-800 line-clamp-2">
-                              {item.nombre}
-                            </p>
+                            <label
+                              className={`w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center cursor-pointer ${
+                                fotoDeLinea(item) ? "bg-gray-50" : "bg-amber-50 border-2 border-dashed border-amber-400"
+                              }`}
+                            >
+                              {subiendoFotoLinea === item.id ? (
+                                <span className="text-[10px]">...</span>
+                              ) : fotoDeLinea(item) ? (
+                                <img src={fotoDeLinea(item)} alt="" className="w-full h-full object-contain" />
+                              ) : (
+                                <span className="text-[9px] font-bold text-amber-700 text-center leading-tight">
+                                  📷
+                                  <br />
+                                  foto
+                                </span>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={subiendoFotoLinea === item.id}
+                                onChange={(e) => subirFotoLinea(item, e.target.files?.[0])}
+                              />
+                            </label>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[11px] font-semibold text-gray-800 line-clamp-2">
+                                {item.nombre_normalizado || item.nombre}
+                              </p>
+                              {!item.producto_id && (
+                                <p className="text-[9px] font-bold text-amber-700">NUEVO</p>
+                              )}
+                            </div>
                             <input
                               type="number"
                               value={item.cantidad}

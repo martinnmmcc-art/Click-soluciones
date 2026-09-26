@@ -60,28 +60,49 @@ function palabrasSignificativas(texto) {
     .filter((p) => p.length >= 3 && !STOPWORDS.has(p));
 }
 
-// El código del proveedor: el último token con letras y números mezclados
-// (MELECH-721, WMA-087, CD29203/CD29191). Es lo más específico del nombre.
-function extraerCodigo(nombre) {
-  const tokens = nombre.split(/\s+/);
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    const t = tokens[i];
-    if (/[A-Za-z]/.test(t) && /[0-9]/.test(t) && t.length >= 4) {
-      return t.toLowerCase();
+// Todos los códigos del proveedor que aparecen en el nombre. Antes se
+// tomaba solo el último, y "Estabilizador ... AY-49 LUZ-08" buscaba LUZ-08
+// cuando el producto guardado tenía AY-49. También cuentan los códigos
+// solo numéricos de 5+ cifras (Tortera ... 98062), que no son medidas.
+function extraerCodigos(nombre) {
+  const codigos = [];
+  const tokens = String(nombre || "")
+    .replace(/\s*\/\s*/g, " ")
+    .split(/\s+/);
+
+  for (const t of tokens) {
+    const limpio = t.replace(/[.,]+$/, "");
+    const mezclado = /[A-Za-z]/.test(limpio) && /[0-9]/.test(limpio) && limpio.length >= 4;
+    const numeroLargo = /^[0-9]{5,}$/.test(limpio);
+    // Medidas (26x11.5x7.5, 36x28x54cm, 20000mAh) y características comunes
+    // (IP68) no identifican a un producto: las descartamos como código.
+    const esMedida =
+      /^[0-9.,]+([x×*][0-9.,]+)+[a-z]*$/i.test(limpio) ||
+      /^[0-9.,]+(cm|mm|mts?|m|ml|lts?|l|kg|g|w|v|hz|mah|gb|mb)$/i.test(limpio) ||
+      /^ip[0-9]{2}$/i.test(limpio);
+
+    if ((mezclado || numeroLargo) && !esMedida) {
+      codigos.push(limpio.toLowerCase());
     }
   }
-  return null;
+
+  // Del más largo al más corto: los largos son más específicos
+  return [...new Set(codigos)].sort((a, b) => b.length - a.length);
 }
 
 // Busca en NUESTRA base, directo por el nombre completo o por el código,
 // sin pasar por una lista corta de candidatos que se puede quedar afuera
 // justo del que buscamos.
-async function buscarProductoPropio(nombreItem, codigoItem) {
+async function buscarProductoPropio(nombreItem, codigosItem) {
   // 1. Nombre exacto (case-insensitive). Probamos también la variante con
   //    "×" en vez de "x" entre números: algunos productos quedaron
   //    guardados con el símbolo de multiplicación en las medidas
   //    (26×11.5×7.5) y el proveedor en su web usa la letra "x" (26x11.5x7.5).
-  const variantes = [nombreItem, nombreItem.replace(/(\d)x(\d)/gi, "$1×$2")];
+  const variantes = [
+    nombreItem,
+    nombreItem.replace(/(\d)x(\d)/gi, "$1×$2"),
+    nombreItem.replace(/(\d)×(\d)/g, "$1x$2")
+  ];
 
   for (const variante of variantes) {
     const { data: exacto } = await supabase
@@ -93,23 +114,33 @@ async function buscarProductoPropio(nombreItem, codigoItem) {
     if (exacto?.[0]) return { encontrado: exacto[0], sugerido: null };
   }
 
-  // 2. El código del proveedor. Es lo que distingue variantes que se
-  //    llaman igual pero son distintas (dos "Reflector Lampara..." con
-  //    código diferente, por ejemplo).
-  if (codigoItem) {
+  // 2. Los códigos del proveedor, del más específico al menos. Un código
+  //    que aparece en un solo producto lo identifica sin dudas; si aparece
+  //    en varios, no adivinamos cuál es.
+  for (const codigo of codigosItem) {
     const { data: porCodigo } = await supabase
       .from("Productos")
       .select("id, nombre, nombre_proveedor, imagen_url")
-      .ilike("nombre_proveedor", `%${codigoItem}%`)
-      .limit(5);
+      .ilike("nombre_proveedor", `%${codigo}%`)
+      .limit(20);
 
-    if (porCodigo?.length === 1) {
-      return { encontrado: porCodigo[0], sugerido: null };
+    // "ay-49" no puede coincidir con "AY-49RGB" ni con "AY-49T": son
+    // productos distintos. Exigimos que el código esté como palabra entera.
+    const codigoNorm = normalizar(codigo);
+    const escapado = codigoNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const palabraEntera = new RegExp(`(^| )${escapado}( |$)`);
+
+    const coinciden = (porCodigo || []).filter((p) =>
+      palabraEntera.test(normalizar(p.nombre_proveedor || p.nombre))
+    );
+
+    if (coinciden.length === 1) {
+      return { encontrado: coinciden[0], sugerido: null };
     }
-    if (porCodigo?.length > 1) {
-      // Varios productos comparten ese código: no adivinamos cuál es
+
+    if (coinciden.length > 1) {
       const normItem = normalizar(nombreItem);
-      const exactoEntreVarios = porCodigo.find(
+      const exactoEntreVarios = coinciden.find(
         (p) => normalizar(p.nombre_proveedor || p.nombre) === normItem
       );
       if (exactoEntreVarios) return { encontrado: exactoEntreVarios, sugerido: null };
@@ -152,7 +183,7 @@ async function buscarProductoPropio(nombreItem, codigoItem) {
 // resultado realmente se parece al producto pedido. Antes se tomaba el
 // primer resultado de una búsqueda genérica sin comparar nada, y podía
 // traer la foto de un producto completamente distinto.
-async function buscarFotoProveedor(nombreItem, codigoItem) {
+async function buscarFotoProveedor(nombreItem, codigosItem) {
   const palabrasItem = new Set(palabrasSignificativas(nombreItem));
   if (palabrasItem.size === 0) return null;
 
@@ -174,7 +205,7 @@ async function buscarFotoProveedor(nombreItem, codigoItem) {
 
       // Aceptamos la foto solo si aparece el código exacto, o si
       // comparten la mayoría de las palabras significativas.
-      if (codigoItem && nombreResultado.includes(codigoItem)) {
+      if (codigosItem.some((c) => nombreResultado.includes(normalizar(c)))) {
         return p.images[0].src;
       }
 
@@ -218,12 +249,12 @@ export async function POST(request) {
     const resultado = [];
 
     for (const item of items) {
-      const codigoItem = extraerCodigo(item.nombre);
-      const { encontrado, sugerido } = await buscarProductoPropio(item.nombre, codigoItem);
+      const codigosItem = extraerCodigos(item.nombre);
+      const { encontrado, sugerido } = await buscarProductoPropio(item.nombre, codigosItem);
 
       let imagenUrl = encontrado?.imagen_url || null;
       if (!imagenUrl) {
-        imagenUrl = await buscarFotoProveedor(item.nombre, codigoItem);
+        imagenUrl = await buscarFotoProveedor(item.nombre, codigosItem);
       }
 
       resultado.push({
