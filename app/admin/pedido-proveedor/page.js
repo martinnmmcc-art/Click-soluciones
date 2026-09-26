@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import { cabeceraAdmin } from "@/lib/verificarAdmin";
 
 // Pega el texto del pedido tal como sale de la web del proveedor, la app
 // interpreta cada línea y busca la foto. Es lo mismo que se hacía a mano en
@@ -76,8 +77,52 @@ function PedidoProveedor() {
     setLoading(false);
   }
 
+  const [buscandoFotos, setBuscandoFotos] = useState(false);
+  const [avisoFotos, setAvisoFotos] = useState("");
+
+  // Completa las fotos que faltan buscándolas en el proveedor, y copia a
+  // nuestro servidor las que todavía se muestran desde su página. Se llama
+  // sola al abrir esta pantalla: si el proveedor estaba caído, apenas
+  // vuelve las fotos se completan sin que haya que hacer nada.
+  async function completarFotos(conAviso) {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+    setBuscandoFotos(true);
+    try {
+      const headers = await cabeceraAdmin(supabase);
+      let vueltas = 0;
+      let totales = { encontradas: 0, copiadas: 0, sinResultado: 0 };
+
+      while (vueltas < 5) {
+        const res = await fetch("/api/admin/completar-fotos", { method: "POST", headers });
+        if (!res.ok) break;
+        const r = await res.json();
+        totales.encontradas += r.encontradas || 0;
+        totales.copiadas += r.copiadas || 0;
+        totales.sinResultado = r.sinResultado || 0;
+        vueltas++;
+        if (!r.faltan) break;
+      }
+
+      if (totales.encontradas > 0 || totales.copiadas > 0) cargarPedidos();
+
+      if (conAviso) {
+        setAvisoFotos(
+          totales.sinResultado > 0
+            ? `${totales.encontradas} fotos encontradas. ${totales.sinResultado} todavía no aparecen en el proveedor (puede estar en mantenimiento): se reintenta sola cada vez que entrás acá.`
+            : `✓ Fotos completas${totales.copiadas ? ` (${totales.copiadas} guardadas en tu servidor)` : ""}.`
+        );
+      }
+    } catch (e) {
+      if (conAviso) setAvisoFotos("No se pudo buscar: " + e.message);
+    } finally {
+      setBuscandoFotos(false);
+    }
+  }
+
   useEffect(() => {
     cargarPedidos();
+    completarFotos(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function interpretar() {
@@ -164,6 +209,7 @@ function PedidoProveedor() {
       setSubtotal(0);
       setVista("camino");
       cargarPedidos();
+      completarFotos(false);
     } catch (e) {
       alert("No se pudo guardar: " + e.message);
     } finally {
@@ -450,6 +496,19 @@ function PedidoProveedor() {
 
         {vista === "camino" && (
           <div className="space-y-3">
+            <button
+              onClick={() => completarFotos(true)}
+              disabled={buscandoFotos}
+              className="w-full bg-white border-2 border-brand-blue text-brand-blue text-xs font-bold py-2.5 rounded-xl disabled:opacity-50"
+            >
+              {buscandoFotos ? "Buscando fotos en el proveedor..." : "🔍 Completar fotos desde el proveedor"}
+            </button>
+
+            {avisoFotos && (
+              <p className="text-[11px] font-semibold text-gray-700 bg-white border border-gray-200 rounded-xl p-2.5">
+                {avisoFotos}
+              </p>
+            )}
             {loading ? (
               <p className="text-center text-gray-400 py-10">Cargando...</p>
             ) : enCamino.length === 0 ? (

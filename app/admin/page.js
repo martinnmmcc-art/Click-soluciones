@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import ControlNotificaciones from "@/components/ControlNotificaciones";
 import EstadoOffline from "@/components/EstadoOffline";
+import EspejoFotos from "@/components/EspejoFotos";
 import { useAdmin } from "@/context/AdminContext";
 
 // Muestra los importes siempre con 2 decimales, como en un resumen bancario.
@@ -89,6 +90,10 @@ function Dashboard() {
 
         <div className="mb-4">
           <EstadoOffline />
+        </div>
+
+        <div className="mb-4">
+          <EspejoFotos />
         </div>
 
         <div className="mb-5">
