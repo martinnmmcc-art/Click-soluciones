@@ -11,12 +11,13 @@ const supabase = createClient(
 // del proveedor (Producto \t Total) y busca cada uno en el catálogo del
 // proveedor para traer su foto.
 //
-// Solo vincula automáticamente a un producto que ya tenés cuando hay
-// coincidencia exacta o el mismo código del proveedor. Con familias de
-// productos parecidos (varios "Reflector...", varios "Cesto de Ropa...")
-// adivinar cuál es cuál puede terminar actualizando el producto equivocado
-// al recibir el pedido. Ante la duda, no vincula: lo marca para que el
-// admin decida a mano.
+// La búsqueda de "¿ya lo tenés?" va directo al grano: primero por el
+// nombre completo exacto, después por el código del proveedor. Ninguna
+// de las dos depende de traer una lista corta de candidatos filtrada por
+// la primera palabra del nombre — con catálogos grandes, esa primera
+// palabra suele ser genérica ("Set", "Organizador", "Soporte") y el
+// producto correcto quedaba afuera de esa lista corta sin que nada lo
+// avisara.
 
 function parsearLinea(linea) {
   const m = linea.match(/^(.+?)\s*[×x]\s*(\d+)\s*\t?\s*\$?\s*([\d.,]+)\s*$/i);
@@ -39,9 +40,7 @@ function parsearLinea(linea) {
 
 function normalizar(texto) {
   return String(texto || "")
-    .replace(/×/g, "x") // el símbolo de multiplicación y la letra "x" se
-                         // usan indistintamente entre el proveedor y lo
-                         // que ya tenemos guardado (ej: "60×200cm" vs "60x200cm")
+    .replace(/×/g, "x")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -50,9 +49,19 @@ function normalizar(texto) {
     .trim();
 }
 
-// El código del proveedor suele ser el último token con letras y números
-// mezclados (MELECH-721, WMA-087, CD29203/CD29191). Es lo más específico
-// del nombre y lo que realmente distingue una variante de otra.
+const STOPWORDS = new Set([
+  "de", "del", "la", "el", "los", "las", "y", "con", "para", "en", "a",
+  "un", "una", "por", "set", "kit", "pack"
+]);
+
+function palabrasSignificativas(texto) {
+  return normalizar(texto)
+    .split(" ")
+    .filter((p) => p.length >= 3 && !STOPWORDS.has(p));
+}
+
+// El código del proveedor: el último token con letras y números mezclados
+// (MELECH-721, WMA-087, CD29203/CD29191). Es lo más específico del nombre.
 function extraerCodigo(nombre) {
   const tokens = nombre.split(/\s+/);
   for (let i = tokens.length - 1; i >= 0; i--) {
@@ -61,6 +70,126 @@ function extraerCodigo(nombre) {
       return t.toLowerCase();
     }
   }
+  return null;
+}
+
+// Busca en NUESTRA base, directo por el nombre completo o por el código,
+// sin pasar por una lista corta de candidatos que se puede quedar afuera
+// justo del que buscamos.
+async function buscarProductoPropio(nombreItem, codigoItem) {
+  // 1. Nombre exacto (case-insensitive). Probamos también la variante con
+  //    "×" en vez de "x" entre números: algunos productos quedaron
+  //    guardados con el símbolo de multiplicación en las medidas
+  //    (26×11.5×7.5) y el proveedor en su web usa la letra "x" (26x11.5x7.5).
+  const variantes = [nombreItem, nombreItem.replace(/(\d)x(\d)/gi, "$1×$2")];
+
+  for (const variante of variantes) {
+    const { data: exacto } = await supabase
+      .from("Productos")
+      .select("id, nombre, nombre_proveedor, imagen_url")
+      .ilike("nombre_proveedor", variante)
+      .limit(1);
+
+    if (exacto?.[0]) return { encontrado: exacto[0], sugerido: null };
+  }
+
+  // 2. El código del proveedor. Es lo que distingue variantes que se
+  //    llaman igual pero son distintas (dos "Reflector Lampara..." con
+  //    código diferente, por ejemplo).
+  if (codigoItem) {
+    const { data: porCodigo } = await supabase
+      .from("Productos")
+      .select("id, nombre, nombre_proveedor, imagen_url")
+      .ilike("nombre_proveedor", `%${codigoItem}%`)
+      .limit(5);
+
+    if (porCodigo?.length === 1) {
+      return { encontrado: porCodigo[0], sugerido: null };
+    }
+    if (porCodigo?.length > 1) {
+      // Varios productos comparten ese código: no adivinamos cuál es
+      const normItem = normalizar(nombreItem);
+      const exactoEntreVarios = porCodigo.find(
+        (p) => normalizar(p.nombre_proveedor || p.nombre) === normItem
+      );
+      if (exactoEntreVarios) return { encontrado: exactoEntreVarios, sugerido: null };
+    }
+  }
+
+  // 3. Sin coincidencia exacta ni por código: probamos una búsqueda
+  //    amplia solo para ofrecer una sugerencia, nunca para vincular solo.
+  const palabras = palabrasSignificativas(nombreItem).slice(0, 3);
+  if (palabras.length >= 2) {
+    const patron = palabras.map((p) => `nombre_proveedor.ilike.%${p}%`).join(",");
+    const { data: parecidos } = await supabase
+      .from("Productos")
+      .select("id, nombre, nombre_proveedor")
+      .or(patron)
+      .limit(30);
+
+    // De los parecidos, nos quedamos con el que comparte más palabras
+    let mejor = null;
+    let mejorPuntaje = 0;
+    for (const p of parecidos || []) {
+      const palabrasCand = new Set(palabrasSignificativas(p.nombre_proveedor || p.nombre));
+      const comunes = palabras.filter((pi) => palabrasCand.has(pi)).length;
+      if (comunes > mejorPuntaje) {
+        mejorPuntaje = comunes;
+        mejor = p;
+      }
+    }
+
+    // Solo lo sugerimos si comparte casi todas las palabras relevantes
+    if (mejor && mejorPuntaje >= Math.min(2, palabras.length)) {
+      return { encontrado: null, sugerido: { id: mejor.id, nombre: mejor.nombre } };
+    }
+  }
+
+  return { encontrado: null, sugerido: null };
+}
+
+// Busca la foto en la web del proveedor, pero solo la acepta si el
+// resultado realmente se parece al producto pedido. Antes se tomaba el
+// primer resultado de una búsqueda genérica sin comparar nada, y podía
+// traer la foto de un producto completamente distinto.
+async function buscarFotoProveedor(nombreItem, codigoItem) {
+  const palabrasItem = new Set(palabrasSignificativas(nombreItem));
+  if (palabrasItem.size === 0) return null;
+
+  try {
+    const terminos = [...palabrasItem].slice(0, 5).join(" ");
+    const res = await fetch(
+      `https://nextcell.com.ar/wp-json/wc/store/v1/products?search=${encodeURIComponent(terminos)}&per_page=5`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (!res.ok) return null;
+
+    const datos = await res.json();
+    if (!Array.isArray(datos)) return null;
+
+    for (const p of datos) {
+      if (!p?.images?.[0]?.src || !p?.name) continue;
+
+      const nombreResultado = normalizar(p.name);
+
+      // Aceptamos la foto solo si aparece el código exacto, o si
+      // comparten la mayoría de las palabras significativas.
+      if (codigoItem && nombreResultado.includes(codigoItem)) {
+        return p.images[0].src;
+      }
+
+      const palabrasResultado = new Set(palabrasSignificativas(p.name));
+      const comunes = [...palabrasItem].filter((w) => palabrasResultado.has(w)).length;
+      const proporcion = comunes / palabrasItem.size;
+
+      if (proporcion >= 0.6) {
+        return p.images[0].src;
+      }
+    }
+  } catch (e) {
+    // Sin foto no es grave: se puede cargar después a mano
+  }
+
   return null;
 }
 
@@ -89,71 +218,12 @@ export async function POST(request) {
     const resultado = [];
 
     for (const item of items) {
-      const normItem = normalizar(item.nombre);
       const codigoItem = extraerCodigo(item.nombre);
-      const primeraPalabra = normItem.split(" ")[0];
-
-      // Traemos candidatos con un filtro amplio (por la primera palabra),
-      // y la decisión de si vincular o no la tomamos acá, no en la base.
-      const { data: candidatos } = await supabase
-        .from("Productos")
-        .select("id, nombre, nombre_proveedor, imagen_url")
-        .ilike("nombre_proveedor", `%${primeraPalabra}%`)
-        .limit(15);
-
-      let encontrado = null;
-      let sugerido = null;
-
-      for (const c of candidatos || []) {
-        const normCand = normalizar(c.nombre_proveedor || c.nombre);
-
-        // Coincidencia exacta del nombre completo del proveedor
-        if (normCand === normItem) {
-          encontrado = c;
-          break;
-        }
-
-        // Mismo código de proveedor: es lo que distingue variantes
-        // idénticas en nombre (dos "Reflector Lampara Solar..." con
-        // distinto código son productos distintos aunque se llamen igual)
-        if (codigoItem && normCand.includes(codigoItem)) {
-          encontrado = c;
-          break;
-        }
-      }
-
-      // Sin coincidencia exacta pero con candidatos parecidos: lo dejamos
-      // como sugerencia para que el admin confirme, sin vincular solo
-      if (!encontrado && candidatos?.length > 0) {
-        const parecido = candidatos.find((c) => {
-          const normCand = normalizar(c.nombre_proveedor || c.nombre);
-          const palabrasItem = normItem.split(" ").slice(0, 3).join(" ");
-          const palabrasCand = normCand.split(" ").slice(0, 3).join(" ");
-          return palabrasItem === palabrasCand;
-        });
-        if (parecido) {
-          sugerido = { id: parecido.id, nombre: parecido.nombre };
-        }
-      }
+      const { encontrado, sugerido } = await buscarProductoPropio(item.nombre, codigoItem);
 
       let imagenUrl = encontrado?.imagen_url || null;
-
       if (!imagenUrl) {
-        try {
-          const q = encodeURIComponent(item.nombre.split(" ").slice(0, 4).join(" "));
-          const res = await fetch(
-            `https://nextcell.com.ar/wp-json/wc/store/v1/products?search=${q}&per_page=3`,
-            { signal: AbortSignal.timeout(6000) }
-          );
-          if (res.ok) {
-            const datos = await res.json();
-            if (datos?.[0]?.images?.[0]?.src) {
-              imagenUrl = datos[0].images[0].src;
-            }
-          }
-        } catch (e) {
-          // Sin foto no es grave: se puede cargar después a mano
-        }
+        imagenUrl = await buscarFotoProveedor(item.nombre, codigoItem);
       }
 
       resultado.push({
