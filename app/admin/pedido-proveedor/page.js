@@ -264,42 +264,145 @@ function PedidoProveedor() {
   async function guardarEdicion(pedido) {
     setGuardando(true);
     try {
-      // Actualizamos las líneas que quedaron
-      for (const item of itemsEditando) {
-        await supabase
+      const existentes = itemsEditando.filter((i) => i.id);
+      const nuevos = itemsEditando.filter((i) => !i.id);
+
+      // Actualizamos las líneas que ya estaban
+      for (const item of existentes) {
+        const { error } = await supabase
           .from("lineas_pedido_proveedor")
           .update({ cantidad: item.cantidad, precio_unitario: item.precio_unitario })
           .eq("id", item.id);
+        if (error) throw new Error(error.message);
+      }
+
+      // Agregamos las nuevas. La base las vincula sola a un producto del
+      // catálogo, o crea el producto si no existe todavía.
+      if (nuevos.length > 0) {
+        const { error } = await supabase.from("lineas_pedido_proveedor").insert(
+          nuevos.map((i) => ({
+            pedido_proveedor_id: pedido.id,
+            producto_id: i.producto_id || null,
+            nombre: i.nombre,
+            cantidad: i.cantidad,
+            precio_unitario: i.precio_unitario,
+            imagen_url: i.imagen_url || null
+          }))
+        );
+        if (error) throw new Error(error.message);
       }
 
       // Borramos las que se sacaron
-      const idsQueQuedan = itemsEditando.map((i) => i.id);
+      const idsQueQuedan = existentes.map((i) => i.id);
       const idsOriginales = (pedido.lineas_pedido_proveedor || []).map((i) => i.id);
       const aBorrar = idsOriginales.filter((id) => !idsQueQuedan.includes(id));
 
       if (aBorrar.length > 0) {
-        await supabase.from("lineas_pedido_proveedor").delete().in("id", aBorrar);
+        const { error } = await supabase.from("lineas_pedido_proveedor").delete().in("id", aBorrar);
+        if (error) throw new Error(error.message);
       }
 
       // Recalculamos el subtotal
       const nuevoSubtotal = itemsEditando.reduce(
-        (a, i) => a + i.cantidad * i.precio_unitario,
+        (a, i) => a + Number(i.cantidad || 0) * Number(i.precio_unitario || 0),
         0
       );
-      await supabase
+      const { error: errPedido } = await supabase
         .from("pedidos_proveedor")
         .update({ subtotal: nuevoSubtotal, flete: fleteEditando })
         .eq("id", pedido.id);
+      if (errPedido) throw new Error(errPedido.message);
 
       setEditando(null);
       setItemsEditando([]);
-      cargarPedidos();
+      setBusquedaAgregar("");
+      setResultadosAgregar([]);
+      await cargarPedidos();
+      if (nuevos.length > 0) completarFotos(false);
     } catch (e) {
       alert("No se pudo guardar: " + e.message);
     } finally {
       setGuardando(false);
     }
   }
+
+  // ---------- AGREGAR PRODUCTOS A MANO ----------
+  const [busquedaAgregar, setBusquedaAgregar] = useState("");
+  const [resultadosAgregar, setResultadosAgregar] = useState([]);
+  const [nombreLibre, setNombreLibre] = useState("");
+  const [costoLibre, setCostoLibre] = useState("");
+
+  // Busca en todo el catálogo: tus productos y los "a pedido"
+  useEffect(() => {
+    const q = busquedaAgregar.trim();
+    if (q.length < 3) {
+      setResultadosAgregar([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      const palabras = q.split(/\s+/).filter((w) => w.length >= 2).slice(0, 4);
+      let consulta = supabase
+        .from("Productos")
+        .select("id, nombre, nombre_proveedor, costo, imagen_url, bajo_pedido, stock")
+        .eq("activo", true)
+        .limit(12);
+      for (const w of palabras) consulta = consulta.ilike("nombre", `%${w}%`);
+      const { data } = await consulta;
+      setResultadosAgregar(data || []);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [busquedaAgregar]);
+
+  function agregarDelCatalogo(prod) {
+    setItemsEditando((prev) => {
+      // Si ya está en el pedido, sumamos uno en vez de repetirlo
+      const ya = prev.findIndex((i) => i.producto_id === prod.id);
+      if (ya >= 0) {
+        return prev.map((i, idx) =>
+          idx === ya ? { ...i, cantidad: Number(i.cantidad || 0) + 1 } : i
+        );
+      }
+      return [
+        ...prev,
+        {
+          tmp: `n${Date.now()}`,
+          producto_id: prod.id,
+          nombre: prod.nombre_proveedor || prod.nombre,
+          nombre_normalizado: prod.nombre,
+          cantidad: 1,
+          precio_unitario: Number(prod.costo || 0),
+          imagen_url: null,
+          Productos: { imagen_url: prod.imagen_url }
+        }
+      ];
+    });
+    setBusquedaAgregar("");
+    setResultadosAgregar([]);
+  }
+
+  function agregarLibre() {
+    const nombre = nombreLibre.trim();
+    const costo = Number(costoLibre);
+    if (nombre.length < 3 || !costo) {
+      alert("Escribí el nombre tal cual figura en el proveedor y el costo.");
+      return;
+    }
+    setItemsEditando((prev) => [
+      ...prev,
+      {
+        tmp: `n${Date.now()}`,
+        producto_id: null,
+        nombre,
+        nombre_normalizado: nombre,
+        cantidad: 1,
+        precio_unitario: costo,
+        imagen_url: null
+      }
+    ]);
+    setNombreLibre("");
+    setCostoLibre("");
+  }
+
 
   async function marcarRecibido(pedido) {
     if (
@@ -542,7 +645,7 @@ function PedidoProveedor() {
                     <div className="border-t border-gray-100 pt-3 mt-2">
                       <div className="space-y-2 max-h-80 overflow-y-auto mb-3">
                         {itemsEditando.map((item, idx) => (
-                          <div key={item.id} className="flex items-center gap-2 border-b border-gray-50 pb-2">
+                          <div key={item.id || item.tmp} className="flex items-center gap-2 border-b border-gray-50 pb-2">
                             <label
                               className={`w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center cursor-pointer ${
                                 fotoDeLinea(item) ? "bg-gray-50" : "bg-amber-50 border-2 border-dashed border-amber-400"
@@ -563,7 +666,7 @@ function PedidoProveedor() {
                                 type="file"
                                 accept="image/*"
                                 className="hidden"
-                                disabled={subiendoFotoLinea === item.id}
+                                disabled={!item.id || subiendoFotoLinea === item.id}
                                 onChange={(e) => subirFotoLinea(item, e.target.files?.[0])}
                               />
                             </label>
@@ -571,8 +674,14 @@ function PedidoProveedor() {
                               <p className="text-[11px] font-semibold text-gray-800 line-clamp-2">
                                 {item.nombre_normalizado || item.nombre}
                               </p>
-                              {!item.producto_id && (
-                                <p className="text-[9px] font-bold text-amber-700">NUEVO</p>
+                              {!item.id ? (
+                                <p className="text-[9px] font-bold text-green-700">
+                                  AGREGADO · se guarda al tocar Guardar cambios
+                                </p>
+                              ) : (
+                                !item.producto_id && (
+                                  <p className="text-[9px] font-bold text-amber-700">NUEVO</p>
+                                )
                               )}
                             </div>
                             <input
@@ -595,6 +704,78 @@ function PedidoProveedor() {
                             </button>
                           </div>
                         ))}
+                      </div>
+
+                      {/* Agregar productos a mano */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3">
+                        <p className="text-xs font-bold text-gray-800 mb-1.5">➕ Agregar producto</p>
+
+                        <input
+                          value={busquedaAgregar}
+                          onChange={(e) => setBusquedaAgregar(e.target.value)}
+                          placeholder="Buscar en tu catálogo (tuyos y a pedido)..."
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                        />
+
+                        {resultadosAgregar.length > 0 && (
+                          <div className="bg-white rounded-lg border border-gray-200 mt-1.5 max-h-64 overflow-y-auto">
+                            {resultadosAgregar.map((r) => (
+                              <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => agregarDelCatalogo(r)}
+                                className="w-full flex items-center gap-2 p-2 border-b border-gray-50 text-left"
+                              >
+                                <div className="w-9 h-9 bg-gray-50 rounded overflow-hidden flex-shrink-0">
+                                  {r.imagen_url && (
+                                    <img src={r.imagen_url} alt="" className="w-full h-full object-contain" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[11px] font-semibold text-gray-800 line-clamp-1">{r.nombre}</p>
+                                  <p className="text-[10px] text-gray-500">
+                                    {r.bajo_pedido ? "A pedido" : `Tuyo · stock ${r.stock || 0}`} · costo $
+                                    {formatPrice(r.costo || 0)}
+                                  </p>
+                                </div>
+                                <span className="text-brand-blue text-lg font-bold">+</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {busquedaAgregar.trim().length >= 3 && resultadosAgregar.length === 0 && (
+                          <p className="text-[10px] text-gray-500 mt-1">No está en tu catálogo. Cargalo abajo.</p>
+                        )}
+
+                        <p className="text-[10px] font-bold text-gray-600 mt-3 mb-1">
+                          ¿No está en tu catálogo? Pegá el nombre tal cual del proveedor:
+                        </p>
+                        <input
+                          value={nombreLibre}
+                          onChange={(e) => setNombreLibre(e.target.value)}
+                          placeholder="Ej: Kit Manicura Pedicura Estuche Cuero S-2406"
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs bg-white mb-1.5"
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={costoLibre}
+                            onChange={(e) => setCostoLibre(e.target.value)}
+                            placeholder="Costo $"
+                            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-xs bg-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={agregarLibre}
+                            className="bg-brand-blue text-white text-xs font-bold px-4 rounded-lg"
+                          >
+                            Agregar
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1.5">
+                          Se crea solo en tu catálogo como &quot;a pedido&quot;, con la foto del proveedor.
+                        </p>
                       </div>
 
                       <label className="text-xs font-bold text-gray-600 block mb-1">
