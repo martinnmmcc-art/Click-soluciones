@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { createClient } from "@supabase/supabase-js";
 import { NEGOCIO as CFG } from "@/lib/config";
 import { PAGOS_QUE_CIERRAN } from "@/lib/estadosPedido";
+import { claveInterna, CABECERA_INTERNA } from "@/lib/claveInterna";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -125,9 +126,13 @@ export async function PATCH(req) {
     // igual se guardó y no tiene sentido hacer esperar al panel.
     const corte = AbortSignal.timeout ? AbortSignal.timeout(3000) : undefined;
 
+    // La firmamos con la clave interna: esta llamada la hace el servidor,
+    // no hay sesión de administrador detrás.
+    const clave = await claveInterna();
+
     fetch(`${base}/api/avisar-cliente`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", [CABECERA_INTERNA]: clave || "" },
       signal: corte,
       body: JSON.stringify({
         pedido_id: id,

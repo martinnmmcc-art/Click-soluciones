@@ -1,4 +1,5 @@
 import "./globals.css";
+import SesionEnPedidos from "@/components/SesionEnPedidos";
 import AuthGuard from "@/components/AuthGuard";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -47,6 +48,7 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/icons/icon-192.png" />
       </head>
       <body className="bg-brand-bg min-h-screen font-sans">
+        <SesionEnPedidos />
         <AdminProvider>
           <AuthProvider>
             <CartProvider>
