@@ -42,8 +42,8 @@ export default function DesgloseAdmin({ producto }) {
   const costo = Number(producto.costo) || 0;
   const pct = {
     transferencia: Number(producto.pct_transferencia ?? 3),
-    dolar: Number(producto.pct_dolar ?? 5),
-    transporte: Number(producto.pct_transporte ?? 15),
+    dolar: Number(producto.pct_dolar ?? 0),
+    transporte: Number(producto.pct_transporte ?? 10),
     ganancia: Number(producto.pct_ganancia ?? 80)
   };
 

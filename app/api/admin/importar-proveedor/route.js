@@ -18,14 +18,14 @@ const BASE = "https://nextcell.com.ar/wp-json/wc/store/v1";
 // de porcentajes masivos (/admin/porcentajes), aplicada en este orden:
 //   costo crudo del proveedor
 //   + 3% que cobra el proveedor por transferencia
-//   + 5% por variación del dólar
-//   + 15% de transporte (el flete va siempre como %, nunca un monto aparte)
+//   + 10% de transporte (el flete va siempre como %, nunca un monto aparte)
 //   + 80% de ganancia
+// (el 5% por el dólar se sacó: ya no se aplica a ningún producto)
 // Redondeado a $50 hacia arriba.
 const PCT_DEFECTO = {
   pct_transferencia: 3,
-  pct_dolar: 5,
-  pct_transporte: 15,
+  pct_dolar: 0,
+  pct_transporte: 10,
   pct_ganancia: 80
 };
 
