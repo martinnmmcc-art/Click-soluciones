@@ -7,6 +7,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import { buscarClientes } from "@/lib/buscar";
 
 function wa(tel) {
   let n = (tel || "").replace(/\D/g, "");
@@ -145,15 +146,9 @@ function Cupones() {
   const lista =
     vista === "activos" ? activos : vista === "usados" ? usados : vencidos;
 
-  const sugerencias = busqueda.trim().length >= 2
-    ? clientes
-        .filter(
-          (c) =>
-            c.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-            c.telefono?.includes(busqueda.replace(/\D/g, ""))
-        )
-        .slice(0, 6)
-    : [];
+  // Antes, al buscar por nombre coincidían TODOS los clientes (el filtro de
+  // teléfono quedaba vacío) y se mostraban los primeros 6, no los buscados.
+  const sugerencias = busqueda.trim().length >= 2 ? buscarClientes(clientes, busqueda, 30) : [];
 
   // Cuánto descuento entregaste realmente
   const descontado = usados.length;
@@ -217,8 +212,13 @@ function Cupones() {
                   placeholder="Buscar cliente por nombre o celular..."
                   autoFocus
                 />
+                {busqueda.trim().length >= 2 && sugerencias.length === 0 && (
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Ningún cliente coincide con &quot;{busqueda}&quot;.
+                  </p>
+                )}
                 {sugerencias.length > 0 && (
-                  <div className="border border-gray-200 rounded-lg mt-1 overflow-hidden">
+                  <div className="border border-gray-200 rounded-lg mt-1 max-h-72 overflow-y-auto">
                     {sugerencias.map((c) => (
                       <button
                         key={c.telefono}
@@ -226,7 +226,10 @@ function Cupones() {
                         className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-0"
                       >
                         <p className="text-xs font-semibold text-gray-800">{c.nombre}</p>
-                        <p className="text-[11px] text-gray-500">{c.telefono}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {c.telefono}
+                          {c.localidad ? ` · ${c.localidad}` : ""}
+                        </p>
                       </button>
                     ))}
                   </div>

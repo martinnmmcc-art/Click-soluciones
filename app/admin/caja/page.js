@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import EscanerCodigo from "@/components/EscanerCodigo";
+import { buscarClientes } from "@/lib/buscar";
 import { useActualizarSolo } from "@/lib/datosFrescos";
 import {
   catalogoLocal, guardarCatalogo, fechaCatalogo,
@@ -54,27 +55,36 @@ function Caja() {
   const [pedidoElegido, setPedidoElegido] = useState(null);
   const [buscandoPedido, setBuscandoPedido] = useState("");
 
+  // Si se escribe rápido, las respuestas pueden llegar desordenadas: solo
+  // mostramos la de lo último que se escribió.
+  const ultimaBusqueda = useRef("");
+
   // Buscamos clientes: primero en el celular, así funciona sin señal
   async function buscarCliente(texto) {
     setNombreCliente(texto);
+    ultimaBusqueda.current = texto;
     if (texto.trim().length < 2) {
       setSugerenciasCliente([]);
       return;
     }
 
     const locales = buscarClienteLocal(texto);
-    if (locales.length > 0 || !hayConexion()) {
-      setSugerenciasCliente(locales);
-      return;
-    }
+    setSugerenciasCliente(locales);
+    if (!hayConexion()) return;
 
+    // Con señal consultamos también la base: puede haber clientes que se
+    // registraron después de la última descarga al celular. (Antes esto
+    // buscaba "teléfono que contenga vacío", que coincide con todos.)
     const { data } = await supabase
       .from("clientes")
-      .select("id, nombre, telefono, localidad")
-      .or(`nombre.ilike.%${texto.trim()}%,telefono.ilike.%${texto.replace(/\D/g, "")}%`)
-      .limit(8);
+      .select("id, nombre, telefono, localidad");
 
-    setSugerenciasCliente(data || []);
+    if (data) {
+      guardarClientes(data);
+      if (ultimaBusqueda.current === texto) {
+        setSugerenciasCliente(buscarClientes(data, texto, 10));
+      }
+    }
   }
 
   async function cargarPedidosAbiertos() {

@@ -6,6 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import Header from "@/components/Header";
 import { formatPrice } from "@/lib/whatsapp";
 import { ventaCerrada } from "@/lib/estadosPedido";
+import { coincideCliente, normalizarTexto } from "@/lib/buscar";
 
 function telefonoParaWhatsapp(tel) {
   let limpio = (tel || "").replace(/\D/g, "");
@@ -61,10 +62,9 @@ function VentasCerradas() {
   });
 
   const clientes = Object.values(porCliente)
-    .filter((c) => {
-      const q = busqueda.toLowerCase().trim();
-      return !q || c.nombre.toLowerCase().includes(q) || c.telefono.includes(q);
-    })
+    // Sin acentos, por palabras, y a prueba de ventas sin nombre o teléfono
+    // (una venta de mostrador sin cliente rompía esta pantalla al buscar)
+    .filter((c) => coincideCliente(c, busqueda))
     .sort((a, b) => (b.ultimaCompra || 0) - (a.ultimaCompra || 0));
 
   const totalFacturado = cerradas.reduce((acc, p) => acc + Number(p.total || 0), 0);

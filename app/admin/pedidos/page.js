@@ -17,6 +17,7 @@ import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPe
 import DescargarOffline from "@/components/DescargarOffline";
 import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
 import { saldoAFavorDe } from "@/lib/saldoFavor";
+import { buscarClientes } from "@/lib/buscar";
 import {
   encolarCambio,
   sincronizarCambios,
@@ -654,21 +655,10 @@ function PanelVentas() {
         return;
       }
 
-      const soloNumeros = q.replace(/\D/g, "");
-
-      setSugerenciasCliente(
-        todosLosClientes()
-          .filter((c) => {
-            const coincideNombre = (c.nombre || "").toLowerCase().includes(q);
-            // Solo comparamos teléfonos si el texto tiene números. Sin esto,
-            // al buscar por nombre el filtro daba positivo con TODOS los
-            // clientes (cualquier texto "contiene" al texto vacío).
-            const coincideTelefono =
-              soloNumeros.length >= 3 && (c.telefono || "").includes(soloNumeros);
-            return coincideNombre || coincideTelefono;
-          })
-          .slice(0, 6)
-      );
+      // Misma búsqueda que en toda la app (sin acentos, por palabras, y por
+      // teléfono solo con 3+ números). Antes cada pantalla tenía la suya y
+      // este arreglo estaba acá pero no en cupones.
+      setSugerenciasCliente(buscarClientes(todosLosClientes(), value, 10));
     }
   }
 

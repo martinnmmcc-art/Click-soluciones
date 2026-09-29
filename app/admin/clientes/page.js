@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { validarTelefonoArgentino, normalizarTelefono as normalizarTel } from "@/lib/telefono";
+import { coincideCliente, normalizarTexto } from "@/lib/buscar";
 
 const CAMPOS_CLIENTE = "id, telefono, nombre, localidad, created_at, email, direccion, referido_por";
 
@@ -42,15 +43,12 @@ function Clientes() {
 
   const telefonosBloqueados = new Set(bloqueados.map((b) => b.telefono));
 
-  const clientesFiltrados = clientes.filter((c) => {
-    const q = busqueda.toLowerCase();
-    return (
-      !q ||
-      c.nombre?.toLowerCase().includes(q) ||
-      c.telefono?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q)
-    );
-  });
+  const clientesFiltrados = clientes.filter(
+    (c) =>
+      coincideCliente(c, busqueda) ||
+      (busqueda.trim().length >= 3 &&
+        normalizarTexto(c.email).includes(normalizarTexto(busqueda)))
+  );
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });

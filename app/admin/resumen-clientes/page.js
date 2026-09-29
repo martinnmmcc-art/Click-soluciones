@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import Header from "@/components/Header";
 import { formatPrice } from "@/lib/whatsapp";
+import { coincideCliente, normalizarTexto } from "@/lib/buscar";
 import {
   ESTADOS_ENTREGA,
   ESTADOS_PAGO,
@@ -184,8 +185,7 @@ function ResumenClientes() {
 
   const clientes = Object.values(grupos)
     .filter((c) => {
-      const q = busqueda.toLowerCase().trim();
-      const coincide = !q || c.nombre.toLowerCase().includes(q) || c.telefono.includes(q);
+      const coincide = coincideCliente(c, busqueda);
       return coincide && (!soloDeudores || c.saldoNeto > 0);
     })
     .sort((a, b) => {
