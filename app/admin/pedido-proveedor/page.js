@@ -6,6 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import { cabeceraAdmin } from "@/lib/verificarAdmin";
+import DetallePedidoRecibido from "@/components/DetallePedidoRecibido";
 
 // Pega el texto del pedido tal como sale de la web del proveedor, la app
 // interpreta cada línea y busca la foto. Es lo mismo que se hacía a mano en
@@ -71,7 +72,7 @@ function PedidoProveedor() {
     setLoading(true);
     const { data } = await supabase
       .from("pedidos_proveedor")
-      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, imagen_url, aplicada, Productos(imagen_url))")
+      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, imagen_url, aplicada, Productos(nombre, imagen_url, precio))")
       .order("created_at", { ascending: false });
     setPedidos(data || []);
     setLoading(false);
@@ -849,14 +850,7 @@ function PedidoProveedor() {
               </div>
             ) : (
               recibidos.map((p) => (
-                <div key={p.id} className="bg-white rounded-2xl border border-gray-100 p-3">
-                  <p className="text-xs font-bold text-gray-800">
-                    ✅ Recibido el {new Date(p.fecha_recibido).toLocaleDateString("es-AR")}
-                  </p>
-                  <p className="text-[11px] text-gray-500">
-                    {p.lineas_pedido_proveedor?.length || 0} productos · ${formatPrice(p.subtotal)}
-                  </p>
-                </div>
+                <DetallePedidoRecibido key={p.id} pedido={p} onActualizado={cargarPedidos} />
               ))
             )}
           </div>
