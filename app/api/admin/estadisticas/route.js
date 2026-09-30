@@ -2,20 +2,17 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 import { createClient } from "@supabase/supabase-js";
+import { costoReal } from "@/lib/reglaPrecios";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-// El campo "costo" de cada producto es el precio CRUDO del proveedor (sin recargos).
-// El costo real que paga Bolson Click incluye además:
-//   - 3% que cobra el proveedor por pagar con transferencia
-//   - 5% que se agrega por la variación del dólar
-// Estos dos recargos NO son ganancia, son costo real de la mercadería.
-const RECARGO_TRANSFERENCIA = 0.03;
-const RECARGO_INFLACION_DOLAR = 0.05;
-const MULTIPLICADOR_COSTO_REAL = (1 + RECARGO_TRANSFERENCIA) * (1 + RECARGO_INFLACION_DOLAR);
+// El costo real de cada producto sale de la regla única de precios
+// (lib/reglaPrecios.js): costo + 3% transferencia + 10% transporte, con los
+// porcentajes propios de cada producto. Antes acá había un 5% de dólar
+// escrito fijo y no se contaba el transporte.
 
 export async function GET() {
   try {
@@ -41,7 +38,7 @@ export async function GET() {
       // en stock. Los "a pedido" no son mercadería tuya, no están comprados.
       supabaseAdmin
         .from("Productos")
-        .select("id, costo, costo_envio, activo, stock")
+        .select("id, costo, activo, stock, pct_transferencia, pct_dolar, pct_transporte")
         .or("bajo_pedido.is.null,bajo_pedido.eq.false"),
       supabaseAdmin.from("compras_proveedor").select("subtotal, flete").gte("fecha", inicioMesFecha),
       supabaseAdmin.from("gastos_generales").select("monto").gte("fecha", inicioMesFecha),
@@ -76,7 +73,7 @@ export async function GET() {
     // =====================================================================
     const costosPorProducto = {};
     (productosRes.data || []).forEach((p) => {
-      costosPorProducto[p.id] = { costo: Number(p.costo || 0), costo_envio: Number(p.costo_envio || 0) };
+      costosPorProducto[p.id] = costoReal(p);
     });
 
     let costoMercaderiaVendida = 0;
@@ -85,9 +82,8 @@ export async function GET() {
     pedidosMes.forEach((pedido) => {
       (pedido.items_pedido || []).forEach((item) => {
         const cantidad = Number(item.cantidad || 0);
-        const costos = costosPorProducto[item.producto_id];
-        if (costos) {
-          const costoUnitarioReal = costos.costo * MULTIPLICADOR_COSTO_REAL + costos.costo_envio;
+        const costoUnitarioReal = costosPorProducto[item.producto_id];
+        if (costoUnitarioReal !== undefined) {
           costoMercaderiaVendida += costoUnitarioReal * cantidad;
         }
         conteoVendidos[item.nombre_producto] = (conteoVendidos[item.nombre_producto] || 0) + cantidad;
@@ -123,8 +119,7 @@ export async function GET() {
     const valorInventario = (productosRes.data || []).reduce((acc, p) => {
       const stock = Number(p.stock || 0);
       if (stock <= 0) return acc;
-      const costoUnitarioReal = Number(p.costo || 0) * MULTIPLICADOR_COSTO_REAL + Number(p.costo_envio || 0);
-      return acc + costoUnitarioReal * stock;
+      return acc + costoReal(p) * stock;
     }, 0);
 
     const unidadesEnStock = (productosRes.data || []).reduce(

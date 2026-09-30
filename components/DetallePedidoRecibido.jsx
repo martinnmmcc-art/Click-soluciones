@@ -7,9 +7,9 @@ import { formatPrice } from "@/lib/whatsapp";
 // Detalle de un pedido al proveedor ya recibido: qué vino, cuánto costó
 // cada cosa con el flete incluido, a cuánto se vende y cuánto deja.
 //
-// También permite corregir el flete, por ejemplo cuando la factura del
-// transporte llega después: se reparte de nuevo entre los productos y se
-// recalculan los precios.
+// El flete real de este pedido se muestra para saber cuánto salió de verdad.
+// Los PRECIOS no se calculan con él: usan la regla (10% de transporte).
+// Corregir el flete acá actualiza solo las cuentas (pedido y compra).
 
 const TRANSFERENCIA = 1.03;
 
@@ -53,12 +53,12 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
     }
     setGuardando(true);
     try {
-      const { data, error } = await supabase.rpc("actualizar_flete_pedido", {
+      const { error } = await supabase.rpc("actualizar_flete_pedido", {
         p_pedido_id: pedido.id,
         p_flete: valor
       });
       if (error) throw new Error(error.message);
-      alert(`✓ Flete actualizado. Se recalcularon ${data?.[0]?.productos_recalculados ?? 0} precios.`);
+      alert("✓ Flete actualizado en el pedido y en Compras al proveedor.");
       setEditandoFlete(false);
       onActualizado?.();
     } catch (e) {
@@ -145,8 +145,8 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
                 </button>
               </div>
               <p className="text-[10px] text-gray-500 mt-1.5">
-                Se reparte entre los productos según lo que costó cada uno, y se
-                recalculan los precios de venta.
+                Se actualiza en el pedido y en Compras al proveedor. Los precios
+                no cambian: usan el 10% de transporte de tu regla.
               </p>
             </div>
           ) : (
@@ -159,7 +159,11 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
           )}
 
           {/* Producto por producto */}
-          <p className="text-[11px] font-bold text-gray-700 mb-1.5">Por unidad</p>
+          <p className="text-[11px] font-bold text-gray-700">Por unidad</p>
+          <p className="text-[10px] text-gray-500 mb-1.5">
+            Lo que te costó con el flete real de este pedido. El precio de venta
+            sale de tu regla (3% + 10% transporte + 80%).
+          </p>
           <div className="space-y-1.5 max-h-[28rem] overflow-y-auto">
             {filas.map((f) => (
               <div key={f.id} className="flex gap-2 border-b border-gray-50 pb-1.5">

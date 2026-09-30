@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 import { createClient } from "@supabase/supabase-js";
+import { costoReal } from "@/lib/reglaPrecios";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -61,12 +62,11 @@ export async function GET(request) {
     // Usamos los porcentajes propios de cada producto (transferencia + dólar
     // + transporte), no un multiplicador fijo: cada uno puede tener el suyo.
     const costoPorProducto = {};
+    // Regla única (lib/reglaPrecios.js). Antes se sumaba el 10% de transporte
+    // Y ADEMÁS el flete real: el costo quedaba contado dos veces y el
+    // balance mostraba menos ganancia de la real.
     productos.forEach((p) => {
-      const base = Number(p.costo || 0);
-      const conTransferencia = base * (1 + Number(p.pct_transferencia || 0) / 100);
-      const conDolar = conTransferencia * (1 + Number(p.pct_dolar || 0) / 100);
-      const conTransporte = conDolar * (1 + Number(p.pct_transporte || 0) / 100);
-      costoPorProducto[p.id] = conTransporte + Number(p.costo_envio || 0);
+      costoPorProducto[p.id] = costoReal(p);
     });
 
     function dentro(fechaTexto, desde, hasta) {
