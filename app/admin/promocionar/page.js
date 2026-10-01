@@ -195,13 +195,26 @@ function Promocionar() {
     cargar();
   }, []);
 
+  // Si cambiás de red con un producto ya elegido, la placa se vuelve a
+  // dibujar en el formato de esa red (vertical para WhatsApp, 4:5 para
+  // Facebook e Instagram). Solo al pasar entre WhatsApp y las otras dos.
+  const formatoActual = red === "whatsapp" ? "historia" : "feed";
+  useEffect(() => {
+    if (modo !== "varios" && elegido && placa) generar(elegido);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formatoActual]);
+
   async function generar(producto) {
     setGenerando(true);
     setPlaca(null);
     setElegido(producto);
 
     try {
-      const blob = await generarPlaca(producto, { etiqueta });
+      const blob = await generarPlaca(producto, {
+        etiqueta,
+        // Facebook e Instagram: 4:5 (si no, la recortan y se pierden precio y teléfono)
+        formato: red === "whatsapp" ? "historia" : "feed"
+      });
       setPlaca(blob);
       setFuenteTexto({ producto });
     } catch (e) {
@@ -277,8 +290,14 @@ function Promocionar() {
     const archivo = new File([placa], `bolsonclick-${Date.now()}.jpg`, { type: "image/jpeg" });
     try {
       if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
-        await navigator.share({ files: [archivo], text: textoActual });
-        setAvisoRed("✓ El texto está copiado: pegalo en la descripción de la publicación.");
+        // Solo la foto: si va con texto, algunas apps de Meta lo toman como
+        // un enlace y descartan la imagen. El texto ya está copiado.
+        await navigator.share({ files: [archivo] });
+        setAvisoRed(
+          red === "instagram"
+            ? '✓ Si elegiste "Feed", estás en la pantalla de publicar. Tocá la descripción y pegá el texto (ya está copiado).'
+            : "✓ Estás en la pantalla de publicar. Tocá donde dice ¿Qué estás pensando? y pegá el texto (ya está copiado)."
+        );
         return;
       }
     } catch (e) {

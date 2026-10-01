@@ -64,7 +64,7 @@ export default function ProximamentePage() {
     <main className="min-h-screen bg-brand-bg pb-16">
       <Header />
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-2xl md:max-w-none mx-auto px-4 py-6">
         <div className="text-center mb-6">
           <p className="text-4xl mb-2">🚚</p>
           <h1 className="text-2xl font-extrabold text-gray-800">Llega pronto</h1>
@@ -92,7 +92,7 @@ export default function ProximamentePage() {
               {productos.length} productos en camino
             </p>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {productos.map((p) => (
                 <div
                   key={p.key}

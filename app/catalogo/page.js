@@ -342,7 +342,7 @@ export default function CatalogoPage() {
     <main className="min-h-screen bg-gray-50 pb-28">
       <Header busqueda={busqueda} setBusqueda={setBusqueda} showSearch={true} />
 
-      <div className="max-w-md mx-auto px-4 mt-4">
+      <div className="max-w-md md:max-w-none mx-auto px-4 mt-4">
         {agregarAPedido && (
           <div className="bg-green-50 border border-green-300 rounded-xl p-3 mb-3 sticky top-0 z-10">
             <p className="text-xs font-bold text-green-800">
@@ -472,7 +472,7 @@ export default function CatalogoPage() {
         )}
 
         {loading ? (
-          <div className="grid grid-cols-2 gap-3 mt-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-2">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="bg-white rounded-2xl h-52 animate-pulse" />
             ))}
@@ -491,7 +491,7 @@ export default function CatalogoPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-2">
               {productos.map((prod) => (
                 <div
                   key={prod.id}

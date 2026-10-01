@@ -47,7 +47,7 @@ export default function FavoritosPage() {
     <main className="min-h-screen bg-gray-50 pb-28">
       <Header showSearch={false} />
 
-      <div className="max-w-md mx-auto px-4 mt-4">
+      <div className="max-w-md md:max-w-none mx-auto px-4 mt-4">
         <h1 className="font-bold text-lg text-gray-800 mb-4">❤️ Mis Favoritos</h1>
 
         {sinSesion ? (
@@ -64,7 +64,7 @@ export default function FavoritosPage() {
             Todavía no marcaste ningún favorito. Tocá el ❤️ en un producto para guardarlo acá.
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {productos.map((prod) => {
               const tieneOferta = prod.precio_oferta && Number(prod.precio_oferta) < Number(prod.precio);
               return (

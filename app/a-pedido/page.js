@@ -177,7 +177,7 @@ export default function APedidoPage() {
     <main className="min-h-screen bg-gray-50 pb-28">
       <Header showSearch={false} />
 
-      <div className="max-w-md mx-auto px-4 mt-4">
+      <div className="max-w-md md:max-w-none mx-auto px-4 mt-4">
         <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 mb-4">
           <h1 className="font-bold text-purple-900">🛍️ Productos a pedido</h1>
           <p className="text-sm text-purple-800 mt-1">
@@ -262,7 +262,7 @@ export default function APedidoPage() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {productosFiltrados.map((prod) => (
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>

@@ -24,6 +24,13 @@ body {
   }
 }
 
+/* PC: más ancho, para mostrar 4 productos por fila sin columnas angostas */
+@media (min-width: 1024px) {
+  .container-app {
+    max-width: 1200px;
+  }
+}
+
 .btn-primary {
   @apply bg-brand-blue hover:bg-brand-blueDark text-white font-semibold rounded-xl px-4 py-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
 }

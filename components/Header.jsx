@@ -9,6 +9,18 @@ import { useCart } from "@/context/CartContext";
 import { useAdmin } from "@/context/AdminContext";
 import SelectorTema from "@/components/SelectorTema";
 
+// Menú para PC. En el celular se navega con el menú de abajo (BottomNav),
+// que en pantallas grandes se oculta: sin esto, en PC no había forma de
+// llegar al catálogo ni a la cuenta.
+const MENU_PC = [
+  { href: "/", label: "Inicio" },
+  { href: "/catalogo", label: "Catálogo" },
+  { href: "/a-pedido", label: "A pedido" },
+  { href: "/proximamente", label: "Llega pronto" },
+  { href: "/favoritos", label: "Favoritos" },
+  { href: "/login", label: "Mi cuenta" }
+];
+
 export default function Header({ showSearch = true, initialQuery = "", busqueda, setBusqueda }) {
   const esControlado = typeof setBusqueda === "function";
   const [queryInterno, setQueryInterno] = useState(initialQuery);
@@ -52,6 +64,23 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
             </span>
           </div>
         </Link>
+
+        <nav className="hidden md:flex items-center gap-1" aria-label="Menú principal">
+          {MENU_PC.map((item) => {
+            const activo = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-3 py-2 rounded-xl text-sm font-semibold transition ${
+                  activo ? "bg-blue-50 text-brand-blue" : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
         <div className="flex items-center gap-2">
           <SelectorTema />

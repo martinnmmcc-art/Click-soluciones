@@ -71,7 +71,7 @@ function CatalogoCompartirContent() {
       </div>
 
       {/* SOBRE EL EMPRENDIMIENTO */}
-      <div className="max-w-md mx-auto px-4 -mt-4">
+      <div className="max-w-md md:max-w-none mx-auto px-4 -mt-4">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2 text-sm text-gray-700">
           <p>
             🏔️ Somos de <strong>El Bolsón</strong> y vendemos en toda la <strong>Comarca Andina</strong>. Trabajamos con productos importados de hogar, cocina, tecnología y más.
@@ -113,13 +113,13 @@ function CatalogoCompartirContent() {
       </div>
 
       {/* PRODUCTOS */}
-      <div className="max-w-md mx-auto px-4 mt-6">
+      <div className="max-w-md md:max-w-none mx-auto px-4 mt-6">
         {loading ? (
           <p className="text-center text-gray-400 text-sm py-10">Cargando catálogo...</p>
         ) : productos.length === 0 ? (
           <p className="text-center text-gray-400 text-sm py-10">Este catálogo no tiene productos.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {productos.map((prod) => {
               const imagenes = fotos === "todas"
                 ? [prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3, prod.imagen_url_4, prod.imagen_url_5, prod.imagen_url_6].filter(Boolean)
@@ -212,7 +212,7 @@ function CatalogoCompartirContent() {
       </div>
 
       {/* INVITACIÓN A REGISTRARSE */}
-      <div className="max-w-md mx-auto px-4 mt-8">
+      <div className="max-w-md md:max-w-none mx-auto px-4 mt-8">
         <div className="bg-gradient-to-br from-brand-blue to-brand-blueDark rounded-2xl p-5 text-white text-center">
           <p className="text-3xl mb-1">🛍️</p>
           <p className="font-extrabold text-base">Creá tu cuenta en Bolson Click</p>

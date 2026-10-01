@@ -194,7 +194,7 @@ export default function HomePage() {
         </div>
       </Link>
 
-      <div className="max-w-md mx-auto px-4 mt-3">
+      <div className="max-w-md md:max-w-none mx-auto px-4 mt-3">
         <Link
           href="/a-pedido"
           className="flex items-center justify-between gap-3 bg-purple-600 hover:bg-purple-700 active:scale-[0.98] transition rounded-2xl py-3.5 px-4 shadow-md shadow-purple-200"
@@ -210,7 +210,7 @@ export default function HomePage() {
         </Link>
       </div>
 
-      <div className="max-w-md mx-auto px-4 mt-3">
+      <div className="max-w-md md:max-w-none mx-auto px-4 mt-3">
         <p className="text-[11px] text-gray-500 text-center bg-gray-100 rounded-full py-1.5 px-3">
           🚚 Envíos a El Bolsón y la Comarca Andina — coordinamos transporte local o punto de encuentro
         </p>
@@ -221,7 +221,7 @@ export default function HomePage() {
           El subtítulo da la razón para mirar, que es lo que engancha. */}
       {destacados.length > 0 && (
         <div className="mt-6 bg-gradient-to-b from-amber-50 to-transparent py-4">
-          <div className="max-w-md mx-auto px-4 mb-3">
+          <div className="max-w-md md:max-w-none mx-auto px-4 mb-3">
             <div className="flex items-center gap-2">
               <span className="text-xl">⭐</span>
               <h2 className="font-black text-gray-800 text-base leading-none">
@@ -273,7 +273,7 @@ export default function HomePage() {
           empuja a decidir, sobre todo en un pueblo donde se conocen. */}
       {masVendidos.length > 0 && (
         <div className="mt-6 bg-gradient-to-b from-red-50 to-transparent py-4">
-          <div className="max-w-md mx-auto px-4 mb-3">
+          <div className="max-w-md md:max-w-none mx-auto px-4 mb-3">
             <div className="flex items-center gap-2">
               <span className="text-xl">🔥</span>
               <h2 className="font-black text-gray-800 text-base leading-none">
@@ -321,7 +321,7 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="max-w-md mx-auto px-4 mt-4">
+      <div className="max-w-md md:max-w-none mx-auto px-4 mt-4">
         {/* Corte visual: sin esto, al desplazarse no se nota que terminaron
             los carruseles y empieza el catálogo. */}
         <div className="border-t-4 border-gray-100 -mx-4 mb-4" />
@@ -372,7 +372,7 @@ export default function HomePage() {
             <p className="text-sm font-bold text-gray-700">No hay productos disponibles</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 mt-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-2">
             {productosFiltrados.map((prod) => (
               <div key={prod.id} className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
                 <div>

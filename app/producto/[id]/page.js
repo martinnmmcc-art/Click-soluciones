@@ -151,7 +151,7 @@ export default function ProductoDetallePage() {
     <main className="pb-12">
       <Header showSearch={false} />
 
-      <div className="max-w-2xl mx-auto px-4 mt-3">
+      <div className="max-w-2xl md:max-w-none mx-auto px-4 mt-3">
         <button
           onClick={() => router.back()}
           className="text-sm font-semibold text-brand-blue flex items-center gap-1"
@@ -160,8 +160,14 @@ export default function ProductoDetallePage() {
         </button>
       </div>
 
+      {/* En PC: fotos a la izquierda (fijas al bajar) y la información a la
+          derecha, con el precio y el botón de comprar siempre a la vista.
+          En el celular estos contenedores no cambian nada. */}
+      <div className="md:grid md:grid-cols-2 md:gap-8 md:items-start md:px-4">
+      <div className="md:sticky md:top-32 min-w-0">
+
       {/* GALERÍA DE IMÁGENES */}
-      <div className="max-w-2xl mx-auto px-4 mt-4">
+      <div className="max-w-2xl md:max-w-none mx-auto px-4 md:px-0 mt-4">
         <div className="relative w-full aspect-square bg-gray-100 rounded-2xl overflow-hidden border border-gray-100 flex items-center justify-center">
           {imagenPrincipal ? (
             <img
@@ -198,14 +204,15 @@ export default function ProductoDetallePage() {
 
       {/* VIDEO DEL PRODUCTO */}
       {producto.video_url && (
-        <div className="max-w-2xl mx-auto px-4 mt-4">
+        <div className="max-w-2xl md:max-w-none mx-auto px-4 md:px-0 mt-4">
           <p className="text-sm font-bold text-gray-800 mb-2">🎥 Mirá el producto en video</p>
           <VideoProducto url={producto.video_url} titulo={`Video de ${producto.nombre}`} />
         </div>
       )}
+      </div>
 
       {/* INFORMACIÓN DEL PRODUCTO */}
-      <div className="max-w-2xl mx-auto px-4 mt-6">
+      <div className="max-w-2xl md:max-w-none mx-auto md:mx-0 px-4 md:px-0 mt-6 md:mt-4 min-w-0">
         <p className="text-xs uppercase tracking-wide text-brand-blue font-semibold">
           {nombreCategoria(producto.categoria)}
         </p>
@@ -368,6 +375,7 @@ export default function ProductoDetallePage() {
             </div>
           </div>
         )}
+      </div>
       </div>
       <CompradosJuntos productoId={producto.id} />
 
