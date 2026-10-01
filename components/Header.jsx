@@ -7,6 +7,7 @@ import DatosSiempreAlDia from "@/components/DatosSiempreAlDia";
 import { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAdmin } from "@/context/AdminContext";
+import SelectorTema from "@/components/SelectorTema";
 
 export default function Header({ showSearch = true, initialQuery = "", busqueda, setBusqueda }) {
   const esControlado = typeof setBusqueda === "function";
@@ -53,6 +54,7 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
         </Link>
 
         <div className="flex items-center gap-2">
+          <SelectorTema />
           {isAdmin && (
             <Link
               href="/admin"

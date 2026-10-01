@@ -1,5 +1,6 @@
 import "./globals.css";
 import SesionEnPedidos from "@/components/SesionEnPedidos";
+import { SCRIPT_TEMA_INICIAL } from "@/lib/tema";
 import AuthGuard from "@/components/AuthGuard";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -42,8 +43,10 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
+        {/* Antes de dibujar: si eligió modo oscuro, se aplica ya, sin destello blanco */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA_INICIAL }} />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <link rel="icon" href="/icons/icon-192.png" />
       </head>

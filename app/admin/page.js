@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import ControlNotificaciones from "@/components/ControlNotificaciones";
+import SelectorTema from "@/components/SelectorTema";
 import EstadoOffline from "@/components/EstadoOffline";
 import EspejoFotos from "@/components/EspejoFotos";
 import { useAdmin } from "@/context/AdminContext";
@@ -98,6 +99,10 @@ function Dashboard() {
 
         <div className="mb-5">
           <ControlNotificaciones esAdmin={true} />
+        </div>
+
+        <div className="card p-4 mb-4">
+          <SelectorTema variante="completo" />
         </div>
 
         {loading ? (

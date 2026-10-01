@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import {
   generarPlaca,
-  textoWhatsApp,
-  textoWhatsAppLargo,
-  textoFacebook,
-  generarPlacaMultiple,
-  textoMultiple
+  textoPara,
+  LARGO_POR_DEFECTO,
+  generarPlacaMultiple
 } from "@/lib/generadorPromo";
 
 const ETIQUETAS = [
@@ -30,10 +28,15 @@ function Promocionar() {
   const [etiqueta, setEtiqueta] = useState("NOVEDAD");
   const [generando, setGenerando] = useState(false);
   const [placa, setPlaca] = useState(null);
-  const [textoPromo, setTextoPromo] = useState("");
-  const [textoFb, setTextoFb] = useState("");
   const [red, setRed] = useState("whatsapp");
   const [textoLargo, setTextoLargo] = useState(false);
+  // De qué se arma el texto: un producto o varios. El texto final se calcula
+  // según la red elegida y si lo querés corto o largo.
+  const [fuenteTexto, setFuenteTexto] = useState(null);
+  // Qué productos mostrar: con stock, sin stock o a pedido
+  const [disponibilidad, setDisponibilidad] = useState("stock");
+  const [aPedido, setAPedido] = useState([]);
+  const [buscandoPedido, setBuscandoPedido] = useState(false);
   const [modo, setModo] = useState("uno"); // uno | varios
   const [varios, setVarios] = useState([]);
   const [yaPromocionados, setYaPromocionados] = useState({});
@@ -112,14 +115,13 @@ function Promocionar() {
 
       const blob = await generarPlacaMultiple(varios, {
         titulo: tituloPlaca,
-        formato: red === "facebook" ? "facebook" : "whatsapp"
+        // Estado de WhatsApp: vertical. Facebook e Instagram: cuadrada.
+        formato: red === "whatsapp" ? "whatsapp" : "facebook"
       });
       setPlaca(blob);
       setElegido({ nombre: `${varios.length} productos`, id: "multiple" });
 
-      const texto = textoMultiple(varios, { titulo: tituloPlaca });
-      setTextoPromo(texto);
-      setTextoFb(texto);
+      setFuenteTexto({ productos: varios, titulo: tituloPlaca });
     } catch (e) {
       alert("No se pudo armar la placa: " + e.message);
     } finally {
@@ -127,6 +129,47 @@ function Promocionar() {
     }
   }
   const [copiado, setCopiado] = useState(false);
+
+  function elegirRed(nueva) {
+    setRed(nueva);
+    setTextoLargo(LARGO_POR_DEFECTO[nueva] ?? false);
+  }
+
+  useEffect(() => {
+    if (disponibilidad !== "pedido") return;
+    let cancelado = false;
+    setBuscandoPedido(true);
+
+    const t = setTimeout(async () => {
+      const palabras = busqueda.trim().split(/\s+/).filter((w) => w.length >= 2).slice(0, 4);
+      let q = supabase
+        .from("Productos")
+        .select("id, nombre, precio, precio_oferta, imagen_url, stock, bajo_pedido, descripcion, fecha_ingreso")
+        .eq("bajo_pedido", true)
+        .eq("activo", true)
+        .not("imagen_url", "is", null);
+
+      for (const w of palabras) q = q.ilike("nombre", `%${w}%`);
+      if (soloOfertas) q = q.not("precio_oferta", "is", null);
+
+      // Sin búsqueda, mostramos lo más nuevo del proveedor
+      const { data } = await q.order("actualizado_en", { ascending: false, nullsFirst: false }).limit(60);
+      if (!cancelado) {
+        setAPedido(data || []);
+        setBuscandoPedido(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelado = true;
+      clearTimeout(t);
+    };
+  }, [disponibilidad, busqueda, soloOfertas]);
+
+  const textoActual = useMemo(() => {
+    if (!fuenteTexto) return "";
+    return textoPara({ red, largo: textoLargo, etiqueta, ...fuenteTexto });
+  }, [red, textoLargo, etiqueta, fuenteTexto]);
 
   useEffect(() => {
     async function cargar() {
@@ -158,12 +201,7 @@ function Promocionar() {
     try {
       const blob = await generarPlaca(producto, { etiqueta });
       setPlaca(blob);
-      setTextoPromo(
-        textoLargo
-          ? textoWhatsAppLargo(producto, { etiqueta })
-          : textoWhatsApp(producto, { etiqueta })
-      );
-      setTextoFb(textoFacebook(producto, { etiqueta }));
+      setFuenteTexto({ producto });
     } catch (e) {
       alert("No se pudo armar la promoción: " + e.message);
     } finally {
@@ -178,7 +216,7 @@ function Promocionar() {
 
     registrarPromo(cual, modo === "varios" ? varios : [elegido], modo === "varios" ? "multiple" : "individual");
 
-    const texto = cual === "facebook" ? textoFb : textoPromo;
+    const texto = textoActual;
     const archivo = new File([placa], `bolsonclick-${Date.now()}.jpg`, {
       type: "image/jpeg"
     });
@@ -197,16 +235,19 @@ function Promocionar() {
 
   // Para Facebook conviene copiar el texto primero: la app no siempre
   // acepta imagen y texto juntos desde el menú de compartir.
-  async function prepararFacebook() {
-    registrarPromo("facebook", modo === "varios" ? varios : [elegido], modo === "varios" ? "multiple" : "individual");
+  // Facebook e Instagram no siempre aceptan imagen y texto juntos desde el
+  // menú de compartir: copiamos el texto y descargamos la foto.
+  async function prepararRed() {
+    registrarPromo(red, modo === "varios" ? varios : [elegido], modo === "varios" ? "multiple" : "individual");
 
     try {
-      await navigator.clipboard.writeText(textoFb);
+      await navigator.clipboard.writeText(textoActual);
     } catch (e) {}
     descargar();
+    const app = red === "instagram" ? "Instagram" : "Facebook";
     alert(
-      "✓ Texto copiado y foto descargada.\n\n" +
-        "Abrí Facebook, creá una publicación, subí la foto y pegá el texto."
+      `✓ Texto copiado y foto descargada.\n\n` +
+        `Abrí ${app}, creá una publicación, subí la foto y pegá el texto.`
     );
   }
 
@@ -222,7 +263,7 @@ function Promocionar() {
 
   async function copiarTexto(texto) {
     try {
-      await navigator.clipboard.writeText(texto || textoPromo);
+      await navigator.clipboard.writeText(texto || textoActual);
       setCopiado(true);
       setTimeout(() => setCopiado(false), 2000);
     } catch (e) {
@@ -230,16 +271,27 @@ function Promocionar() {
     }
   }
 
-  const filtrados = productos.filter((p) => {
-    if (busqueda.trim() && !p.nombre?.toLowerCase().includes(busqueda.toLowerCase()))
-      return false;
+  const conStock = productos.filter((p) => Number(p.stock || 0) > 0);
+  const sinStock = productos.filter((p) => Number(p.stock || 0) <= 0);
+
+  const base =
+    disponibilidad === "pedido" ? aPedido : disponibilidad === "sinstock" ? sinStock : conStock;
+
+  const filtrados = base.filter((p) => {
+    // Los a pedido ya vienen filtrados por la búsqueda desde la base
+    if (disponibilidad !== "pedido" && busqueda.trim()) {
+      const n = (p.nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const palabras = busqueda.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/\s+/).filter(Boolean);
+      if (!palabras.every((w) => n.includes(w))) return false;
+    }
     if (soloOfertas) {
       return p.precio_oferta && Number(p.precio_oferta) < Number(p.precio);
     }
     return true;
   });
 
-  const cuantasOfertas = productos.filter(
+  // Ofertas dentro de la pestaña que se está viendo
+  const cuantasOfertas = base.filter(
     (p) => p.precio_oferta && Number(p.precio_oferta) < Number(p.precio)
   ).length;
 
@@ -272,27 +324,27 @@ function Promocionar() {
             {/* Cada red tiene su propio texto: en un estado de WhatsApp la
                 gente lee 3 segundos; en Facebook lee más y las etiquetas
                 locales hacen que te encuentren vecinos. */}
-            <div className="flex gap-2 mb-2">
-              <button
-                onClick={() => setRed("whatsapp")}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold ${
-                  red === "whatsapp"
-                    ? "bg-[#25D366] text-white"
-                    : "bg-white border border-gray-200 text-gray-600"
-                }`}
-              >
-                💬 WhatsApp
-              </button>
-              <button
-                onClick={() => setRed("facebook")}
-                className={`flex-1 py-2 rounded-xl text-xs font-bold ${
-                  red === "facebook"
-                    ? "bg-[#1877F2] text-white"
-                    : "bg-white border border-gray-200 text-gray-600"
-                }`}
-              >
-                📘 Facebook
-              </button>
+            {/* La red define el formato y el texto recomendado: en un estado
+                de WhatsApp la gente lee 3 segundos; en Facebook e Instagram
+                lee más y las etiquetas locales hacen que te encuentren vecinos. */}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {[
+                { id: "whatsapp", label: "💬 WhatsApp", color: "bg-[#25D366]" },
+                { id: "facebook", label: "📘 Facebook", color: "bg-[#1877F2]" },
+                { id: "instagram", label: "📸 Instagram", color: "bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF]" }
+              ].map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => elegirRed(r.id)}
+                  className={`py-2 rounded-xl text-[11px] font-bold ${
+                    red === r.id
+                      ? `${r.color} text-white`
+                      : "bg-white border border-gray-200 text-gray-600"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
             </div>
 
             {red === "whatsapp" ? (
@@ -304,10 +356,14 @@ function Promocionar() {
               </button>
             ) : (
               <button
-                onClick={prepararFacebook}
-                className="w-full bg-[#1877F2] text-white text-sm font-bold py-3 rounded-xl mb-2"
+                onClick={prepararRed}
+                className={`w-full text-white text-sm font-bold py-3 rounded-xl mb-2 ${
+                  red === "instagram"
+                    ? "bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF]"
+                    : "bg-[#1877F2]"
+                }`}
               >
-                📘 Preparar para Facebook
+                {red === "instagram" ? "📸 Preparar para Instagram" : "📘 Preparar para Facebook"}
               </button>
             )}
 
@@ -319,7 +375,7 @@ function Promocionar() {
                 ⬇️ Descargar imagen
               </button>
               <button
-                onClick={() => copiarTexto(red === "facebook" ? textoFb : textoPromo)}
+                onClick={() => copiarTexto(textoActual)}
                 className="flex-1 bg-white border border-gray-200 text-gray-700 text-xs font-bold py-2.5 rounded-xl"
               >
                 {copiado ? "✓ Copiado" : "📋 Copiar texto"}
@@ -327,45 +383,37 @@ function Promocionar() {
             </div>
 
             <div className="bg-gray-50 rounded-xl p-3 mt-3">
-              {red === "whatsapp" && elegido?.id !== "multiple" && (
-                <div className="flex gap-2 mb-2">
+              {/* Corto o largo, para cualquier red y también con varios productos */}
+              <div className="flex gap-2 mb-2">
+                {[
+                  { largo: false, label: "Texto corto", ayuda: "estados" },
+                  { largo: true, label: "Texto largo", ayuda: "publicaciones" }
+                ].map((o) => (
                   <button
-                    onClick={() => {
-                      setTextoLargo(false);
-                      setTextoPromo(textoWhatsApp(elegido, { etiqueta }));
-                    }}
+                    key={o.label}
+                    onClick={() => setTextoLargo(o.largo)}
                     className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold ${
-                      !textoLargo
+                      textoLargo === o.largo
                         ? "bg-gray-800 text-white"
                         : "bg-white border border-gray-200 text-gray-600"
                     }`}
                   >
-                    Corto (para estado)
+                    {o.label}
+                    <span className="block font-normal opacity-80">para {o.ayuda}</span>
                   </button>
-                  <button
-                    onClick={() => {
-                      setTextoLargo(true);
-                      setTextoPromo(textoWhatsAppLargo(elegido, { etiqueta }));
-                    }}
-                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold ${
-                      textoLargo
-                        ? "bg-gray-800 text-white"
-                        : "bg-white border border-gray-200 text-gray-600"
-                    }`}
-                  >
-                    Largo (para chat)
-                  </button>
-                </div>
-              )}
+                ))}
+              </div>
 
               <p className="text-[11px] text-gray-600 whitespace-pre-line leading-relaxed">
-                {red === "facebook" ? textoFb : textoPromo}
+                {textoActual}
               </p>
             </div>
 
             <p className="text-[10px] text-gray-400 mt-3">
               {red === "whatsapp"
                 ? 'Tocá "Compartir" → Estado. La imagen lleva tu teléfono y la página, así que sirve igual si alguien la reenvía.'
+                : red === "instagram"
+                ? "Se copia el texto y se descarga la foto. En Instagram los enlaces del texto no se pueden tocar: por eso el texto manda a escribir por WhatsApp y al link de tu bio."
                 : "Se copia el texto y se descarga la foto. Abrí Facebook, creá la publicación, subí la foto y pegá el texto."}
             </p>
 
@@ -465,14 +513,51 @@ function Promocionar() {
               </div>
             )}
 
+            {/* Qué productos promocionar */}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {[
+                { id: "stock", label: "🟢 Con stock", n: conStock.length },
+                { id: "sinstock", label: "⚪ Sin stock", n: sinStock.length },
+                { id: "pedido", label: "📦 A pedido", n: null }
+              ].map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setDisponibilidad(d.id)}
+                  className={`py-2 rounded-xl text-[11px] font-bold ${
+                    disponibilidad === d.id
+                      ? "bg-brand-blue text-white"
+                      : "bg-white border border-gray-200 text-gray-600"
+                  }`}
+                >
+                  {d.label}
+                  {d.n !== null && <span className="block font-normal opacity-80">{d.n}</span>}
+                </button>
+              ))}
+            </div>
+
+            {disponibilidad === "sinstock" && (
+              <p className="text-[10px] text-amber-800 bg-amber-50 rounded-lg p-2 mb-2">
+                Ojo: si alguien lo pide, tenés que encargarlo. Sirve para anunciar lo que vuelve a entrar.
+              </p>
+            )}
+            {disponibilidad === "pedido" && (
+              <p className="text-[10px] text-gray-600 bg-blue-50 rounded-lg p-2 mb-2">
+                El texto va a decir que es a pedido, así nadie espera tenerlo en el momento.
+              </p>
+            )}
+
             <input
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
               className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 mb-3"
-              placeholder="Buscar producto..."
+              placeholder={
+                disponibilidad === "pedido"
+                  ? "Buscá entre los productos a pedido..."
+                  : "Buscar producto..."
+              }
             />
 
-            {cuantasOfertas > 0 && (
+            {(cuantasOfertas > 0 || soloOfertas || disponibilidad === "pedido") && (
               <div className="flex gap-2 mb-3">
                 <button
                   onClick={() => setSoloOfertas(false)}
@@ -482,7 +567,7 @@ function Promocionar() {
                       : "bg-white border border-gray-200 text-gray-600"
                   }`}
                 >
-                  Todos ({productos.length})
+                  Todos
                 </button>
                 <button
                   onClick={() => setSoloOfertas(true)}
@@ -492,13 +577,23 @@ function Promocionar() {
                       : "bg-white border border-gray-200 text-gray-600"
                   }`}
                 >
-                  🏷️ En oferta ({cuantasOfertas})
+                  🏷️ En oferta{disponibilidad !== "pedido" ? ` (${cuantasOfertas})` : ""}
                 </button>
               </div>
             )}
 
-            {loading ? (
+            {loading || (disponibilidad === "pedido" && buscandoPedido) ? (
               <p className="text-center text-gray-400 py-8 text-sm">Cargando...</p>
+            ) : filtrados.length === 0 ? (
+              <p className="text-center text-gray-500 py-8 text-sm">
+                {busqueda.trim()
+                  ? `No hay productos que coincidan con "${busqueda}".`
+                  : disponibilidad === "stock"
+                  ? "No tenés productos con stock."
+                  : disponibilidad === "sinstock"
+                  ? "No tenés productos sin stock."
+                  : "No hay productos a pedido para mostrar."}
+              </p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {filtrados.map((p) => {
@@ -547,7 +642,11 @@ function Promocionar() {
                         </p>
                       )}
                       <p className="text-[10px] text-gray-400">
-                        {Number(p.stock || 0) > 0 ? `Stock: ${p.stock}` : "Sin stock"}
+                        {p.bajo_pedido
+                          ? "📦 A pedido"
+                          : Number(p.stock || 0) > 0
+                          ? `Stock: ${p.stock}`
+                          : "Sin stock"}
                       </p>
 
                       {/* Aviso de repetido: publicar lo mismo dos veces en
