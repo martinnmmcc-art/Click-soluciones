@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 import { createClient } from "@supabase/supabase-js";
 import { costoReal } from "@/lib/reglaPrecios";
+import { rangoMesArgentina, diaSemanaArgentina, fechaArgentina, ZONA_ARGENTINA } from "@/lib/fechaArgentina";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -12,11 +13,9 @@ const supabase = createClient(
 
 const DIAS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
+// Meses en horario de Argentina (ver lib/fechaArgentina.js)
 function rangoMes(desplazamiento = 0) {
-  const hoy = new Date();
-  const inicio = new Date(hoy.getFullYear(), hoy.getMonth() + desplazamiento, 1);
-  const fin = new Date(hoy.getFullYear(), hoy.getMonth() + desplazamiento + 1, 1);
-  return { inicio, fin };
+  return rangoMesArgentina(desplazamiento);
 }
 
 export async function GET(request) {
@@ -25,7 +24,7 @@ export async function GET(request) {
     // 0 = mes actual, -1 = mes pasado
     const mes = Number(searchParams.get("mes") || 0);
 
-    const { inicio, fin } = rangoMes(mes);
+    const { inicio, fin, fechaFin } = rangoMes(mes);
     const anterior = rangoMes(mes - 1);
 
     const [pedidosRes, productosRes, comprasRes, gastosRes, clientesRes] =
@@ -45,13 +44,13 @@ export async function GET(request) {
         supabase
           .from("compras_proveedor")
           .select("fecha, subtotal, flete")
-          .gte("fecha", anterior.inicio.toISOString().slice(0, 10))
-          .lt("fecha", fin.toISOString().slice(0, 10)),
+          .gte("fecha", anterior.fechaInicio)
+          .lt("fecha", fechaFin),
         supabase
           .from("gastos_generales")
           .select("fecha, concepto, monto")
-          .gte("fecha", anterior.inicio.toISOString().slice(0, 10))
-          .lt("fecha", fin.toISOString().slice(0, 10)),
+          .gte("fecha", anterior.fechaInicio)
+          .lt("fecha", fechaFin),
         supabase.from("clientes").select("telefono, nombre, created_at")
       ]);
 
@@ -132,11 +131,12 @@ export async function GET(request) {
     const porDia = {};
     const porFecha = {};
     delMes.forEach((p) => {
-      const f = new Date(p.created_at);
-      const dia = DIAS[f.getDay()];
+      // Día de la semana y fecha según Argentina: una venta de un lunes a
+      // las 22 hs es del lunes, no del martes.
+      const dia = DIAS[diaSemanaArgentina(p.created_at)];
       porDia[dia] = (porDia[dia] || 0) + Number(p.total || 0);
 
-      const clave = f.toISOString().slice(0, 10);
+      const clave = fechaArgentina(p.created_at);
       if (!porFecha[clave]) porFecha[clave] = { fecha: clave, total: 0, pedidos: 0 };
       porFecha[clave].total += Number(p.total || 0);
       porFecha[clave].pedidos += 1;
@@ -260,7 +260,8 @@ export async function GET(request) {
           hasta: fin.toISOString(),
           etiqueta: inicio.toLocaleDateString("es-AR", {
             month: "long",
-            year: "numeric"
+            year: "numeric",
+            timeZone: ZONA_ARGENTINA
           })
         },
         ventas,

@@ -13,6 +13,7 @@ import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
 import BotonFavorito from "@/components/BotonFavorito";
 import FotoRotativa from "@/components/FotoRotativa";
 import { fotosDe, urlImagen } from "@/lib/imagenProducto";
+import RedesSociales from "@/components/RedesSociales";
 
 export default function HomePage() {
   const { addItem } = useCart();
@@ -444,6 +445,10 @@ export default function HomePage() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="px-4 mt-6 mb-4">
+        <RedesSociales />
       </div>
 
       <BottomNav />

@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import { NEGOCIO as CFG } from "@/lib/config";
 import {
   generarPlaca,
   textoPara,
@@ -132,6 +133,7 @@ function Promocionar() {
 
   function elegirRed(nueva) {
     setRed(nueva);
+    setAvisoRed("");
     setTextoLargo(LARGO_POR_DEFECTO[nueva] ?? false);
   }
 
@@ -235,20 +237,55 @@ function Promocionar() {
 
   // Para Facebook conviene copiar el texto primero: la app no siempre
   // acepta imagen y texto juntos desde el menú de compartir.
-  // Facebook e Instagram no siempre aceptan imagen y texto juntos desde el
-  // menú de compartir: copiamos el texto y descargamos la foto.
-  async function prepararRed() {
+  const [avisoRed, setAvisoRed] = useState("");
+
+  // Abre la página de la red elegida, con el texto copiado y la foto
+  // descargada, listos para publicar.
+  //
+  // Todo pasa en el mismo toque, sin esperar nada: el celular solo deja
+  // abrir otra app si se hace en ese instante. Si antes esperábamos a que
+  // se copie el texto, la ventana nueva quedaba bloqueada y no se abría.
+  function prepararRed() {
     registrarPromo(red, modo === "varios" ? varios : [elegido], modo === "varios" ? "multiple" : "individual");
 
     try {
-      await navigator.clipboard.writeText(textoActual);
+      navigator.clipboard?.writeText(textoActual).catch(() => {});
     } catch (e) {}
     descargar();
+
+    const url = red === "instagram" ? CFG.instagram : CFG.facebook;
     const app = red === "instagram" ? "Instagram" : "Facebook";
-    alert(
-      `✓ Texto copiado y foto descargada.\n\n` +
-        `Abrí ${app}, creá una publicación, subí la foto y pegá el texto.`
+    window.open(url, "_blank", "noopener");
+
+    setAvisoRed(
+      `✓ Se abrió tu ${app}. El texto ya está copiado y la foto descargada: ` +
+        `creá una publicación, elegí la foto y pegá el texto.`
     );
+  }
+
+  // Otra forma, la más directa en el celular: abre el menú de compartir con
+  // la foto, y elegís Instagram o Facebook ahí mismo. El texto queda copiado
+  // para pegarlo en la descripción (Instagram no toma el texto compartido).
+  async function compartirEnApp() {
+    if (!placa) return;
+    registrarPromo(red, modo === "varios" ? varios : [elegido], modo === "varios" ? "multiple" : "individual");
+
+    try {
+      navigator.clipboard?.writeText(textoActual).catch(() => {});
+    } catch (e) {}
+
+    const archivo = new File([placa], `bolsonclick-${Date.now()}.jpg`, { type: "image/jpeg" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+        await navigator.share({ files: [archivo], text: textoActual });
+        setAvisoRed("✓ El texto está copiado: pegalo en la descripción de la publicación.");
+        return;
+      }
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+    // Si este celular no tiene el menú de compartir, vamos por el otro camino
+    prepararRed();
   }
 
   function descargar() {
@@ -355,16 +392,30 @@ function Promocionar() {
                 📲 Compartir en Estado de WhatsApp
               </button>
             ) : (
-              <button
-                onClick={prepararRed}
-                className={`w-full text-white text-sm font-bold py-3 rounded-xl mb-2 ${
-                  red === "instagram"
-                    ? "bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF]"
-                    : "bg-[#1877F2]"
-                }`}
-              >
-                {red === "instagram" ? "📸 Preparar para Instagram" : "📘 Preparar para Facebook"}
-              </button>
+              <>
+                <button
+                  onClick={compartirEnApp}
+                  className={`w-full text-white text-sm font-bold py-3 rounded-xl mb-2 ${
+                    red === "instagram"
+                      ? "bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF]"
+                      : "bg-[#1877F2]"
+                  }`}
+                >
+                  {red === "instagram" ? "📸 Publicar en Instagram" : "📘 Publicar en Facebook"}
+                </button>
+                <button
+                  onClick={prepararRed}
+                  className="w-full bg-white border border-gray-200 text-gray-700 text-xs font-bold py-2.5 rounded-xl mb-2"
+                >
+                  {red === "instagram" ? "Abrir mi Instagram" : "Abrir mi Facebook"} (con texto copiado y foto descargada)
+                </button>
+              </>
+            )}
+
+            {avisoRed && red !== "whatsapp" && (
+              <p className="text-[11px] font-semibold text-green-800 bg-green-50 border border-green-200 rounded-xl p-2.5 mb-2">
+                {avisoRed}
+              </p>
             )}
 
             <div className="flex gap-2">
@@ -413,8 +464,8 @@ function Promocionar() {
               {red === "whatsapp"
                 ? 'Tocá "Compartir" → Estado. La imagen lleva tu teléfono y la página, así que sirve igual si alguien la reenvía.'
                 : red === "instagram"
-                ? "Se copia el texto y se descarga la foto. En Instagram los enlaces del texto no se pueden tocar: por eso el texto manda a escribir por WhatsApp y al link de tu bio."
-                : "Se copia el texto y se descarga la foto. Abrí Facebook, creá la publicación, subí la foto y pegá el texto."}
+                ? '"Publicar" abre el menú del celular: elegí Instagram y pegá el texto en la descripción (ya está copiado). En Instagram los enlaces del texto no se pueden tocar: por eso manda a escribir por WhatsApp y al link de tu bio.'
+                : '"Publicar" abre el menú del celular: elegí Facebook y pegá el texto (ya está copiado).'}
             </p>
 
             <button

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import ControlNotificaciones from "@/components/ControlNotificaciones";
 import SelectorTema from "@/components/SelectorTema";
+import RedesSociales from "@/components/RedesSociales";
 import PedirNotificaciones from "@/components/PedirNotificaciones";
 import DescargarOffline from "@/components/DescargarOffline";
 import { useAuth } from "@/context/AuthContext";
@@ -792,6 +793,10 @@ export default function LoginPage() {
 
           <div className="card p-4 mb-4">
             <SelectorTema variante="completo" />
+          </div>
+
+          <div className="mb-4">
+            <RedesSociales />
           </div>
 
           <div className="mb-4">

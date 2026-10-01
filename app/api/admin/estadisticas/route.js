@@ -3,6 +3,7 @@ export const fetchCache = "force-no-store";
 export const revalidate = 0;
 import { createClient } from "@supabase/supabase-js";
 import { costoReal } from "@/lib/reglaPrecios";
+import { rangoMesArgentina } from "@/lib/fechaArgentina";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -16,11 +17,10 @@ const supabaseAdmin = createClient(
 
 export async function GET() {
   try {
-    const inicioMes = new Date();
-    inicioMes.setDate(1);
-    inicioMes.setHours(0, 0, 0, 0);
+    // "Este mes" en horario de Argentina. Con el reloj del servidor (3 hs
+    // adelante), a las 21 hs del último día del mes el panel mostraba $0.
+    const { inicio: inicioMes, fechaInicio: inicioMesFecha } = rangoMesArgentina(0);
     const inicioMesISO = inicioMes.toISOString();
-    const inicioMesFecha = inicioMesISO.slice(0, 10); // "YYYY-MM-DD", para columnas tipo date
 
     const [
       pedidosRes,
