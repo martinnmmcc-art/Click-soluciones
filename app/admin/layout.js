@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { AdminProvider, useAdmin } from "@/context/AdminContext";
 import DatosSiempreAlDia from "@/components/DatosSiempreAlDia";
 import BotonSinSenal from "@/components/BotonSinSenal";
+import AutoSinSenal from "@/components/AutoSinSenal";
 
 // Barra fija arriba de todas las pantallas del panel:
 //  - El aviso de conexión/actualización ("🟢 Al día · recién"), siempre visible.
@@ -20,6 +21,8 @@ function BarraAdmin() {
   return (
     <div className="sticky top-0 z-40 bg-white border-b border-gray-200">
       {isAdmin && <DatosSiempreAlDia />}
+      {/* Se prepara solo para trabajar sin señal (no muestra nada) */}
+      {isAdmin && <AutoSinSenal />}
       {/* Volver al panel + preparar sin señal: a mano en todas las pantallas */}
       {(isAdmin || !esPanel) && (
         <div className="px-3 py-2 flex flex-wrap items-center justify-between gap-2">

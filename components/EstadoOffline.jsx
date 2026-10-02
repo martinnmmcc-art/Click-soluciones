@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { catalogoLocal, fechaCatalogo, ventasPendientes } from "@/lib/cajaOffline";
-import { prepararSinSenal } from "@/lib/prepararSinSenal";
 
 // Muestra si la app está lista para trabajar sin señal, y deja forzar la
 // descarga. En la Comarca la señal se corta seguido: conviene poder
@@ -44,24 +43,23 @@ export default function EstadoOffline() {
     revisar();
   }, []);
 
-  // Lo mismo que el botón de la barra de arriba: un solo procedimiento
-  // que guarda todo (ver lib/prepararSinSenal.js)
-  async function descargarTodo() {
-    setDescargando(true);
+  // La app se prepara sola (AutoSinSenal). Este botón le pide al mismo
+  // trabajador que lo haga ya, así nunca corren dos preparaciones juntas.
+  function descargarTodo() {
     setMensaje("");
-    try {
-      const r = await prepararSinSenal((p) => setMensaje(p));
-      await revisar();
-      setMensaje(
-        `✓ Listo: ${r.productos} productos, ${r.clientes} clientes, ${r.pedidos} pedidos y ${r.pantallas} pantallas` +
-          (r.errores.length ? `. No se pudo: ${r.errores.join(", ")}` : "")
-      );
-    } catch (e) {
-      setMensaje("No se pudo descargar: " + e.message);
-    } finally {
-      setDescargando(false);
-    }
+    window.dispatchEvent(new CustomEvent("sin-senal-forzar"));
   }
+
+  // Mostramos lo que va haciendo el trabajador automático
+  useEffect(() => {
+    const alCambiarEstado = (e) => {
+      setDescargando(!!e.detail?.trabajando);
+      if (e.detail?.trabajando) setMensaje(e.detail.paso || "Guardando...");
+      else setMensaje("");
+    };
+    window.addEventListener("sin-senal-estado", alCambiarEstado);
+    return () => window.removeEventListener("sin-senal-estado", alCambiarEstado);
+  }, []);
 
   // Al preparar desde la barra de arriba, este bloque se actualiza
   useEffect(() => {
@@ -108,11 +106,11 @@ export default function EstadoOffline() {
         disabled={descargando}
         className="w-full bg-brand-blue text-white text-xs font-bold py-2.5 rounded-xl mt-3 disabled:opacity-50"
       >
-        {descargando ? "Descargando..." : "Descargar todo para usar sin señal"}
+        {descargando ? "Guardando..." : "Actualizar ahora (se hace solo)"}
       </button>
 
       <p className="text-[10px] text-gray-500 mt-2">
-        Hacelo con wifi antes de salir a una zona sin datos.
+        Se actualiza sola cada 15 minutos y apenas vuelve la señal. No hace falta tocar nada.
       </p>
     </div>
   );

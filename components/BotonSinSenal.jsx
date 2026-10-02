@@ -1,99 +1,79 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { prepararSinSenal, estadoSinSenal, haceCuanto } from "@/lib/prepararSinSenal";
+import { estadoSinSenal, haceCuanto } from "@/lib/prepararSinSenal";
 
-// Botón en la barra fija de arriba del panel: visible en TODAS las
-// pantallas del panel, para preparar la app antes de salir a una zona sin
-// señal con un solo toque.
+// Indicador en la barra fija del panel. La app se prepara SOLA para
+// trabajar sin señal (ver AutoSinSenal): esto solo muestra cómo está.
+// Tocarlo es opcional, para forzar una actualización completa ya.
 export default function BotonSinSenal() {
   const [estado, setEstado] = useState(null);
   const [trabajando, setTrabajando] = useState(false);
   const [paso, setPaso] = useState("");
-  const [resultado, setResultado] = useState("");
-
-  function refrescar() {
-    setEstado(estadoSinSenal());
-  }
+  const [enLinea, setEnLinea] = useState(true);
 
   useEffect(() => {
+    const refrescar = () => setEstado(estadoSinSenal());
+    const alCambiarEstado = (e) => {
+      setTrabajando(!!e.detail?.trabajando);
+      setPaso(e.detail?.paso || "");
+      if (!e.detail?.trabajando) refrescar();
+    };
+    const alCambiarConexion = () => setEnLinea(navigator.onLine);
+
     refrescar();
+    alCambiarConexion();
     window.addEventListener("sin-senal-actualizado", refrescar);
-    // El "hace X min" se actualiza solo
+    window.addEventListener("sin-senal-estado", alCambiarEstado);
+    window.addEventListener("online", alCambiarConexion);
+    window.addEventListener("offline", alCambiarConexion);
     const t = setInterval(refrescar, 60000);
     return () => {
       window.removeEventListener("sin-senal-actualizado", refrescar);
+      window.removeEventListener("sin-senal-estado", alCambiarEstado);
+      window.removeEventListener("online", alCambiarConexion);
+      window.removeEventListener("offline", alCambiarConexion);
       clearInterval(t);
     };
   }, []);
 
-  async function preparar() {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setResultado("Ahora no hay señal. Preparalo cuando tengas wifi o datos.");
-      return;
-    }
-    setTrabajando(true);
-    setResultado("");
-    try {
-      const r = await prepararSinSenal(setPaso);
-      setResultado(
-        `✓ Listo para trabajar sin señal: ${r.productos} productos, ${r.clientes} clientes, ` +
-          `${r.pedidos} pedidos y ${r.pantallas} pantallas.` +
-          (r.errores.length ? ` No se pudo: ${r.errores.join(", ")}.` : "")
-      );
-      setTimeout(() => setResultado(""), 8000);
-    } catch (e) {
-      setResultado("No se pudo preparar: " + e.message);
-    } finally {
-      setTrabajando(false);
-      setPaso("");
-      refrescar();
-    }
-  }
-
   if (!estado) return null;
 
-  return (
-    <>
-      <button
-        onClick={preparar}
-        disabled={trabajando}
-        className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border-2 disabled:opacity-80 ${
-          estado.alDia
-            ? "bg-green-50 border-green-300 text-green-800"
-            : "bg-amber-50 border-amber-400 text-amber-900"
-        }`}
-      >
-        <span>📴</span>
-        <span className="text-left leading-tight">
-          {trabajando ? (
-            "Guardando..."
-          ) : (
-            <>
-              {estado.alDia ? "Listo sin señal" : "Preparar sin señal"}
-              <span className="block text-[10px] font-semibold opacity-80">
-                {estado.fecha ? haceCuanto(estado.fecha) : "tocá antes de salir"}
-              </span>
-            </>
-          )}
-        </span>
-      </button>
+  const cuando = haceCuanto(estado.fecha);
 
-      {(paso || resultado) && (
-        <div className="basis-full">
-          <p
-            className={`text-[11px] font-semibold rounded-lg px-2.5 py-1.5 mt-1.5 ${
-              resultado.startsWith("✓")
-                ? "bg-green-50 text-green-800"
-                : resultado
-                ? "bg-amber-50 text-amber-900"
-                : "bg-blue-50 text-brand-blue"
-            }`}
-          >
-            {resultado || paso}
-          </p>
-        </div>
-      )}
-    </>
+  // Sin señal: se está trabajando con lo guardado
+  if (!enLinea) {
+    return (
+      <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border-2 bg-blue-50 border-blue-300 text-brand-blue">
+        📴
+        <span className="leading-tight">
+          Sin señal
+          <span className="block text-[10px] font-semibold opacity-80">datos de {cuando}</span>
+        </span>
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => window.dispatchEvent(new CustomEvent("sin-senal-forzar"))}
+      disabled={trabajando}
+      title="Se actualiza solo. Tocá para forzarlo ahora."
+      className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl border-2 ${
+        trabajando
+          ? "bg-blue-50 border-blue-300 text-brand-blue"
+          : estado.alDia
+          ? "bg-green-50 border-green-300 text-green-800"
+          : "bg-amber-50 border-amber-400 text-amber-900"
+      }`}
+    >
+      <span className={trabajando ? "animate-spin" : ""}>{trabajando ? "🔄" : "📴"}</span>
+      <span className="text-left leading-tight">
+        {trabajando ? "Guardando para sin señal" : estado.alDia ? "Listo sin señal" : "Preparando sin señal"}
+        <span className="block text-[10px] font-semibold opacity-80">
+          {trabajando ? paso.replace("Guardando ", "").replace("...", "") || "un momento" : `actualizado ${cuando}`}
+        </span>
+      </span>
+    </button>
   );
 }

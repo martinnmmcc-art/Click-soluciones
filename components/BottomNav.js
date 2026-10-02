@@ -13,7 +13,7 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 flex justify-around py-2 md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-200 flex justify-around py-2 lg:hidden">
       {TABS.map((tab) => {
         // exacto para "/" y startsWith para el resto (soporta rutas anidadas)
         const active = tab.href === "/" ? pathname === "/" : pathname?.startsWith(tab.href);

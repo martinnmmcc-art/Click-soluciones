@@ -65,7 +65,7 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
           </div>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1" aria-label="Menú principal">
+        <nav className="hidden lg:flex items-center gap-1" aria-label="Menú principal">
           {MENU_PC.map((item) => {
             const activo = item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
             return (

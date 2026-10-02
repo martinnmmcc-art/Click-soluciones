@@ -22,7 +22,8 @@ const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
 const LIMITES = {
   [CACHE_IMAGENES]: 500,
   [CACHE_APP]: 900,
-  [CACHE_DATOS]: 300
+  // Muchas pantallas leen varias tablas: más lugar, son textos livianos
+  [CACHE_DATOS]: 800
 };
 const recortando = {};
 
@@ -139,6 +140,20 @@ function esDatosProductos(url) {
   );
 }
 
+// TODO lo que la app lee (no solo productos): clientes, pedidos, cupones,
+// gastos, compras, opiniones... y las rutas /api de solo lectura. Antes se
+// guardaban solo productos y categorías, y sin señal muchas pantallas del
+// panel se abrían vacías aunque se hubieran preparado.
+// Solo lecturas (GET): nunca se guardan logins, pagos ni escrituras.
+function esLecturaDatos(url) {
+  if (url.hostname.endsWith("supabase.co")) return url.pathname.includes("/rest/v1/");
+  return (
+    url.origin === self.location.origin &&
+    url.pathname.startsWith("/api/") &&
+    !url.pathname.startsWith("/api/img")
+  );
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -152,8 +167,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // No tocamos las llamadas de escritura ni de autenticación de Supabase
-  if (url.hostname.endsWith("supabase.co") && !esDatosProductos(url)) return;
+  // No tocamos la autenticación ni los archivos de Supabase: solo sus lecturas
+  if (url.hostname.endsWith("supabase.co") && !esLecturaDatos(url)) return;
 
   // --- Archivos de la app: cache primero, se actualizan solos ---
   if (esArchivoDeApp(url)) {
@@ -222,7 +237,8 @@ self.addEventListener("fetch", (event) => {
   }
 
   // --- Datos de productos: red primero, cache como respaldo ---
-  if (esDatosProductos(url)) {
+  // --- Datos: red primero (siempre lo último), copia si no hay señal ---
+  if (esLecturaDatos(url)) {
     event.respondWith(
       fetch(request)
         .then((res) => {
@@ -295,6 +311,11 @@ async function avisarDatosDesdeCopia() {
 
 // Permite forzar la actualización desde la app
 self.addEventListener("message", (event) => {
+  // Al cerrar sesión: se borran los datos guardados del panel en este celular
+  if (event.data?.tipo === "limpiar-datos") {
+    event.waitUntil(caches.delete(CACHE_DATOS));
+    return;
+  }
   if (event.data === "actualizar") self.skipWaiting();
 });
 
