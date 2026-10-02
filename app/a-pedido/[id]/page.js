@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import DesgloseAdmin from "@/components/DesgloseAdmin";
+import ResponderPrecio from "@/components/ResponderPrecio";
 import VideoProducto from "@/components/VideoProducto";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice, buildWhatsAppLink, whatsappAPedidoMessage } from "@/lib/whatsapp";
@@ -127,6 +128,7 @@ export default function APedidoDetallePage() {
         </div>
 
         <DesgloseAdmin producto={producto} />
+        <ResponderPrecio producto={producto} />
 
         <a
           href={linkWhatsapp}

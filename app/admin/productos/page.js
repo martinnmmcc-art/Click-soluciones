@@ -11,6 +11,7 @@ import { nombreCategoria } from "@/lib/categorias";
 import { useActualizarSolo } from "@/lib/datosFrescos";
 import { leerProductosPropiosOffline } from "@/lib/catalogoOffline";
 import { normalizarTexto } from "@/lib/buscar";
+import { textoRespuesta } from "@/lib/respuestaPrecio";
 
 // Filtros rápidos de la lista. Los de stock solo aplican a "Tengo".
 const FILTROS = [
@@ -156,6 +157,20 @@ function ListaProductos() {
       if (y === null) return -1;
       return (x < y ? -1 : 1) * (o.asc ? 1 : -1);
     });
+  }
+
+  // "¿Qué precio tiene?": copia la respuesta con el link del producto, lista
+  // para pegar en el comentario de Facebook (ver lib/respuestaPrecio.js)
+  const [respuestaCopiada, setRespuestaCopiada] = useState(null);
+  function copiarRespuesta(p) {
+    const texto = textoRespuesta(p, "fb");
+    navigator.clipboard
+      ?.writeText(texto)
+      .then(() => {
+        setRespuestaCopiada(p.id);
+        setTimeout(() => setRespuestaCopiada(null), 2500);
+      })
+      .catch(() => window.prompt("Copiá este texto:", texto));
   }
 
   // ¿Usar la copia? Sin señal, o si la consulta a la base falló
@@ -563,6 +578,13 @@ function ListaProductos() {
                     </p>
                   </div>
                   <div className="flex flex-col gap-1 items-end">
+                    <button
+                      onClick={() => copiarRespuesta(p)}
+                      className="text-xs font-bold text-[#1877F2]"
+                      title="Copiar respuesta de precio para Facebook"
+                    >
+                      {respuestaCopiada === p.id ? "✓ Copiada" : "💬 Precio"}
+                    </button>
                     <Link
                       href={`/admin/productos/${p.id}`}
                       onClick={alSalir}

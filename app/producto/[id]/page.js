@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import Header from "@/components/Header";
 import DesgloseAdmin from "@/components/DesgloseAdmin";
+import ResponderPrecio from "@/components/ResponderPrecio";
 import VideoProducto from "@/components/VideoProducto";
 import OpinionesTienda from "@/components/OpinionesTienda";
 import BotonFavorito from "@/components/BotonFavorito";
@@ -235,6 +236,7 @@ export default function ProductoDetallePage() {
         </div>
 
         <DesgloseAdmin producto={producto} />
+        <ResponderPrecio producto={producto} />
 
         {sinStock && (
           <span className="inline-block mt-2 bg-gray-700 text-white text-xs font-bold px-3 py-1 rounded-full">
