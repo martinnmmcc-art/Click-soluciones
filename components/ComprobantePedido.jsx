@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { formatPrice } from "@/lib/whatsapp";
 import { normalizarTelefono } from "@/lib/telefono";
+import { NEGOCIO as CFG } from "@/lib/config";
 
 function drawRoundedRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -390,6 +391,24 @@ export default function ComprobantePedido({ pedido, onClose }) {
       ctx.fillText("🌐 www.bolsonclick.com.ar · Productos importados", width / 2, y);
       y += 22;
 
+      // Redes sociales: cada cliente que recibe un comprobante es alguien
+      // que puede seguirte y enterarse de las próximas ofertas.
+      const anchoRedes = 420;
+      drawRoundedRect(ctx, width / 2 - anchoRedes / 2, y - 4, anchoRedes, 58, 14);
+      ctx.fillStyle = "#FDF2F8";
+      ctx.fill();
+      ctx.fillStyle = "#9D174D";
+      ctx.font = "700 12px Arial";
+      ctx.fillText("SEGUINOS PARA VER OFERTAS Y NOVEDADES", width / 2, y + 14);
+      ctx.fillStyle = "#1E293B";
+      ctx.font = "800 16px Arial";
+      ctx.fillText(
+        `📸 @${CFG.instagramUsuario || "bolsonclick"}    ·    📘 Bolson Click`,
+        width / 2,
+        y + 40
+      );
+      y += 58 + 18;
+
       ctx.fillStyle = "#94A3B8";
       ctx.font = "400 13px Arial";
       ctx.fillText(
@@ -465,11 +484,20 @@ export default function ComprobantePedido({ pedido, onClose }) {
   function compartir() {
     setAviso("");
     if (archivo && navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      // El mensaje va copiado aparte: si se manda la imagen JUNTO con texto,
+      // muchas versiones de WhatsApp en Android se quedan solo con el texto
+      // y descartan la imagen.
+      try {
+        navigator.clipboard?.writeText(mensajeCliente).catch(() => {});
+      } catch (e) {}
+
       navigator
-        .share({ files: [archivo], text: mensajeCliente, title: tituloDocumento })
+        .share({ files: [archivo] })
+        .then(() =>
+          setAviso("✓ Imagen enviada. El mensaje quedó copiado: si querés, pegalo en el chat.")
+        )
         .catch((e) => {
           if (e?.name === "AbortError") return; // lo cerraste vos
-          // Bloqueado o no disponible: no lo dejamos en silencio
           abrirChatCliente(true);
           setAviso(
             "Tu celular no dejó abrir el menú de compartir. Se descargó la imagen y se abrió el chat del cliente: adjuntala desde la galería."
@@ -481,6 +509,7 @@ export default function ComprobantePedido({ pedido, onClose }) {
     abrirChatCliente(true);
     setAviso("Se descargó la imagen y se abrió el chat del cliente: adjuntala con el clip 📎.");
   }
+
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -515,7 +544,7 @@ export default function ComprobantePedido({ pedido, onClose }) {
                   onClick={() => abrirChatCliente(false)}
                   className="flex-1 bg-white border border-gray-200 text-gray-700 font-bold text-xs py-2.5 rounded-xl"
                 >
-                  💬 Abrir su chat
+                  💬 Solo mensaje
                 </button>
               )}
               <button
@@ -527,11 +556,17 @@ export default function ComprobantePedido({ pedido, onClose }) {
             </div>
 
             {aviso && (
-              <p className="text-[11px] text-amber-800 bg-amber-50 rounded-lg p-2">{aviso}</p>
+              <p
+                className={`text-[11px] rounded-lg p-2 ${
+                  aviso.startsWith("✓") ? "text-green-800 bg-green-50" : "text-amber-800 bg-amber-50"
+                }`}
+              >
+                {aviso}
+              </p>
             )}
 
             <p className="text-[10px] text-gray-400 text-center">
-              "Enviar" abre el menú del celular: elegí WhatsApp y el chat del cliente. La imagen va con el mensaje.
+              "Enviar" abre el menú del celular: elegí WhatsApp y el chat del cliente. Se manda la imagen, y el mensaje queda copiado para pegarlo.
             </p>
           </div>
         )}
