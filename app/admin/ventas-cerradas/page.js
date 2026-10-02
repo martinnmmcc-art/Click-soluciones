@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import { formatPrice } from "@/lib/whatsapp";
 import { ventaCerrada } from "@/lib/estadosPedido";
 import { coincideCliente, normalizarTexto } from "@/lib/buscar";
+import { archivoComprobante, datosComprobante } from "@/lib/comprobanteImagen";
 
 function telefonoParaWhatsapp(tel) {
   let limpio = (tel || "").replace(/\D/g, "");
@@ -20,6 +21,74 @@ function VentasCerradas() {
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [clienteAbierto, setClienteAbierto] = useState(null);
+  // Imagen del comprobante de cada venta, preparada apenas se abre la
+  // tarjeta del cliente. Tiene que estar lista ANTES del toque: si se arma
+  // recién al tocar, el celular bloquea el menú de compartir.
+  const [comprobantes, setComprobantes] = useState({});
+  const [aviso, setAviso] = useState("");
+
+  useEffect(() => {
+    if (!clienteAbierto) return;
+    let cancelado = false;
+    setAviso("");
+    const delCliente = pedidos.filter(
+      (p) => ventaCerrada(p) && (p.telefono_cliente || `sin-tel-${p.id}`) === clienteAbierto
+    );
+    (async () => {
+      for (const p of delCliente) {
+        if (cancelado) return;
+        if (comprobantes[p.id]) continue;
+        try {
+          const archivo = await archivoComprobante(p);
+          if (!cancelado && archivo) setComprobantes((prev) => ({ ...prev, [p.id]: archivo }));
+        } catch (e) {}
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteAbierto, pedidos]);
+
+  // Manda la IMAGEN del comprobante (sin texto: si va con texto, WhatsApp
+  // en Android se queda solo con el texto). El mensaje queda copiado.
+  function enviarComprobante(pedido) {
+    setAviso("");
+    const archivo = comprobantes[pedido.id];
+    const { mensajeCliente, telefonoCliente } = datosComprobante(pedido);
+
+    try {
+      navigator.clipboard?.writeText(mensajeCliente).catch(() => {});
+    } catch (e) {}
+
+    if (archivo && navigator.canShare && navigator.canShare({ files: [archivo] })) {
+      navigator
+        .share({ files: [archivo] })
+        .then(() => setAviso("✓ Comprobante enviado. El mensaje quedó copiado: si querés, pegalo en el chat."))
+        .catch((e) => {
+          if (e?.name === "AbortError") return;
+          descargarYAbrirChat(archivo, telefonoCliente, mensajeCliente);
+        });
+      return;
+    }
+    descargarYAbrirChat(archivo, telefonoCliente, mensajeCliente);
+  }
+
+  // PC o celular sin menú de compartir: se descarga la imagen y se abre el
+  // chat del cliente para adjuntarla.
+  function descargarYAbrirChat(archivo, telefono, mensaje) {
+    if (archivo) {
+      const url = URL.createObjectURL(archivo);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = archivo.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+    const destino = telefono ? `https://wa.me/549${telefono}` : "https://wa.me/";
+    window.open(`${destino}?text=${encodeURIComponent(mensaje)}`, "_blank", "noopener");
+    setAviso("Se descargó el comprobante y se abrió el chat: adjuntá la imagen con el clip 📎.");
+  }
 
   useEffect(() => {
     async function cargar() {
@@ -46,6 +115,7 @@ function VentasCerradas() {
     const clave = p.telefono_cliente || `sin-tel-${p.id}`;
     if (!porCliente[clave]) {
       porCliente[clave] = {
+        clave,
         telefono: p.telefono_cliente || "Sin teléfono",
         nombre: p.nombre_cliente || "Sin nombre",
         pedidos: [],
@@ -60,6 +130,11 @@ function VentasCerradas() {
       porCliente[clave].ultimaCompra = fecha;
     }
   });
+
+  // La compra más reciente primero (el botón principal manda esa)
+  Object.values(porCliente).forEach((c) =>
+    c.pedidos.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+  );
 
   const clientes = Object.values(porCliente)
     // Sin acentos, por palabras, y a prueba de ventas sin nombre o teléfono
@@ -112,11 +187,11 @@ function VentasCerradas() {
         ) : (
           <div className="space-y-2">
             {clientes.map((c) => {
-              const abierto = clienteAbierto === c.telefono;
+              const abierto = clienteAbierto === c.clave;
               return (
-                <div key={c.telefono} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                <div key={c.clave} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                   <button
-                    onClick={() => setClienteAbierto(abierto ? null : c.telefono)}
+                    onClick={() => setClienteAbierto(abierto ? null : c.clave)}
                     className="w-full p-4 text-left flex justify-between items-center gap-2"
                   >
                     <div className="flex-1 min-w-0">
@@ -137,15 +212,36 @@ function VentasCerradas() {
 
                   {abierto && (
                     <div className="border-t border-gray-100 p-4 space-y-3 bg-gray-50">
-                      {c.telefono !== "Sin teléfono" && (
-                        <a
-                          href={`https://wa.me/${telefonoParaWhatsapp(c.telefono)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg"
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => enviarComprobante(c.pedidos[0])}
+                          disabled={!comprobantes[c.pedidos[0]?.id]}
+                          className="bg-[#25D366] text-white text-xs font-bold px-3 py-2 rounded-lg disabled:opacity-60"
                         >
-                          💬 Escribirle por WhatsApp
-                        </a>
+                          {comprobantes[c.pedidos[0]?.id]
+                            ? `📲 Enviar comprobante${c.pedidos.length > 1 ? " de la última compra" : ""}`
+                            : "Preparando comprobante..."}
+                        </button>
+                        {c.telefono !== "Sin teléfono" && (
+                          <a
+                            href={`https://wa.me/${telefonoParaWhatsapp(c.telefono)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] font-semibold text-gray-500 underline"
+                          >
+                            💬 Solo mensaje
+                          </a>
+                        )}
+                      </div>
+
+                      {aviso && (
+                        <p
+                          className={`text-[11px] rounded-lg p-2 ${
+                            aviso.startsWith("✓") ? "text-green-800 bg-green-50" : "text-amber-800 bg-amber-50"
+                          }`}
+                        >
+                          {aviso}
+                        </p>
                       )}
 
                       {c.pedidos.map((p) => (
@@ -185,6 +281,16 @@ function VentasCerradas() {
                                 </div>
                               ))}
                             </div>
+                          )}
+
+                          {c.pedidos.length > 1 && (
+                            <button
+                              onClick={() => enviarComprobante(p)}
+                              disabled={!comprobantes[p.id]}
+                              className="mt-2 mr-3 text-[11px] font-bold text-emerald-700 disabled:opacity-50"
+                            >
+                              {comprobantes[p.id] ? "📲 Enviar este comprobante" : "Preparando..."}
+                            </button>
                           )}
 
                           {p.comprobante_url && (

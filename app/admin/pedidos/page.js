@@ -14,7 +14,6 @@ import {
   descargarDatosAdmin
 } from "@/lib/catalogoOffline";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
-import DescargarOffline from "@/components/DescargarOffline";
 import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
 import { saldoAFavorDe } from "@/lib/saldoFavor";
 import { buscarClientes } from "@/lib/buscar";
@@ -76,25 +75,8 @@ function PanelVentas() {
   const [guardandoId, setGuardandoId] = useState(null);
   const [avisoOffline, setAvisoOffline] = useState("");
   const [cambiosEnEspera, setCambiosEnEspera] = useState(0);
-  const [descargandoTodo, setDescargandoTodo] = useState(false);
-  const [avisoDescarga, setAvisoDescarga] = useState("");
 
-  async function descargarParaSinSenal() {
-    setDescargandoTodo(true);
-    setAvisoDescarga("");
-    try {
-      const r = await descargarDatosAdmin();
-      setAvisoDescarga(
-        `✓ Guardado: ${r.productos} productos, ${r.clientes} clientes, ${r.pedidos} pedidos.` +
-          (r.errores.length > 0 ? ` (${r.errores.length} con problemas)` : "")
-      );
-      setTimeout(() => setAvisoDescarga(""), 6000);
-    } catch (e) {
-      setAvisoDescarga("No se pudo descargar: " + e.message);
-    } finally {
-      setDescargandoTodo(false);
-    }
-  }
+
 
   // Al volver la señal mandamos los cambios que quedaron guardados
   useEffect(() => {
@@ -939,31 +921,6 @@ function PanelVentas() {
           </button>
         </div>
 
-        {/* Descargar todo para poder trabajar sin señal */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-3 mb-4 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold text-gray-800">
-              📴 Preparar para trabajar sin señal
-            </p>
-            <p className="text-[11px] text-gray-500">
-              Guarda productos, clientes y pedidos abiertos en el celular
-            </p>
-          </div>
-          <button
-            onClick={descargarParaSinSenal}
-            disabled={descargandoTodo}
-            className="bg-brand-blue text-white text-xs font-bold px-3 py-2 rounded-xl whitespace-nowrap disabled:opacity-50"
-          >
-            {descargandoTodo ? "..." : "Descargar"}
-          </button>
-        </div>
-
-        {avisoDescarga && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-2.5 mb-3">
-            <p className="text-[11px] font-semibold text-gray-700">{avisoDescarga}</p>
-          </div>
-        )}
-
         {/* Aviso de cambios guardados esperando enviarse */}
         {(avisoOffline || cambiosEnEspera > 0) && (
           <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3 mb-4">
@@ -1016,12 +973,8 @@ function PanelVentas() {
           </div>
         )}
 
-        {/* USAR LA APP SIN SEÑAL */}
-        {!sinConexion && (
-          <div className="mb-4">
-            <DescargarOffline esAdmin={true} />
-          </div>
-        )}
+        {/* Preparar sin señal: ahora es un solo botón en la barra de arriba,
+            visible en todas las pantallas del panel (BotonSinSenal). */}
 
         {mostrarFormNuevo && (
           <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm mb-6">

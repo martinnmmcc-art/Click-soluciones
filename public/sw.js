@@ -8,10 +8,40 @@
 //     actualiza en segundo plano. Son inmutables, no hay riesgo de versión vieja.
 //   - Datos de productos: primero la red; sin internet, la última copia guardada.
 
-const VERSION = "v9";
+// v10: al activarse borra TODO lo de versiones anteriores, incluido un
+// almacenamiento de fotos ("img-v5") que nunca se limpiaba y llegó a ocupar
+// más de 3 GB en el celular.
+const VERSION = "v10";
 const CACHE_APP = `bolsonclick-app-${VERSION}`;
 const CACHE_DATOS = `bolsonclick-datos-${VERSION}`;
 const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
+
+// Límites: se guarda lo más reciente y lo viejo se descarta solo. Antes se
+// guardaba cada foto vista para siempre: recorriendo el catálogo a pedido
+// (más de 5.000 productos) el espacio crecía sin parar.
+const LIMITES = {
+  [CACHE_IMAGENES]: 500,
+  [CACHE_APP]: 900,
+  [CACHE_DATOS]: 300
+};
+const recortando = {};
+
+// Borra lo más viejo (el orden de guardado es el de llegada; lo que se
+// vuelve a usar se guarda de nuevo y pasa al final, así lo que más usás
+// nunca se descarta).
+async function recortar(nombre) {
+  const max = LIMITES[nombre];
+  if (!max || recortando[nombre]) return;
+  recortando[nombre] = true;
+  try {
+    const cache = await caches.open(nombre);
+    const claves = await cache.keys();
+    for (let i = 0; i < claves.length - max; i++) await cache.delete(claves[i]);
+  } catch (e) {
+  } finally {
+    recortando[nombre] = false;
+  }
+}
 
 // Lo mínimo para que la app arranque sin conexión
 const RUTAS_BASE = [
@@ -133,7 +163,7 @@ self.addEventListener("fetch", (event) => {
           .then((res) => {
             if (res && res.status === 200) {
               const copia = res.clone();
-              caches.open(CACHE_APP).then((c) => c.put(request, copia));
+              caches.open(CACHE_APP).then((c) => c.put(request, copia)).then(() => recortar(CACHE_APP));
             }
             return res;
           })
@@ -153,7 +183,7 @@ self.addEventListener("fetch", (event) => {
           .then((res) => {
             if (res && res.status === 200) {
               const copia = res.clone();
-              caches.open(CACHE_IMAGENES).then((c) => c.put(request, copia));
+              caches.open(CACHE_IMAGENES).then((c) => c.put(request, copia)).then(() => recortar(CACHE_IMAGENES));
             }
             return res;
           })
@@ -170,7 +200,7 @@ self.addEventListener("fetch", (event) => {
         .then((res) => {
           if (res && res.status === 200) {
             const copia = res.clone();
-            caches.open(CACHE_APP).then((c) => c.put(request, copia));
+            caches.open(CACHE_APP).then((c) => c.put(request, copia)).then(() => recortar(CACHE_APP));
           }
           return res;
         })
@@ -198,7 +228,7 @@ self.addEventListener("fetch", (event) => {
         .then((res) => {
           if (res && res.status === 200) {
             const copia = res.clone();
-            caches.open(CACHE_DATOS).then((c) => c.put(request, copia));
+            caches.open(CACHE_DATOS).then((c) => c.put(request, copia)).then(() => recortar(CACHE_DATOS));
           }
           return res;
         })
@@ -220,7 +250,7 @@ self.addEventListener("fetch", (event) => {
         .then((res) => {
           if (res && res.status === 200) {
             const copia = res.clone();
-            caches.open(CACHE_APP).then((c) => c.put(request, copia));
+            caches.open(CACHE_APP).then((c) => c.put(request, copia)).then(() => recortar(CACHE_APP));
           }
           return res;
         })
@@ -244,7 +274,7 @@ self.addEventListener("fetch", (event) => {
         .then((res) => {
           if (res && res.status === 200 && request.method === "GET") {
             const copia = res.clone();
-            caches.open(CACHE_APP).then((c) => c.put(request, copia));
+            caches.open(CACHE_APP).then((c) => c.put(request, copia)).then(() => recortar(CACHE_APP));
           }
           return res;
         })

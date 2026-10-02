@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { catalogoLocal, guardarCatalogo, fechaCatalogo, ventasPendientes } from "@/lib/cajaOffline";
+import { catalogoLocal, fechaCatalogo, ventasPendientes } from "@/lib/cajaOffline";
+import { prepararSinSenal } from "@/lib/prepararSinSenal";
 
 // Muestra si la app está lista para trabajar sin señal, y deja forzar la
 // descarga. En la Comarca la señal se corta seguido: conviene poder
@@ -44,49 +44,31 @@ export default function EstadoOffline() {
     revisar();
   }, []);
 
+  // Lo mismo que el botón de la barra de arriba: un solo procedimiento
+  // que guarda todo (ver lib/prepararSinSenal.js)
   async function descargarTodo() {
     setDescargando(true);
     setMensaje("");
-
     try {
-      // 1. Productos propios para la caja
-      const { data } = await supabase
-        .from("Productos")
-        .select("id, nombre, precio, precio_oferta, stock, codigo_barras, bajo_pedido")
-        .or("bajo_pedido.is.null,bajo_pedido.eq.false")
-        .eq("activo", true);
-
-      const cuantos = guardarCatalogo(data || []);
-
-      // 2. Pantallas del panel, en las dos formas que las necesita la app
-      const rutas = [
-        "/", "/admin", "/admin/caja", "/admin/pedidos", "/admin/productos",
-        "/admin/clientes", "/admin/ventas-cerradas", "/admin/resumen-clientes",
-        "/admin/balance", "/admin/ofertas", "/admin/cupones", "/admin/resenas",
-        "/admin/oportunidades", "/admin/fotos", "/admin/promocionar",
-        "/catalogo", "/carrito", "/login"
-      ];
-
-      const cache = await caches.open("bolsonclick-app-v9");
-
-      for (const ruta of rutas) {
-        try {
-          const pagina = await fetch(ruta);
-          if (pagina.ok) await cache.put(ruta, pagina.clone());
-
-          const interna = await fetch(ruta, { headers: { RSC: "1" } });
-          if (interna.ok) await cache.put(ruta + "?_rsc=1", interna.clone());
-        } catch (e) {}
-      }
-
+      const r = await prepararSinSenal((p) => setMensaje(p));
       await revisar();
-      setMensaje(`✓ Listo: ${cuantos} productos y ${rutas.length} pantallas guardadas`);
+      setMensaje(
+        `✓ Listo: ${r.productos} productos, ${r.clientes} clientes, ${r.pedidos} pedidos y ${r.pantallas} pantallas` +
+          (r.errores.length ? `. No se pudo: ${r.errores.join(", ")}` : "")
+      );
     } catch (e) {
       setMensaje("No se pudo descargar: " + e.message);
     } finally {
       setDescargando(false);
     }
   }
+
+  // Al preparar desde la barra de arriba, este bloque se actualiza
+  useEffect(() => {
+    window.addEventListener("sin-senal-actualizado", revisar);
+    return () => window.removeEventListener("sin-senal-actualizado", revisar);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const listo = productos > 0 && paginas > 5;
 
