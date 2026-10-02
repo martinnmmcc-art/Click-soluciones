@@ -163,15 +163,16 @@ function ListaProductos() {
   // para pegar en el comentario de Facebook (ver lib/respuestaPrecio.js)
   const [respuestaCopiada, setRespuestaCopiada] = useState(null);
   function copiarRespuesta(p) {
-    const texto = textoRespuesta(p, "fb");
-    navigator.clipboard
-      ?.writeText(texto)
-      .then(() => {
-        setRespuestaCopiada(p.id);
-        setTimeout(() => setRespuestaCopiada(null), 2500);
-      })
-      .catch(() => window.prompt("Copiá este texto:", texto));
+    // Copia y abre las notificaciones de Facebook en el mismo toque (si se
+    // espera a que termine de copiar, el celular no deja abrir otra app)
+    try {
+      navigator.clipboard?.writeText(textoRespuesta(p, "fb")).catch(() => {});
+    } catch (e) {}
+    window.open("https://www.facebook.com/notifications", "_blank", "noopener");
+    setRespuestaCopiada(p.id);
+    setTimeout(() => setRespuestaCopiada(null), 4000);
   }
+
 
   // ¿Usar la copia? Sin señal, o si la consulta a la base falló
   function usarCopia(error) {
@@ -581,9 +582,9 @@ function ListaProductos() {
                     <button
                       onClick={() => copiarRespuesta(p)}
                       className="text-xs font-bold text-[#1877F2]"
-                      title="Copiar respuesta de precio para Facebook"
+                      title="Copia la respuesta de precio y abre Facebook"
                     >
-                      {respuestaCopiada === p.id ? "✓ Copiada" : "💬 Precio"}
+                      {respuestaCopiada === p.id ? "✓ Pegala en FB" : "💬 Responder"}
                     </button>
                     <Link
                       href={`/admin/productos/${p.id}`}
