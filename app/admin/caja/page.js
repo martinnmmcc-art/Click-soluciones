@@ -58,6 +58,26 @@ function Caja() {
   // Si se escribe rápido, las respuestas pueden llegar desordenadas: solo
   // mostramos la de lo último que se escribió.
   const ultimaBusqueda = useRef("");
+  const buscadorRef = useRef(null);
+  const [avisoVenta, setAvisoVenta] = useState("");
+
+  // "Venta nueva" siempre hace algo visible. Antes, como ya estaba elegida
+  // al entrar, tocarla no cambiaba nada y parecía que la app no respondía.
+  function ventaNueva() {
+    if (modo !== "venta") {
+      setModo("venta");
+      setPedidoElegido(null);
+    } else if (items.length > 0) {
+      if (!confirm(`¿Empezar una venta nueva? Se borran los ${items.length} producto(s) de la venta actual.`)) return;
+      setItems([]);
+    }
+    setBusqueda("");
+    setResultados([]);
+    setAvisoVenta("Venta nueva: escaneá o buscá el primer producto 👇");
+    setTimeout(() => setAvisoVenta(""), 4000);
+    // El cursor va al buscador y se abre el teclado
+    setTimeout(() => buscadorRef.current?.focus(), 50);
+  }
 
   // Buscamos clientes: primero en el celular, así funciona sin señal
   async function buscarCliente(texto) {
@@ -526,10 +546,7 @@ function Caja() {
         {/* Venta nueva o sumar a un pedido que ya existe */}
         <div className="flex gap-2 mb-3">
           <button
-            onClick={() => {
-              setModo("venta");
-              setPedidoElegido(null);
-            }}
+            onClick={ventaNueva}
             className={`flex-1 py-2.5 rounded-xl text-xs font-bold ${
               modo === "venta"
                 ? "bg-brand-blue text-white"
@@ -634,7 +651,14 @@ function Caja() {
           📷 Escanear producto
         </button>
 
+        {avisoVenta && (
+          <p className="text-xs font-bold text-green-800 bg-green-50 border border-green-200 rounded-xl px-3 py-2 mb-2">
+            {avisoVenta}
+          </p>
+        )}
+
         <input
+          ref={buscadorRef}
           value={busqueda}
           onChange={(e) => buscar(e.target.value)}
           className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm mb-2"

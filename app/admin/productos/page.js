@@ -9,6 +9,8 @@ import { useRecordarPosicion, useRestaurarAlDibujar } from "@/lib/useRecordarPos
 import { formatPrice } from "@/lib/whatsapp";
 import { nombreCategoria } from "@/lib/categorias";
 import { useActualizarSolo } from "@/lib/datosFrescos";
+import { leerProductosPropiosOffline } from "@/lib/catalogoOffline";
+import { normalizarTexto } from "@/lib/buscar";
 
 // Filtros rápidos de la lista. Los de stock solo aplican a "Tengo".
 const FILTROS = [
@@ -123,11 +125,83 @@ function ListaProductos() {
     return q;
   }
 
+  // SIN SEÑAL: tus productos salen de la copia guardada en el celular, con
+  // la misma búsqueda, filtros y orden que la consulta a la base. Así se
+  // puede buscar y filtrar aunque esa consulta exacta nunca se haya hecho
+  // con señal. (Los "a pedido" son miles y no se guardan completos.)
+  const [desdeCopia, setDesdeCopia] = useState(false);
+
+  function productosDeLaCopia() {
+    let lista = leerProductosPropiosOffline();
+    const q = normalizarTexto(busqueda);
+    if (q.length >= 2) lista = lista.filter((p) => normalizarTexto(p.nombre).includes(q));
+    if (categoria) lista = lista.filter((p) => p.categoria === categoria);
+    if (mostrar === "con-stock") lista = lista.filter((p) => Number(p.stock || 0) > 0);
+    if (mostrar === "sin-stock") lista = lista.filter((p) => Number(p.stock || 0) <= 0);
+    if (mostrar === "stock-bajo") lista = lista.filter((p) => p.stock_bajo === true);
+    if (mostrar === "inactivos") lista = lista.filter((p) => p.activo === false);
+
+    const o = ORDENES.find((x) => x.valor === orden) || ORDENES[0];
+    const valor = (p) => {
+      const v = p[o.campo];
+      if (v === null || v === undefined) return null;
+      if (o.campo === "nombre") return normalizarTexto(v);
+      if (o.campo.endsWith("_at") || o.campo.endsWith("_en")) return new Date(v).getTime();
+      return Number(v);
+    };
+    return [...lista].sort((a, b) => {
+      const x = valor(a), y = valor(b);
+      if (x === y) return Number(b.id) - Number(a.id);
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return (x < y ? -1 : 1) * (o.asc ? 1 : -1);
+    });
+  }
+
+  // ¿Usar la copia? Sin señal, o si la consulta a la base falló
+  function usarCopia(error) {
+    return tab === "tengo" && (error || (typeof navigator !== "undefined" && !navigator.onLine));
+  }
+
   async function cargarProductos() {
     setLoading(true);
-    const { data, error, count } = await consultaBase().range(0, POR_TANDA - 1);
+    let respuesta = { data: null, error: null, count: 0 };
+    const sinSenal = typeof navigator !== "undefined" && !navigator.onLine;
+    const hayCopia = tab === "tengo" && leerProductosPropiosOffline().length > 0;
 
-    if (error) console.error(error.message);
+    // Sin señal: directo a la copia, sin intentar la red. La librería de
+    // Supabase reintenta varias veces antes de dar error, y la pantalla se
+    // quedaba en "Buscando..." un buen rato.
+    if (!(sinSenal && hayCopia)) {
+      try {
+        // Señal muy débil (el celular cree que hay conexión pero no llega
+        // nada): si no contesta en 4 segundos, se usa la copia.
+        respuesta = await Promise.race([
+          consultaBase().range(0, POR_TANDA - 1),
+          new Promise((resolve) =>
+            setTimeout(() => resolve({ data: null, error: new Error("sin respuesta"), count: 0 }), hayCopia ? 4000 : 20000)
+          )
+        ]);
+      } catch (e) {
+        respuesta.error = e;
+      }
+    } else {
+      respuesta.error = new Error("sin señal");
+    }
+    const { data, error, count } = respuesta;
+
+    if (usarCopia(error) && leerProductosPropiosOffline().length > 0) {
+      const copia = productosDeLaCopia();
+      setProductos(copia);
+      setTotalTab(copia.length);
+      setHayMas(false);
+      setDesdeCopia(true);
+      setLoading(false);
+      return;
+    }
+
+    if (error) console.error(error.message || error);
+    setDesdeCopia(false);
     setProductos(data || []);
     setTotalTab(count || 0);
     setHayMas((data?.length || 0) === POR_TANDA);
@@ -137,6 +211,7 @@ function ListaProductos() {
   // Actualización silenciosa: vuelve a traer lo que ya está en pantalla
   // (misma cantidad, mismos filtros) sin mover la lista ni mostrar "cargando".
   async function refrescarEnSilencio() {
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
     const cantidad = Math.max(productos.length, POR_TANDA);
     const { data, error, count } = await consultaBase().range(0, cantidad - 1);
     if (error) throw new Error(error.message);
@@ -178,7 +253,17 @@ function ListaProductos() {
 
   // Categorías que existen de verdad en la base, para el filtro
   useEffect(() => {
-    supabase.rpc("categorias_productos").then(({ data }) => setCategorias(data || []));
+    supabase
+      .rpc("categorias_productos")
+      .then(({ data, error }) => {
+        if (error || !data) throw error || new Error("sin datos");
+        setCategorias(data);
+      })
+      .catch(() => {
+        // Sin señal: las categorías de tus productos guardados
+        const cats = [...new Set(leerProductosPropiosOffline().map((p) => p.categoria).filter(Boolean))].sort();
+        setCategorias(cats.map((c) => ({ categoria: c })));
+      });
   }, []);
 
   // Cuántos productos hay de cada tipo, para mostrar en las pestañas
@@ -193,6 +278,11 @@ function ListaProductos() {
           .select("id", { count: "exact", head: true })
           .eq("bajo_pedido", true)
     ]);
+    if (tengo.error || tengo.count == null) {
+      // Sin señal: al menos tus productos, contados de la copia
+      setConteos((prev) => ({ ...prev, tengo: leerProductosPropiosOffline().length }));
+      return;
+    }
     setConteos({ tengo: tengo.count || 0, aPedido: aPedido.count || 0 });
   }
 
@@ -398,7 +488,12 @@ function ListaProductos() {
         </div>
 
         <div className="flex items-center justify-between text-xs text-gray-500 mb-3 px-1">
-          <span>{loading ? "Buscando..." : `${totalTab} productos`}</span>
+          <span>
+            {loading ? "Buscando..." : `${totalTab} productos`}
+            {desdeCopia && !loading && (
+              <span className="ml-1.5 font-bold text-brand-blue">· 📴 copia guardada (sin señal)</span>
+            )}
+          </span>
           {hayFiltros && (
             <button
               onClick={() => {

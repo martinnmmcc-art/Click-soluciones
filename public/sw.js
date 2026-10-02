@@ -145,6 +145,30 @@ function esDatosProductos(url) {
 // guardaban solo productos y categorías, y sin señal muchas pantallas del
 // panel se abrían vacías aunque se hubieran preparado.
 // Solo lecturas (GET): nunca se guardan logins, pagos ni escrituras.
+// Sin señal y sin copia guardada: respondemos "504 Sin señal" en vez de una
+// falla de red. La librería de Supabase reintenta 3 veces (esperando 1, 2 y
+// 4 segundos) ante una falla de red, y la pantalla quedaba trabada en
+// "Cargando..."; un 504 no lo reintenta, así que la pantalla se entera al
+// instante y puede usar su copia del celular o avisar.
+function respuestaSinSenal() {
+  return new Response(
+    JSON.stringify({
+      message: "Sin señal: estos datos todavía no estaban guardados en el celular",
+      code: "SIN_SENAL"
+    }),
+    { status: 504, statusText: "Sin senal", headers: { "Content-Type": "application/json" } }
+  );
+}
+
+// El almacenamiento del navegador no acepta guardar una respuesta 206
+// (parcial): la guardamos como 200 con las mismas cabeceras. Se conserva
+// "Content-Range", que es de donde la app saca el total ("149 productos").
+async function copiaGuardable(res) {
+  if (res.status === 200) return res.clone();
+  const cuerpo = await res.clone().blob();
+  return new Response(cuerpo, { status: 200, statusText: "OK", headers: res.headers });
+}
+
 function esLecturaDatos(url) {
   if (url.hostname.endsWith("supabase.co")) return url.pathname.includes("/rest/v1/");
   return (
@@ -156,6 +180,17 @@ function esLecturaDatos(url) {
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+
+  // Consultas que solo cuentan ("112 con stock bajo"): no se pueden guardar,
+  // pero sin señal respondemos al instante en vez de dejar que se reintenten.
+  if (request.method === "HEAD") {
+    try {
+      if (esLecturaDatos(new URL(request.url))) {
+        event.respondWith(fetch(request).catch(() => respuestaSinSenal()));
+      }
+    } catch (e) {}
+    return;
+  }
 
   // Solo manejamos GET: nunca interceptamos pedidos, logins ni subidas.
   if (request.method !== "GET") return;
@@ -242,9 +277,14 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          if (res && res.status === 200) {
-            const copia = res.clone();
-            caches.open(CACHE_DATOS).then((c) => c.put(request, copia)).then(() => recortar(CACHE_DATOS));
+          // 200 y también 206: las listas que se piden de a tandas (como
+          // Productos, de a 100) vuelven con 206 "contenido parcial". Antes
+          // solo se guardaba el 200, y esas listas nunca quedaban guardadas:
+          // sin señal, Productos mostraba "0 productos".
+          if (res && (res.status === 200 || res.status === 206)) {
+            copiaGuardable(res).then((copia) =>
+              caches.open(CACHE_DATOS).then((c) => c.put(request, copia)).then(() => recortar(CACHE_DATOS))
+            );
           }
           return res;
         })
@@ -253,7 +293,7 @@ self.addEventListener("fetch", (event) => {
           // la app, para que el panel muestre que los datos pueden estar viejos.
           const guardado = await caches.match(request);
           avisarDatosDesdeCopia();
-          return guardado || Response.error();
+          return guardado || respuestaSinSenal();
         })
     );
     return;
