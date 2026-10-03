@@ -1,0 +1,457 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const PROVEEDOR = "nextcell";
+const BASE = "https://nextcell.com.ar/wp-json/wc/store/v1";
+
+// --- Fórmula de precios de Bolson Click ---
+// Es la misma que usa la calculadora de cada producto y la herramienta
+// de porcentajes masivos (/admin/porcentajes), aplicada en este orden:
+//   costo crudo del proveedor
+//   + 3% que cobra el proveedor por transferencia
+//   + 10% de transporte (el flete va siempre como %, nunca un monto aparte)
+//   + 80% de ganancia
+// (el 5% por el dólar se sacó: ya no se aplica a ningún producto)
+// Redondeado a $50 hacia arriba.
+const PCT_DEFECTO = {
+  pct_transferencia: 3,
+  pct_dolar: 0,
+  pct_transporte: 10,
+  pct_ganancia: 80
+};
+
+function calcularPrecios(costoCrudo, porcentajes = {}) {
+  const costo = Number(costoCrudo) || 0;
+  const pct = { ...PCT_DEFECTO };
+  for (const k of Object.keys(PCT_DEFECTO)) {
+    if (porcentajes[k] !== null && porcentajes[k] !== undefined) pct[k] = Number(porcentajes[k]);
+  }
+  const bruto =
+    costo *
+    (1 + pct.pct_transferencia / 100) *
+    (1 + pct.pct_dolar / 100) *
+    (1 + pct.pct_transporte / 100) *
+    (1 + pct.pct_ganancia / 100);
+  const precio = Math.ceil(bruto / 50) * 50;
+  return { costo, precio, pct };
+}
+
+// Los precios de la Store API vienen en la unidad mínima (centavos).
+function precioDesdeApi(valor, decimales) {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return 0;
+  const div = Math.pow(10, Number(decimales) || 0);
+  return n / div;
+}
+
+// El proveedor nombra sus categorías como "C. Hogar 家居，厨房用品".
+// Las traducimos a categorías simples y en castellano para la tienda.
+const MAPA_CATEGORIAS = {
+  A: "Juguetes y Niños",
+  B: "Belleza y Cuidado Personal",
+  C: "Hogar y Cocina",
+  D: "Audio y Sonido",
+  E: "Accesorios Celular",
+  F: "Computación y Gaming",
+  G: "Tecnología y Smart TV",
+  H: "Herramientas y Cargadores",
+  I: "Oficina y Memorias",
+  J: "Seguridad y Drones",
+  K: "Redes y Conectividad",
+  L: "Regalería y Extras",
+  M: "Hidrogel y Accesorios",
+  N: "Mascotas"
+};
+
+// Deja solo el texto en castellano, sin la letra inicial ni los caracteres chinos.
+function limpiarNombreCategoria(nombre) {
+  if (!nombre) return "Otros";
+  return nombre
+    .replace(/^[A-Z]\.\s*/, "")
+    .replace(/[\u4e00-\u9fff\uff00-\uffef\u3000-\u303f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function categoriaDeProducto(p) {
+  const original = p.categories?.[0]?.name || "";
+  const letra = original.match(/^([A-Z])\./)?.[1];
+  if (letra && MAPA_CATEGORIAS[letra]) return MAPA_CATEGORIAS[letra];
+  const limpia = limpiarNombreCategoria(original);
+  return limpia || "Otros";
+}
+
+// Saca los códigos internos del proveedor del nombre visible.
+// Un nombre con "Melech-05/Q-16-1/GT135" pegado en Google lleva directo
+// a nuestro proveedor; sin el código, el producto sigue siendo reconocible.
+// Los nombres del proveedor vienen con códigos HTML (&#8243; por las
+// comillas de pulgadas, &amp; por el &). Sin esto quedan a la vista.
+function decodificarHtml(texto) {
+  if (!texto) return "";
+  return String(texto)
+    .replace(/&#8243;|&#8221;|&#8220;|&quot;/g, '"')
+    .replace(/&#8211;|&#8212;/g, "-")
+    .replace(/&#8217;|&#8216;/g, "'")
+    .replace(/&#038;|&amp;/g, "&")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+}
+
+function limpiarCodigos(nombre) {
+  if (!nombre) return "Sin nombre";
+  nombre = decodificarHtml(nombre);
+
+  const tokens = String(nombre).trim().split(/\s+/);
+
+  const limpio = tokens.filter((tk, i) => {
+    const t = tk.trim().replace(/^\/+|\/+$/g, "");
+    if (t.length < 3) return true;
+    if (/^(x?\d+([.,]\d+)?)(cm|mm|mts?|m|ml|lts?|l|kg|g|w|v|hz|gb|mb|pcs|u|un)$/i.test(t)) return true;
+    if (/^\d+([.,]\d+)?[x*]\d+/i.test(t)) return true;
+    if (/^x\d+u?$/i.test(t)) return true;
+    if (!/^[A-Za-z0-9./-]+$/.test(t)) return true;
+
+    const letras = (t.match(/[A-Za-z]/g) || []).length;
+    const numeros = (t.match(/\d/g) || []).length;
+    const seps = (t.match(/[-/.]/g) || []).length;
+
+    if (letras === 0) return !(i === tokens.length - 1 && /^\d{3,}$/.test(t));
+    if (numeros === 0) return true;
+    if (seps >= 2) return false;
+    if (seps === 1 && letras <= 8) return false;
+    if (seps === 0 && letras <= 4 && numeros >= 3) return false;
+    return true;
+  });
+
+  const r = limpio
+    .join(" ")
+    .replace(/\s*\/\s*/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/[\s,\/-]+$/g, "")
+    .trim();
+
+  return r.length >= 8 ? r : nombre;
+}
+
+// Limpia las etiquetas HTML de la descripción del proveedor.
+function limpiarHtml(html) {
+  if (!html) return "";
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#8217;/g, "'")
+    .replace(/\bnext\s*cell\b/gi, "")
+    .replace(/\bnextcell(\.com\.ar)?\b/gi, "")
+    .replace(/\b(c[oó]digo|cod|sku|modelo)\s*:?\s*[A-Za-z0-9./-]+/gi, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1500);
+}
+
+async function traerPagina(pagina, categoria) {
+  const params = new URLSearchParams({
+    per_page: "100",
+    page: String(pagina),
+    catalog_visibility: "visible"
+  });
+  if (categoria) params.set("category", categoria);
+
+  const res = await fetch(`${BASE}/products?${params.toString()}`, {
+    headers: { "User-Agent": "BolsonClick/1.0 (importador de catálogo)" },
+    cache: "no-store"
+  });
+
+  if (!res.ok) {
+    throw new Error(`El proveedor respondió ${res.status}. Puede que su web esté caída o que haya cambiado.`);
+  }
+
+  const totalPaginas = Number(res.headers.get("x-wp-totalpages") || 1);
+  const productos = await res.json();
+  return { productos, totalPaginas };
+}
+
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const accion = searchParams.get("accion") || "categorias";
+
+  try {
+    // Lista de categorías del proveedor, con cuántos productos tiene cada una
+    if (accion === "categorias") {
+      const res = await fetch(`${BASE}/products/categories?per_page=100`, {
+        headers: { "User-Agent": "BolsonClick/1.0 (importador de catálogo)" },
+        cache: "no-store"
+      });
+      if (!res.ok) {
+        throw new Error(`El proveedor respondió ${res.status} al pedir las categorías.`);
+      }
+      const cats = await res.json();
+      return NextResponse.json({
+        ok: true,
+        categorias: (cats || [])
+          .filter((c) => c.count > 0)
+          .map((c) => ({ id: c.id, nombre: c.name, cantidad: c.count }))
+      });
+    }
+
+    // Vista previa: qué se importaría de una categoría, sin tocar nada
+    if (accion === "previsualizar") {
+      const categoria = searchParams.get("categoria") || "";
+      const { productos, totalPaginas } = await traerPagina(1, categoria);
+
+      const refs = productos.map((p) => String(p.id));
+      const { data: existentes } = await supabase
+        .from("Productos")
+        .select("proveedor_ref")
+        .eq("proveedor", PROVEEDOR)
+        .in("proveedor_ref", refs.length ? refs : ["_"]);
+
+      const yaEstan = new Set((existentes || []).map((e) => e.proveedor_ref));
+
+      const muestra = productos.slice(0, 10).map((p) => {
+        const costo = precioDesdeApi(p.prices?.price, p.prices?.currency_minor_unit);
+        const { precio } = calcularPrecios(costo);
+        return {
+          nombre: p.name,
+          costo,
+          precio_venta: precio,
+          ya_importado: yaEstan.has(String(p.id))
+        };
+      });
+
+      return NextResponse.json({
+        ok: true,
+        total_en_pagina: productos.length,
+        total_paginas: totalPaginas,
+        nuevos: productos.filter((p) => !yaEstan.has(String(p.id))).length,
+        ya_importados: productos.filter((p) => yaEstan.has(String(p.id))).length,
+        muestra
+      });
+    }
+
+    return NextResponse.json({ error: "Acción no reconocida" }, { status: 400 });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function POST(request) {
+  try {
+    const { categoria, pagina = 1, actualizar_precios = false } = await request.json();
+
+    const { productos, totalPaginas } = await traerPagina(pagina, categoria);
+
+    // Categorías que decidiste no tener en la tienda: si no las filtramos,
+    // los productos que borraste vuelven a aparecer en cada importación.
+    const { data: excluidas } = await supabase.from("categorias_excluidas").select("categoria");
+    const listaExcluidas = new Set((excluidas || []).map((e) => e.categoria));
+
+    if (!productos.length) {
+      return NextResponse.json({ ok: true, importados: 0, actualizados: 0, omitidos: 0, total_paginas: totalPaginas });
+    }
+
+    // Vemos cuáles ya tenemos, para no duplicar
+    const refs = productos.map((p) => String(p.id));
+    const { data: existentes } = await supabase
+      .from("Productos")
+      .select("id, proveedor_ref, costo, categoria, bajo_pedido, imagen_url_4, imagen_url_5, imagen_url_6, pct_transferencia, pct_dolar, pct_transporte, pct_ganancia, precio_manual")
+      .eq("proveedor", PROVEEDOR)
+      .in("proveedor_ref", refs);
+
+    const mapaExistentes = new Map((existentes || []).map((e) => [e.proveedor_ref, e]));
+
+    // También comparamos por nombre: si el producto ya está cargado a mano
+    // (con stock y precio propio), no queremos crear una copia importada.
+    const nombresProveedor = productos.map((p) => p.name).filter(Boolean);
+    // Comparamos contra nombre_proveedor, no contra el nombre visible.
+    // Al limpiar los códigos, el nombre que mostramos dejó de coincidir con
+    // el del proveedor y por eso se crearon copias de productos que ya
+    // teníamos. También miramos el nombre limpio, por si acaso.
+    const nombresLimpios = nombresProveedor.map((n) => limpiarCodigos(n));
+
+    const { data: porNombre } = await supabase
+      .from("Productos")
+      .select("id, nombre, nombre_proveedor")
+      .or(
+        `nombre_proveedor.in.(${nombresProveedor
+          .map((n) => `"${n.replace(/"/g, "")}"`)
+          .join(",")}),nombre.in.(${nombresLimpios
+          .map((n) => `"${n.replace(/"/g, "")}"`)
+          .join(",")})`
+      );
+
+    const yaExistePorNombre = new Set();
+    (porNombre || []).forEach((p) => {
+      if (p.nombre) yaExistePorNombre.add(p.nombre.trim().toLowerCase());
+      if (p.nombre_proveedor)
+        yaExistePorNombre.add(p.nombre_proveedor.trim().toLowerCase());
+    });
+
+    const aInsertar = [];
+    let actualizados = 0;
+    let protegidos = 0;
+    let omitidos = 0;
+    // Por qué se salteó cada producto: para poder explicar la diferencia
+    // entre lo que muestra el proveedor y lo que hay en la tienda.
+    const motivos = { sin_precio: 0, categoria_excluida: 0, nombre_repetido: 0, sin_cambios: 0 };
+
+    for (const p of productos) {
+      const ref = String(p.id);
+      const costo = precioDesdeApi(p.prices?.price, p.prices?.currency_minor_unit);
+
+      // Sin precio no podemos calcular nada
+      if (!costo) {
+        omitidos++;
+        motivos.sin_precio++;
+        continue;
+      }
+
+      const { precio, pct } = calcularPrecios(costo);
+      // Si su categoría está excluida, no lo traemos
+      if (listaExcluidas.has(categoriaDeProducto(p))) {
+        omitidos++;
+        motivos.categoria_excluida++;
+        continue;
+      }
+
+      // Si ya lo tenés cargado con ese nombre, lo salteamos: tu versión manda
+      // (tiene tu stock, tu precio y tus ofertas).
+      const nombreOriginal = (p.name || "").trim().toLowerCase();
+      const nombreLimpio = limpiarCodigos(p.name || "").trim().toLowerCase();
+
+      if (
+        !mapaExistentes.get(ref) &&
+        (yaExistePorNombre.has(nombreOriginal) || yaExistePorNombre.has(nombreLimpio))
+      ) {
+        omitidos++;
+        motivos.nombre_repetido++;
+        continue;
+      }
+
+      const yaExiste = mapaExistentes.get(ref);
+
+      if (yaExiste) {
+        // Nunca tocamos el costo de mercadería que ya compraste: ese es lo
+        // que pagaste de verdad y es la base para calcular tu ganancia. Si
+        // el proveedor sube el precio, eso vale para el próximo pedido, no
+        // para lo que ya tenés en el depósito.
+        const esTuyo = yaExiste.bajo_pedido === false;
+
+        const cambioPrecio =
+          actualizar_precios && !esTuyo && Number(yaExiste.costo) !== costo;
+        const categoriaCorrecta = categoriaDeProducto(p);
+        const cambioCategoria = yaExiste.categoria !== categoriaCorrecta;
+
+        // Completamos fotos que falten aunque no haya cambiado el precio:
+        // el proveedor va agregando imágenes con el tiempo.
+        const fotosNuevas = {};
+        [3, 4, 5].forEach((i) => {
+          const campo = `imagen_url_${i + 1}`;
+          if (!yaExiste[campo] && p.images?.[i]?.src) {
+            fotosNuevas[campo] = p.images[i].src;
+          }
+        });
+        const hayFotosNuevas = Object.keys(fotosNuevas).length > 0;
+
+        if (cambioPrecio || cambioCategoria || hayFotosNuevas) {
+          const cambios = {
+            categoria: categoriaCorrecta,
+            categoria_proveedor: p.categories?.[0]?.name || null,
+            ...fotosNuevas
+          };
+          if (cambioPrecio) {
+            cambios.costo = costo;
+            cambios.costo_envio = 0;
+            // Respetamos los porcentajes que ya tenga ese producto, y si
+            // tiene el precio puesto a mano no se lo tocamos.
+            if (!yaExiste.precio_manual) {
+              cambios.precio = calcularPrecios(costo, yaExiste).precio;
+            }
+            cambios.precio_proveedor_actualizado = new Date().toISOString();
+          }
+          await supabase.from("Productos").update(cambios).eq("id", yaExiste.id);
+          actualizados++;
+        } else {
+          omitidos++;
+          motivos.sin_cambios++;
+        }
+
+        // Contamos los que protegimos, para poder avisarlo
+        if (esTuyo && actualizar_precios && Number(yaExiste.costo) !== costo) {
+          protegidos++;
+        }
+        continue;
+      }
+
+      // Guardamos el nombre del proveedor aparte y mostramos uno limpio:
+      // así el cliente no puede rastrear de dónde sacamos la mercadería.
+      const nombreProveedor = decodificarHtml(p.name || "").slice(0, 200) || "Sin nombre";
+
+      aInsertar.push({
+        nombre: limpiarCodigos(nombreProveedor),
+        nombre_proveedor: nombreProveedor,
+        descripcion: limpiarHtml(p.description || p.short_description),
+        imagen_url: p.images?.[0]?.src || null,
+        imagen_url_2: p.images?.[1]?.src || null,
+        imagen_url_3: p.images?.[2]?.src || null,
+        // El proveedor suele tener más de 3 fotos por producto. Traerlas
+        // todas es la forma segura de completar la ficha: son del producto
+        // real, no una búsqueda parecida.
+        imagen_url_4: p.images?.[3]?.src || null,
+        imagen_url_5: p.images?.[4]?.src || null,
+        imagen_url_6: p.images?.[5]?.src || null,
+        costo,
+        costo_envio: 0,
+        ...pct,
+        precio,
+        stock: 0,
+        bajo_pedido: true,
+        activo: true,
+        categoria: categoriaDeProducto(p),
+        categoria_proveedor: p.categories?.[0]?.name || null,
+        proveedor: PROVEEDOR,
+        proveedor_ref: ref,
+        precio_proveedor_actualizado: new Date().toISOString()
+      });
+    }
+
+    let importados = 0;
+    if (aInsertar.length) {
+      const { data, error } = await supabase
+        .from("Productos")
+        .insert(aInsertar)
+        .select("id");
+      if (error) throw new Error(error.message);
+      importados = data?.length || 0;
+    }
+
+    // Todos los productos de esta página quedan marcados como "vistos" (los
+    // nuevos también). Al terminar una vuelta completa, los "a pedido" que no
+    // se vieron se ocultan: el proveedor ya no los tiene.
+    await supabase.rpc("marcar_vistos_proveedor", { p_refs: refs });
+
+    return NextResponse.json({
+      ok: true,
+      importados,
+      actualizados,
+      omitidos,
+      motivos,
+      protegidos,
+      pagina,
+      total_paginas: totalPaginas,
+      hay_mas: pagina < totalPaginas
+    });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
