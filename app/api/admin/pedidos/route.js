@@ -66,9 +66,13 @@ export async function PATCH(req) {
     }
     if (nuevoTotal < 0) nuevoTotal = 0;
 
+    // El tipo se guarda aunque el valor sea 0. Antes, al elegir "%" (con el
+    // número todavía en 0) el tipo se borraba, el casillero del número
+    // quedaba bloqueado y no había forma de cargar un descuento.
+    // El total final lo recalcula la base desde los productos (trigger).
     campos.subtotal = subtotal;
-    campos.descuento_tipo = valor > 0 ? tipo : null;
-    campos.descuento_valor = valor > 0 ? valor : 0;
+    campos.descuento_tipo = tipo || null;
+    campos.descuento_valor = valor;
     campos.total = nuevoTotal;
   }
 

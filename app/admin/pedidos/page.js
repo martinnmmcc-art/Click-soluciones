@@ -281,7 +281,33 @@ function PanelVentas() {
   }, []);
 
 
+  // "Deshacer" durante unos segundos cuando una venta se cierra: si se tocó
+  // "Pagado" o "Entregado" sin querer, se vuelve atrás con un toque.
+  const [cierreReciente, setCierreReciente] = useState(null);
+
+  async function deshacerCierre() {
+    const c = cierreReciente;
+    if (!c) return;
+    setCierreReciente(null);
+    try {
+      const res = await fetch("/api/admin/pedidos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: c.id, ...c.antes })
+      });
+      const r = await res.json();
+      if (res.ok && r.pedido) {
+        setPedidos((prev) => prev.map((p) => (p.id === c.id ? { ...p, ...r.pedido } : p)));
+      } else {
+        alert("No se pudo deshacer: " + (r.error || ""));
+      }
+    } catch (e) {
+      alert("No se pudo deshacer: sin conexión.");
+    }
+  }
+
   async function actualizarEstado(pedidoId, campo, valor) {
+    const anterior = pedidos.find((p) => p.id === pedidoId);
     setPedidos((prev) =>
       prev.map((p) => (p.id === pedidoId ? { ...p, [campo]: valor } : p))
     );
@@ -326,6 +352,15 @@ function PanelVentas() {
         setPedidos((prev) =>
           prev.map((p) => (p.id === pedidoId ? { ...p, ...result.pedido } : p))
         );
+        // Si con este cambio la venta quedó cerrada, ofrecemos deshacer
+        if (anterior && !ventaCerrada(anterior) && ventaCerrada({ ...anterior, ...result.pedido })) {
+          setCierreReciente({
+            id: pedidoId,
+            nombre: anterior.nombre_cliente,
+            antes: { [campo]: anterior[campo] }
+          });
+          setTimeout(() => setCierreReciente((c) => (c && c.id === pedidoId ? null : c)), 10000);
+        }
       }
     } catch (e) {
       encolarCambio({
@@ -476,6 +511,8 @@ function PanelVentas() {
                   ...p,
                   items_pedido: [...(p.items_pedido || []), result.item],
                   total: result.total,
+                  subtotal: result.subtotal ?? p.subtotal,
+                  estado_pago: result.estado_pago ?? p.estado_pago,
                 }
               : p
           )
@@ -510,6 +547,8 @@ function PanelVentas() {
                     it.id === itemId ? result.item : it
                   ),
                   total: result.total,
+                  subtotal: result.subtotal ?? p.subtotal,
+                  estado_pago: result.estado_pago ?? p.estado_pago,
                 }
               : p
           )
@@ -541,6 +580,8 @@ function PanelVentas() {
                   ...p,
                   items_pedido: p.items_pedido.filter((it) => it.id !== itemId),
                   total: result.total,
+                  subtotal: result.subtotal ?? p.subtotal,
+                  estado_pago: result.estado_pago ?? p.estado_pago,
                 }
               : p
           )
@@ -920,6 +961,20 @@ function PanelVentas() {
             {mostrarFormNuevo ? "Cancelar" : "+ Nuevo pedido"}
           </button>
         </div>
+
+        {cierreReciente && (
+          <div className="fixed bottom-20 left-3 right-3 z-50 bg-gray-900 text-white rounded-2xl shadow-lg px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold">
+              ✅ Venta de {cierreReciente.nombre || "este cliente"} cerrada (pasó a Ventas cerradas)
+            </p>
+            <button
+              onClick={deshacerCierre}
+              className="bg-amber-400 text-gray-900 text-xs font-extrabold px-3 py-2 rounded-xl whitespace-nowrap"
+            >
+              ↩️ Deshacer
+            </button>
+          </div>
+        )}
 
         {/* Aviso de cambios guardados esperando enviarse */}
         {(avisoOffline || cambiosEnEspera > 0) && (

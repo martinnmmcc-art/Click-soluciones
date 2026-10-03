@@ -63,47 +63,32 @@ export async function POST(req) {
     await ajustarStock(producto_id, -Number(cantidad));
   }
 
-  const { data: items, error: errItems } = await supabaseAdmin
-    .from("items_pedido")
-    .select("subtotal")
-    .eq("pedido_id", pedido_id);
-
-  if (errItems) {
-    return Response.json({ error: errItems.message }, { status: 400 });
+  const resultado = await recalcularTotalPedido(pedido_id);
+  if (resultado.error) {
+    return Response.json({ error: resultado.error }, { status: 400 });
   }
 
-  const nuevoTotal = items.reduce((acc, i) => acc + Number(i.subtotal || 0), 0);
-
-  const { error: errPedido } = await supabaseAdmin
-    .from("pedidos")
-    .update({ total: nuevoTotal })
-    .eq("id", pedido_id);
-
-  if (errPedido) {
-    return Response.json({ error: errPedido.message }, { status: 400 });
-  }
-
-  return Response.json({ item, total: nuevoTotal });
+  return Response.json({ item, ...resultado });
 }
 
+// El total lo recalcula sola la BASE cada vez que se agrega, cambia o quita
+// un producto (con el descuento incluido). Acá solo lo leemos para
+// devolvérselo a la pantalla. Antes esta ruta calculaba el total por su
+// cuenta: no actualizaba el subtotal e ignoraba el descuento.
 async function recalcularTotalPedido(pedidoId) {
-  const { data: items, error: errItems } = await supabaseAdmin
-    .from("items_pedido")
-    .select("subtotal")
-    .eq("pedido_id", pedidoId);
-
-  if (errItems) return { error: errItems.message };
-
-  const nuevoTotal = items.reduce((acc, i) => acc + Number(i.subtotal || 0), 0);
-
-  const { error: errPedido } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("pedidos")
-    .update({ total: nuevoTotal })
-    .eq("id", pedidoId);
+    .select("total, subtotal, estado_pago")
+    .eq("id", pedidoId)
+    .single();
 
-  if (errPedido) return { error: errPedido.message };
+  if (error) return { error: error.message };
 
-  return { total: nuevoTotal };
+  return {
+    total: Number(data.total || 0),
+    subtotal: Number(data.subtotal || 0),
+    estado_pago: data.estado_pago
+  };
 }
 
 export async function PATCH(req) {

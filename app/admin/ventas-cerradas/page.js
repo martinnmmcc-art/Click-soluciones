@@ -90,6 +90,41 @@ function VentasCerradas() {
     setAviso("Se descargó el comprobante y se abrió el chat: adjuntá la imagen con el clip 📎.");
   }
 
+  const [reabriendoId, setReabriendoId] = useState(null);
+
+  // Una venta cerrada por error (por ejemplo, se tocó "Pagado" sin querer)
+  // vuelve a Pedidos abiertos: si el cliente pagó una parte queda "Señado",
+  // si no pagó nada "Falta pagar". El stock no se toca (el producto ya se
+  // entregó); si se cancela después, el stock vuelve solo.
+  async function reabrirVenta(pedido) {
+    const pagado = Number(pedido.monto_pagado || 0);
+    const nuevoEstado = pagado > 0 ? "senado" : "falta_pagar";
+    if (
+      !confirm(
+        `¿Reabrir la venta ${pedido.numero_pedido || ""}?\n\n` +
+          `Vuelve a Pedidos abiertos como "${pagado > 0 ? "Señado" : "Falta pagar"}" para que la corrijas.`
+      )
+    )
+      return;
+
+    setReabriendoId(pedido.id);
+    try {
+      const res = await fetch("/api/admin/pedidos", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pedido.id, estado_pago: nuevoEstado })
+      });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || "error");
+      setPedidos((prev) => prev.map((x) => (x.id === pedido.id ? { ...x, ...r.pedido } : x)));
+      setAviso("✓ Venta reabierta: ahora está en Pedidos, para corregirla.");
+    } catch (e) {
+      setAviso("No se pudo reabrir: " + e.message);
+    } finally {
+      setReabriendoId(null);
+    }
+  }
+
   useEffect(() => {
     async function cargar() {
       try {
@@ -282,6 +317,14 @@ function VentasCerradas() {
                               ))}
                             </div>
                           )}
+
+                          <button
+                            onClick={() => reabrirVenta(p)}
+                            disabled={reabriendoId === p.id}
+                            className="mt-2 mr-3 text-[11px] font-bold text-amber-700 disabled:opacity-50"
+                          >
+                            {reabriendoId === p.id ? "Reabriendo..." : "↩️ Reabrir venta"}
+                          </button>
 
                           {c.pedidos.length > 1 && (
                             <button
