@@ -8,6 +8,7 @@ import { formatPrice } from "@/lib/whatsapp";
 import { ventaCerrada } from "@/lib/estadosPedido";
 import { coincideCliente, normalizarTexto } from "@/lib/buscar";
 import { archivoComprobante, datosComprobante } from "@/lib/comprobanteImagen";
+import AsociarCliente from "@/components/AsociarCliente";
 
 function telefonoParaWhatsapp(tel) {
   let limpio = (tel || "").replace(/\D/g, "");
@@ -125,6 +126,8 @@ function VentasCerradas() {
     }
   }
 
+  const [recarga, setRecarga] = useState(0);
+
   useEffect(() => {
     async function cargar() {
       try {
@@ -137,7 +140,7 @@ function VentasCerradas() {
       setLoading(false);
     }
     cargar();
-  }, []);
+  }, [recarga]);
 
   // Una venta está cerrada cuando ya se entregó Y está pagada (o el cliente
   // pagó de más y le quedó saldo a favor). Todo lo demás sigue en el panel
@@ -268,6 +271,18 @@ function VentasCerradas() {
                           </a>
                         )}
                       </div>
+
+                      {c.telefono !== "Sin teléfono" && (
+                        <AsociarCliente
+                          telefonoOrigen={c.telefono}
+                          nombreOrigen={c.nombre}
+                          cantidadVentas={c.pedidos.length}
+                          onListo={() => {
+                            setClienteAbierto(null);
+                            setRecarga((n) => n + 1);
+                          }}
+                        />
+                      )}
 
                       {aviso && (
                         <p

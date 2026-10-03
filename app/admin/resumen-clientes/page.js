@@ -6,6 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import Header from "@/components/Header";
 import { formatPrice } from "@/lib/whatsapp";
 import { coincideCliente, normalizarTexto } from "@/lib/buscar";
+import AsociarCliente from "@/components/AsociarCliente";
 import {
   ESTADOS_ENTREGA,
   ESTADOS_PAGO,
@@ -137,6 +138,8 @@ function ResumenClientes() {
     }
   }
 
+  const [recarga, setRecarga] = useState(0);
+
   useEffect(() => {
     async function cargar() {
       try {
@@ -149,7 +152,7 @@ function ResumenClientes() {
       setLoading(false);
     }
     cargar();
-  }, []);
+  }, [recarga]);
 
   const grupos = {};
   pedidos
@@ -350,6 +353,18 @@ function ResumenClientes() {
                 >
                   {clienteAbierto === c.telefono ? "▲ Ocultar compras" : "▼ Ver qué compró"}
                 </button>
+
+                {c.telefono !== "Sin teléfono" && (
+                <AsociarCliente
+                  telefonoOrigen={c.telefono}
+                  nombreOrigen={c.nombre}
+                  cantidadVentas={c.cantidadPedidos || c.pedidos?.length || 1}
+                  onListo={() => {
+                    setClienteAbierto(null);
+                    setRecarga((n) => n + 1);
+                  }}
+                />
+                )}
 
                 {clienteAbierto === c.telefono && (
                   <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
