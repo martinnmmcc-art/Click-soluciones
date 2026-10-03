@@ -78,7 +78,7 @@ export async function POST(req) {
 async function recalcularTotalPedido(pedidoId) {
   const { data, error } = await supabaseAdmin
     .from("pedidos")
-    .select("total, subtotal, estado_pago")
+    .select("total, subtotal, estado_pago, modificado_en")
     .eq("id", pedidoId)
     .single();
 
@@ -87,7 +87,8 @@ async function recalcularTotalPedido(pedidoId) {
   return {
     total: Number(data.total || 0),
     subtotal: Number(data.subtotal || 0),
-    estado_pago: data.estado_pago
+    estado_pago: data.estado_pago,
+    modificado_en: data.modificado_en
   };
 }
 

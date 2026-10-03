@@ -9,6 +9,7 @@ import { ventaCerrada } from "@/lib/estadosPedido";
 import { coincideCliente, normalizarTexto } from "@/lib/buscar";
 import { archivoComprobante, datosComprobante } from "@/lib/comprobanteImagen";
 import AsociarCliente from "@/components/AsociarCliente";
+import { fechaCorta, fechaYHora, ultimaActividad, agregadoDespues } from "@/lib/fechasPedido";
 
 function telefonoParaWhatsapp(tel) {
   let limpio = (tel || "").replace(/\D/g, "");
@@ -163,7 +164,7 @@ function VentasCerradas() {
     }
     porCliente[clave].pedidos.push(p);
     porCliente[clave].totalComprado += Number(p.total || 0);
-    const fecha = p.created_at ? new Date(p.created_at) : null;
+    const fecha = p.created_at ? ultimaActividad(p) : null;
     if (fecha && (!porCliente[clave].ultimaCompra || fecha > porCliente[clave].ultimaCompra)) {
       porCliente[clave].ultimaCompra = fecha;
     }
@@ -237,7 +238,7 @@ function VentasCerradas() {
                       <p className="text-xs text-gray-500">{c.telefono}</p>
                       <p className="text-[11px] text-gray-400 mt-0.5">
                         {c.pedidos.length} compra{c.pedidos.length === 1 ? "" : "s"}
-                        {c.ultimaCompra && ` · última: ${c.ultimaCompra.toLocaleDateString("es-AR")}`}
+                        {c.ultimaCompra && ` · última: ${fechaCorta(c.ultimaCompra)}`}
                       </p>
                     </div>
                     <div className="text-right">
@@ -301,11 +302,12 @@ function VentasCerradas() {
                               <span className="text-xs font-bold text-brand-blue">
                                 {p.numero_pedido || `#${p.id}`}
                               </span>
-                              <p className="text-[11px] text-gray-400">
-                                {p.created_at
-                                  ? new Date(p.created_at).toLocaleDateString("es-AR")
-                                  : ""}
-                              </p>
+                              <p className="text-[11px] text-gray-400">{fechaCorta(p.created_at)}</p>
+                              {p.modificado_en && (
+                                <p className="text-[10px] font-semibold text-amber-700">
+                                  ✏️ Modificado {fechaYHora(p.modificado_en)}
+                                </p>
+                              )}
                             </div>
                             <div className="text-right">
                               <span className="font-extrabold text-gray-800 text-sm">
@@ -326,6 +328,11 @@ function VentasCerradas() {
                                 <div key={item.id} className="flex justify-between text-[11px] text-gray-600">
                                   <span>
                                     {item.cantidad}x {item.nombre_producto}
+                                    {agregadoDespues(item, p) && (
+                                      <span className="block text-[10px] font-semibold text-amber-700">
+                                        + agregado {fechaYHora(item.agregado_en)}
+                                      </span>
+                                    )}
                                   </span>
                                   <span>${formatPrice(item.precio_unitario * item.cantidad)}</span>
                                 </div>

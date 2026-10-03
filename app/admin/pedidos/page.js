@@ -17,6 +17,7 @@ import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPe
 import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
 import { saldoAFavorDe } from "@/lib/saldoFavor";
 import { buscarClientes } from "@/lib/buscar";
+import { fechaCorta, fechaYHora, agregadoDespues } from "@/lib/fechasPedido";
 import {
   encolarCambio,
   sincronizarCambios,
@@ -513,6 +514,7 @@ function PanelVentas() {
                   total: result.total,
                   subtotal: result.subtotal ?? p.subtotal,
                   estado_pago: result.estado_pago ?? p.estado_pago,
+                  modificado_en: result.modificado_en ?? p.modificado_en,
                 }
               : p
           )
@@ -549,6 +551,7 @@ function PanelVentas() {
                   total: result.total,
                   subtotal: result.subtotal ?? p.subtotal,
                   estado_pago: result.estado_pago ?? p.estado_pago,
+                  modificado_en: result.modificado_en ?? p.modificado_en,
                 }
               : p
           )
@@ -582,6 +585,7 @@ function PanelVentas() {
                   total: result.total,
                   subtotal: result.subtotal ?? p.subtotal,
                   estado_pago: result.estado_pago ?? p.estado_pago,
+                  modificado_en: result.modificado_en ?? p.modificado_en,
                 }
               : p
           )
@@ -1593,8 +1597,13 @@ function PanelVentas() {
                       Cliente: {pedido.nombre_cliente || "Sin nombre"} ({pedido.telefono_cliente || "Sin teléfono"})
                     </p>
                     <p className="text-xs text-gray-400">
-                      Fecha: {new Date(pedido.created_at).toLocaleString()}
+                      Fecha: {fechaCorta(pedido.created_at)} {fechaYHora(pedido.created_at).split(" ")[1]}
                     </p>
+                    {pedido.modificado_en && (
+                      <p className="text-[11px] font-semibold text-amber-700">
+                        ✏️ Modificado {fechaYHora(pedido.modificado_en)}
+                      </p>
+                    )}
                     {pedido.comprobante_url && (
                       <a
                         href={pedido.comprobante_url}
@@ -1803,7 +1812,14 @@ function PanelVentas() {
                         >
                           +
                         </button>
-                        <span className="text-gray-700 font-medium">{item.nombre_producto}</span>
+                        <span className="text-gray-700 font-medium">
+                          {item.nombre_producto}
+                          {agregadoDespues(item, pedido) && (
+                            <span className="block text-[10px] font-semibold text-amber-700">
+                              + agregado {fechaYHora(item.agregado_en)}
+                            </span>
+                          )}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-gray-900 font-semibold">${formatPrice(item.precio_unitario * item.cantidad)}</span>
