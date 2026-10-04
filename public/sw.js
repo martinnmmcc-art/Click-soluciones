@@ -15,13 +15,18 @@ const VERSION = "v10";
 const CACHE_APP = `bolsonclick-app-${VERSION}`;
 const CACHE_DATOS = `bolsonclick-datos-${VERSION}`;
 const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
+// Las páginas van aparte del código del programa: antes compartían lugar y,
+// al navegar muchos productos, se podía descartar código de una pantalla
+// (la pantalla se veía pero no respondía a nada).
+const CACHE_PAGINAS = `bolsonclick-paginas-${VERSION}`;
+const CACHE_META = `bolsonclick-meta-${VERSION}`;
 
 // Límites: se guarda lo más reciente y lo viejo se descarta solo. Antes se
 // guardaba cada foto vista para siempre: recorriendo el catálogo a pedido
 // (más de 5.000 productos) el espacio crecía sin parar.
 const LIMITES = {
   [CACHE_IMAGENES]: 500,
-  [CACHE_APP]: 900,
+  [CACHE_PAGINAS]: 500,
   // Muchas pantallas leen varias tablas: más lugar, son textos livianos
   [CACHE_DATOS]: 800
 };
@@ -41,6 +46,59 @@ async function recortar(nombre) {
   } catch (e) {
   } finally {
     recortando[nombre] = false;
+  }
+}
+
+// El código del programa se recorta por "lo menos usado", nunca por
+// antigüedad: un archivo guardado hace meses que se sigue usando en cada
+// pantalla no se descarta. Se anota cuándo se usó cada uno.
+const LIMITE_PROGRAMA = 1500;
+const usoPrograma = new Map();
+let volcadoPendiente = null;
+
+function anotarUso(url) {
+  usoPrograma.set(url, Date.now());
+  if (!volcadoPendiente) volcadoPendiente = setTimeout(() => volcarUso().catch(() => {}), 15000);
+}
+
+async function leerUso() {
+  try {
+    const c = await caches.open(CACHE_META);
+    const r = await c.match("/__uso-programa");
+    return r ? await r.json() : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+async function volcarUso(extra) {
+  volcadoPendiente = null;
+  const uso = extra || (await leerUso());
+  for (const [u, f] of usoPrograma) uso[u] = f;
+  usoPrograma.clear();
+  const c = await caches.open(CACHE_META);
+  await c.put("/__uso-programa", new Response(JSON.stringify(uso)));
+  return uso;
+}
+
+let recortandoPrograma = false;
+async function recortarPrograma() {
+  if (recortandoPrograma) return;
+  recortandoPrograma = true;
+  try {
+    const c = await caches.open(CACHE_APP);
+    const claves = await c.keys();
+    if (claves.length <= LIMITE_PROGRAMA) return;
+    const uso = await volcarUso();
+    const orden = claves.sort((a, b) => (uso[a.url] || 0) - (uso[b.url] || 0));
+    for (const k of orden.slice(0, claves.length - 1200)) {
+      await c.delete(k);
+      delete uso[k.url];
+    }
+    await volcarUso(uso);
+  } catch (e) {
+  } finally {
+    recortandoPrograma = false;
   }
 }
 
@@ -82,7 +140,7 @@ const RUTAS_BASE = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_APP).then((cache) =>
+    caches.open(CACHE_PAGINAS).then((cache) =>
       // Guardamos cada pantalla de dos formas: la página completa y la
       // versión que pide Next al navegar dentro de la app. Sin la segunda,
       // moverse entre pantallas sin señal no funciona.
@@ -178,15 +236,88 @@ function esLecturaDatos(url) {
   );
 }
 
+// ¿El celular dice que no tiene ninguna conexión? Entonces ni se intenta la
+// red: se usa lo guardado al instante.
+function sinConexion() {
+  return self.navigator && self.navigator.onLine === false;
+}
+
+// RED CON LÍMITE DE TIEMPO.
+// Antes era "red primero" sin límite: con poca señal el pedido salía pero la
+// respuesta no llegaba, y se esperaba uno o dos minutos antes de usar lo
+// guardado ("Cargando catálogo..." eterno). Ahora:
+//  - sin conexión y con copia → la copia, al instante;
+//  - con conexión → la red; si no contesta en `espera` ms y hay copia, se
+//    usa la copia (y si la red contesta después, se guarda para la próxima);
+//  - sin copia → se espera a la red (hasta `esperaSinCopia`, si se indica).
+function redConLimite(event, request, op) {
+  const { cache, espera, buscarCopia, siFalla, esperaSinCopia, guardable, aviso } = op;
+
+  return (async () => {
+    const copia = await buscarCopia();
+    if (copia && sinConexion()) {
+      if (aviso) avisarDatosDesdeCopia();
+      return copia;
+    }
+    if (!copia && sinConexion()) return siFalla();
+
+    const red = fetch(request);
+    // Guardar lo que llegue de la red, aunque llegue tarde
+    event.waitUntil(
+      red
+        .then(async (res) => {
+          if (res && guardable(res)) {
+            const paraGuardar = await copiaGuardable(res);
+            const c = await caches.open(cache);
+            await c.put(request, paraGuardar);
+            recortar(cache);
+          }
+        })
+        .catch(() => {})
+    );
+
+    return new Promise((resolve) => {
+      let listo = false;
+      const terminar = (r) => {
+        if (!listo) {
+          listo = true;
+          resolve(r);
+        }
+      };
+      red.then(terminar).catch(async () => {
+        if (copia && aviso) avisarDatosDesdeCopia();
+        terminar(copia || (await siFalla()));
+      });
+      if (copia) {
+        setTimeout(() => {
+          if (!listo && aviso) avisarDatosDesdeCopia();
+          terminar(copia);
+        }, espera);
+      } else if (esperaSinCopia) {
+        setTimeout(async () => terminar(await siFalla()), esperaSinCopia);
+      }
+    });
+  })();
+}
+
+const respuestaOk = (res) => res && res.status === 200;
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
-  // Consultas que solo cuentan ("112 con stock bajo"): no se pueden guardar,
-  // pero sin señal respondemos al instante en vez de dejar que se reintenten.
+  // Consultas que solo cuentan ("112 con stock bajo"): no se pueden guardar.
+  // Sin conexión, respuesta al instante en vez de dejar que se reintenten.
   if (request.method === "HEAD") {
     try {
       if (esLecturaDatos(new URL(request.url))) {
-        event.respondWith(fetch(request).catch(() => respuestaSinSenal()));
+        event.respondWith(
+          sinConexion()
+            ? Promise.resolve(respuestaSinSenal())
+            : Promise.race([
+                fetch(request).catch(() => respuestaSinSenal()),
+                new Promise((r) => setTimeout(() => r(respuestaSinSenal()), 6000))
+              ])
+        );
       }
     } catch (e) {}
     return;
@@ -205,139 +336,134 @@ self.addEventListener("fetch", (event) => {
   // No tocamos la autenticación ni los archivos de Supabase: solo sus lecturas
   if (url.hostname.endsWith("supabase.co") && !esLecturaDatos(url)) return;
 
-  // --- Archivos de la app: cache primero, se actualizan solos ---
+  // --- Código del programa: guardado primero (no cambia nunca: cada versión
+  //     tiene nombres nuevos). Se anota el uso para no descartarlo. ---
   if (esArchivoDeApp(url)) {
     event.respondWith(
       caches.match(request).then((guardado) => {
-        const desdeRed = fetch(request)
-          .then((res) => {
-            if (res && res.status === 200) {
-              const copia = res.clone();
-              caches.open(CACHE_APP).then((c) => c.put(request, copia)).then(() => recortar(CACHE_APP));
-            }
-            return res;
-          })
-          .catch(() => guardado);
-        return guardado || desdeRed;
+        if (guardado) {
+          anotarUso(request.url);
+          return guardado;
+        }
+        return fetch(request).then((res) => {
+          if (respuestaOk(res)) {
+            const copia = res.clone();
+            event.waitUntil(
+              caches
+                .open(CACHE_APP)
+                .then((c) => c.put(request, copia))
+                .then(() => {
+                  anotarUso(request.url);
+                  return recortarPrograma();
+                })
+            );
+          }
+          return res;
+        });
       })
     );
     return;
   }
 
-  // --- Imágenes: cache primero (ahorra datos del cliente) ---
+  // --- Imágenes: guardado primero (ahorra datos) ---
   if (esImagen(url)) {
     event.respondWith(
       caches.match(request).then((guardado) => {
         if (guardado) return guardado;
         return fetch(request)
           .then((res) => {
-            if (res && res.status === 200) {
+            if (respuestaOk(res)) {
               const copia = res.clone();
-              caches.open(CACHE_IMAGENES).then((c) => c.put(request, copia)).then(() => recortar(CACHE_IMAGENES));
+              event.waitUntil(
+                caches.open(CACHE_IMAGENES).then((c) => c.put(request, copia)).then(() => recortar(CACHE_IMAGENES))
+              );
             }
             return res;
           })
-          .catch(() => guardado);
+          .catch(() => Response.error());
       })
     );
     return;
   }
 
-  // --- Navegación interna de Next: red primero, guardamos para después ---
+  // --- Navegación interna de Next (moverse dentro de la app) ---
   if (esNavegacionInterna(request, url)) {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (res && res.status === 200) {
-            const copia = res.clone();
-            caches.open(CACHE_APP).then((c) => c.put(request, copia)).then(() => recortar(CACHE_APP));
+      redConLimite(event, request, {
+        cache: CACHE_PAGINAS,
+        espera: 3500,
+        guardable: respuestaOk,
+        // La misma pantalla guardada con otro código interno (_rsc)
+        buscarCopia: async () => {
+          const exacta = await caches.match(request);
+          if (exacta) return exacta;
+          try {
+            const c = await caches.open(CACHE_PAGINAS);
+            const claves = await c.keys();
+            const misma = claves.find((k) => {
+              const u = new URL(k.url);
+              return u.pathname === url.pathname && u.search.includes("_rsc");
+            });
+            return misma ? c.match(misma) : null;
+          } catch (e) {
+            return null;
           }
-          return res;
-        })
-        .catch(async () => {
-          const guardado = await caches.match(request);
-          if (guardado) return guardado;
-
-          // Si no tenemos esa vista guardada, probamos sin el parámetro
-          // interno: muchas veces la página completa sí está.
-          const limpia = new URL(request.url);
-          limpia.searchParams.delete("_rsc");
-          const alternativa = await caches.match(limpia.pathname);
-          if (alternativa) return alternativa;
-
-          return Response.error();
-        })
+        },
+        // Sin la versión interna, la página completa: Next la abre igual
+        siFalla: async () => (await caches.match(url.pathname)) || Response.error()
+      })
     );
     return;
   }
 
-  // --- Datos de productos: red primero, cache como respaldo ---
-  // --- Datos: red primero (siempre lo último), copia si no hay señal ---
+  // --- Datos (productos, clientes, pedidos...): siempre lo último, pero sin
+  //     quedarse esperando a una red que no contesta ---
   if (esLecturaDatos(url)) {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          // 200 y también 206: las listas que se piden de a tandas (como
-          // Productos, de a 100) vuelven con 206 "contenido parcial". Antes
-          // solo se guardaba el 200, y esas listas nunca quedaban guardadas:
-          // sin señal, Productos mostraba "0 productos".
-          if (res && (res.status === 200 || res.status === 206)) {
-            copiaGuardable(res).then((copia) =>
-              caches.open(CACHE_DATOS).then((c) => c.put(request, copia)).then(() => recortar(CACHE_DATOS))
-            );
-          }
-          return res;
-        })
-        .catch(async () => {
-          // Sin señal (o muy débil): se usa la copia guardada y se avisa a
-          // la app, para que el panel muestre que los datos pueden estar viejos.
-          const guardado = await caches.match(request);
-          avisarDatosDesdeCopia();
-          return guardado || respuestaSinSenal();
-        })
+      redConLimite(event, request, {
+        cache: CACHE_DATOS,
+        espera: 4000,
+        esperaSinCopia: 12000,
+        aviso: true,
+        // 200 y 206: las listas que se piden de a tandas vuelven con 206
+        guardable: (res) => res && (res.status === 200 || res.status === 206),
+        buscarCopia: () => caches.match(request),
+        siFalla: async () => respuestaSinSenal()
+      })
     );
     return;
   }
 
-  // --- Páginas: red primero (para ver siempre lo último), cache si no hay internet ---
+  // --- Páginas ---
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (res && res.status === 200) {
-            const copia = res.clone();
-            caches.open(CACHE_APP).then((c) => c.put(request, copia)).then(() => recortar(CACHE_APP));
-          }
-          return res;
-        })
-        .catch(async () => {
-          const guardado = await caches.match(request);
-          if (guardado) return guardado;
-          const inicio = await caches.match("/");
-          if (inicio) return inicio;
-          return caches.match("/offline");
-        })
+      redConLimite(event, request, {
+        cache: CACHE_PAGINAS,
+        espera: 3500,
+        guardable: respuestaOk,
+        // La página exacta, o la misma sin lo que va después del "?" (por
+        // ejemplo "?de=fb"). Nunca "ignorando" el "?" a ciegas: podría
+        // devolver la versión interna (_rsc) en vez de la página.
+        buscarCopia: async () =>
+          (await caches.match(request)) || (url.search ? await caches.match(url.origin + url.pathname) : null),
+        // Sin copia de esa pantalla: el inicio, o la pantalla "sin conexión"
+        siFalla: async () =>
+          (await caches.match("/")) || (await caches.match("/offline")) || Response.error()
+      })
     );
     return;
   }
 
-  // --- Cualquier otra cosa del sitio: si no hay señal, buscamos en lo
-  //     guardado antes de dar error. Cubre archivos que no entran en las
-  //     categorías de arriba. ---
+  // --- Cualquier otra cosa del sitio (manifest, íconos, etc.) ---
   if (url.origin === self.location.origin) {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (res && res.status === 200 && request.method === "GET") {
-            const copia = res.clone();
-            caches.open(CACHE_APP).then((c) => c.put(request, copia)).then(() => recortar(CACHE_APP));
-          }
-          return res;
-        })
-        .catch(async () => {
-          const guardado = await caches.match(request);
-          return guardado || Response.error();
-        })
+      redConLimite(event, request, {
+        cache: CACHE_PAGINAS,
+        espera: 5000,
+        guardable: respuestaOk,
+        buscarCopia: () => caches.match(request),
+        siFalla: async () => Response.error()
+      })
     );
   }
 });

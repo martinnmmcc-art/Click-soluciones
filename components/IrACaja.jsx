@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { correoGuardado } from "@/lib/sesionGuardada";
+import { ADMIN_EMAILS } from "@/context/AdminContext";
 
 // Lleva al admin directo a la caja al abrir la app.
 //
@@ -26,8 +27,9 @@ export default function IrACaja() {
         const salio = sessionStorage.getItem(CLAVE);
         if (salio) return;
 
-        const { data } = await supabase.auth.getSession();
-        if (!data?.session?.user) return;
+        // La sesión guardada en el celular (sin internet): con poca señal,
+        // preguntarle a Supabase tarda o dice "no hay sesión".
+        if (!ADMIN_EMAILS.includes(correoGuardado())) return;
 
         sessionStorage.setItem(CLAVE, "1");
         router.replace("/admin/caja");

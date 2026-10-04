@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { supabase } from "@/lib/supabaseClient";
+import { correoGuardado } from "@/lib/sesionGuardada";
 import Link from "next/link";
 
 export default function CuentaPage() {
@@ -25,15 +26,26 @@ export default function CuentaPage() {
       }
 
       // 2. Si no es cliente local, verificamos si es admin en Supabase
+      // Sin señal la sesión no se puede renovar y Supabase dice "no hay
+      // sesión": se usa la guardada en el celular antes de mandar a login.
+      const correo = correoGuardado();
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) {
           setTipoUsuario("admin");
           setDatos(session.user);
+        } else if (correo) {
+          setTipoUsuario("admin");
+          setDatos({ email: correo });
         } else {
           router.replace("/login");
         }
       }).catch(() => {
-        router.replace("/login");
+        if (correo) {
+          setTipoUsuario("admin");
+          setDatos({ email: correo });
+        } else {
+          router.replace("/login");
+        }
       }).finally(() => {
         setLoading(false);
       });

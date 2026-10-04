@@ -7,6 +7,7 @@ import BottomNav from "@/components/BottomNav";
 import BannerNovedades from "@/components/BannerNovedades";
 import BannerOferta from "@/components/BannerOferta";
 import { supabase } from "@/lib/supabaseClient";
+import { guardarCopiaTienda, leerCopiaTienda, conLimite } from "@/lib/copiaTienda";
 import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage } from "@/lib/whatsapp";
@@ -89,16 +90,26 @@ export default function HomePage() {
     async function cargarDatos() {
       setLoadingData(true);
       try {
-        const { data: prodData, error: prodError } = await supabase
-          .from("Productos")
-          .select("*")
-          .or("bajo_pedido.is.null,bajo_pedido.eq.false")
-          .order("id", { ascending: false });
+        let { data: prodData, error: prodError } = await conLimite(
+          supabase
+            .from("Productos")
+            .select("*")
+            .or("bajo_pedido.is.null,bajo_pedido.eq.false")
+            .order("id", { ascending: false }),
+          navigator.onLine ? 8000 : 1500
+        );
 
-        if (prodError) {
-          console.error("Error en Productos:", prodError.message);
-        } else if (prodData) {
+        if (prodData?.length) {
           setProductos(prodData);
+          guardarCopiaTienda(prodData);
+        } else {
+          // Sin señal o la base no contesta: la copia guardada en el celular
+          if (prodError) console.error("Error en Productos:", prodError.message);
+          const copia = leerCopiaTienda();
+          if (copia.length) {
+            prodData = copia;
+            setProductos(copia);
+          }
         }
 
         // Las categorías salen de los propios productos. La tabla "Categorias"

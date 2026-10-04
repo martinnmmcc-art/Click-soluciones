@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { correoGuardado } from "@/lib/sesionGuardada";
 import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
 import { avisarAdmin, idVisitante } from "@/lib/avisarAdmin";
 
@@ -70,26 +71,35 @@ export default function MuroRegistro() {
     // El admin entra con correo y contraseña (Supabase Auth), no con la
     // sesión de cliente. Sin esta comprobación, al navegar el catálogo le
     // aparecía el muro y tenía que salir y volver a entrar.
+    // Se mira la sesión GUARDADA en el celular, sin internet. Antes se le
+    // preguntaba a Supabase, que sin señal no puede renovar la sesión (vence
+    // cada hora) y respondía "no hay sesión": al administrador le aparecía el
+    // muro de registro.
     async function esAdminLogueado() {
-      try {
-        const { data } = await supabase.auth.getSession();
-        return !!data?.session?.user;
-      } catch (e) {
-        return false;
-      }
+      return !!correoGuardado();
     }
 
     // Contamos la visita apenas entra. El servidor lleva la cuenta por IP,
     // así que entrar en incógnito o borrar los datos no la reinicia.
     let visitaPrevia = null;
+    // El muro solo aparece si se CONFIRMÓ que hay conexión (el servidor
+    // contestó). Sin señal o con muy poca, nadie tiene que toparse con un
+    // formulario que tampoco podría enviar: se deja mirar el catálogo.
+    let hayConexion = false;
     async function contarVisita() {
+      if (!navigator.onLine) return;
       try {
-        const res = await fetch("/api/visita", {
+        const res = await Promise.race([
+          fetch("/api/visita", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ huella: huellaDispositivo() })
-        });
+          }),
+          new Promise((_, no) => setTimeout(() => no(new Error("sin respuesta")), 8000))
+        ]);
+        if (!res.ok) return;
         visitaPrevia = await res.json();
+        hayConexion = true;
 
         // Si ya miró varias veces sin registrarse, no esperamos los
         // 20 segundos: se lo pedimos enseguida.
@@ -104,6 +114,7 @@ export default function MuroRegistro() {
     contarVisita();
 
     async function decidir() {
+      if (!hayConexion || !navigator.onLine) return;
       if (estaLibre() || tieneSesionCliente()) return;
       if (await esAdminLogueado()) return;
 

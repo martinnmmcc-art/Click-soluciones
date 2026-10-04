@@ -58,6 +58,7 @@ function Caja() {
   // Si se escribe rápido, las respuestas pueden llegar desordenadas: solo
   // mostramos la de lo último que se escribió.
   const ultimaBusqueda = useRef("");
+  const ultimaBusquedaProducto = useRef("");
   const buscadorRef = useRef(null);
   const [avisoVenta, setAvisoVenta] = useState("");
 
@@ -262,20 +263,30 @@ function Caja() {
       return;
     }
 
-    if (!hayConexion()) {
-      setResultados(buscarPorNombreLocal(texto));
-      return;
-    }
+    // Primero lo guardado en el celular: aparece al instante, haya o no
+    // señal. Antes, con poca señal, cada letra esperaba a la base hasta 12
+    // segundos y el buscador parecía muerto.
+    const locales = buscarPorNombreLocal(texto);
+    setResultados(locales);
+    if (!hayConexion()) return;
 
-    const { data } = await supabase
-      .from("Productos")
-      .select("id, nombre, precio, precio_oferta, stock, imagen_url, bajo_pedido")
-      .ilike("nombre", `%${texto.trim()}%`)
-      .eq("activo", true)
-      .order("stock", { ascending: false })
-      .limit(8);
+    // Con señal, se completa con la base (incluye "a pedido"), pero si no
+    // contesta en 2,5 segundos quedan los resultados locales.
+    ultimaBusquedaProducto.current = texto;
+    const respuesta = await Promise.race([
+      supabase
+        .from("Productos")
+        .select("id, nombre, precio, precio_oferta, stock, imagen_url, bajo_pedido")
+        .ilike("nombre", `%${texto.trim()}%`)
+        .eq("activo", true)
+        .order("stock", { ascending: false })
+        .limit(8),
+      new Promise((r) => setTimeout(() => r({ data: null }), 2500))
+    ]).catch(() => ({ data: null }));
 
-    setResultados(data?.length ? data : buscarPorNombreLocal(texto));
+    // Si mientras tanto se siguió escribiendo, esta respuesta ya no sirve
+    if (ultimaBusquedaProducto.current !== texto) return;
+    if (respuesta?.data?.length) setResultados(respuesta.data);
   }
 
   function cambiarCantidad(id, delta) {

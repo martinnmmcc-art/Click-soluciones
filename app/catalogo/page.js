@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
+import { conLimite } from "@/lib/copiaTienda";
 import { formatPrice } from "@/lib/whatsapp";
 import {
   guardarCatalogoCliente,
@@ -228,12 +229,17 @@ export default function CatalogoPage() {
         return;
       }
 
-      const { data, count } = await construirConsulta()
-        // Los que tenés disponibles van primero; los agotados al final,
-        // para que el cliente vea lo que puede llevarse ya.
-        .order("stock", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: false })
-        .range(0, hasta);
+      // Con límite de tiempo: con poca señal la consulta puede no contestar
+      // nunca, y la pantalla quedaba en "Cargando..."
+      const { data, count } = await conLimite(
+        construirConsulta()
+          // Los que tenés disponibles van primero; los agotados al final,
+          // para que el cliente vea lo que puede llevarse ya.
+          .order("stock", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: false })
+          .range(0, hasta),
+        8000
+      );
 
       if (cancelado) return;
 

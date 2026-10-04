@@ -24,14 +24,25 @@ export default function AuthGuard({ children }) {
       return; // Hay sesión local válida, pasamos libremente sin bloquear
     }
 
-    // Verificación de respaldo en segundo plano
+    // Sin señal no se puede verificar nada, y mandar a "Iniciar sesión" no
+    // sirve (tampoco se podría iniciar): se deja mirar lo guardado.
+    if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+    // Verificación de respaldo en segundo plano. Con poca señal la consulta
+    // puede tardar o fallar: solo se redirige si contestó, y rápido.
+    let vigente = true;
+    const limite = setTimeout(() => {
+      vigente = false;
+    }, 4000);
     supabase.auth.getSession()
-      .then(({ data: { session } }) => {
+      .then(({ data: { session }, error }) => {
+        if (!vigente || error || !navigator.onLine) return;
         if (!session) {
           router.replace("/login");
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => clearTimeout(limite));
   }, [pathname, router]);
 
   // Renderizado inmediato: Cero pantallas de carga bloqueantes ("Verificando acceso...")
