@@ -120,6 +120,11 @@ function ListaProductos() {
 
     // En qué orden
     const o = ORDENES.find((x) => x.valor === orden) || ORDENES[0];
+    // En "A pedido", "Más nuevos" = lo último que publicó el proveedor (igual
+    // que sus Novedades), no lo último que se importó
+    if (tab === "a-pedido" && o.valor === "nuevos") {
+      q = q.order("orden_novedad", { ascending: false, nullsFirst: false });
+    }
     q = q.order(o.campo, { ascending: o.asc, nullsFirst: false });
     // Desempate fijo para que "Ver más" no repita ni saltee productos
     if (o.campo !== "id") q = q.order("id", { ascending: false });

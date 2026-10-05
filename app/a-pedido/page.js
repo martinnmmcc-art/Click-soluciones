@@ -90,9 +90,13 @@ export default function APedidoPage() {
 
     // Lo más nuevo primero: es lo que da razón para volver a mirar.
     // Desempatamos por id para que el orden sea estable entre visitas.
+    // "Más nuevo" = lo último que publicó el proveedor (su número de
+    // producto crece con cada uno nuevo): el mismo orden que sus Novedades.
+    // Antes era la última modificación, y la sincronización diaria ponía
+    // productos viejos como "nuevos".
     if (orden === "nuevo") {
       return q
-        .order("actualizado_en", { ascending: false, nullsFirst: false })
+        .order("orden_novedad", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false });
     }
     if (orden === "precio-asc") return q.order("precio", { ascending: true });

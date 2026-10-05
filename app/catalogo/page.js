@@ -221,6 +221,8 @@ export default function CatalogoPage() {
     if (disponibilidad === "stock") {
       return q
         .order("stock", { ascending: false, nullsFirst: false })
+        // Después de lo disponible, lo más nuevo del proveedor (como sus Novedades)
+        .order("orden_novedad", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false });
     }
 
@@ -264,6 +266,8 @@ export default function CatalogoPage() {
           // Los que tenés disponibles van primero; los agotados al final,
           // para que el cliente vea lo que puede llevarse ya.
           .order("stock", { ascending: false, nullsFirst: false })
+          // Después de lo disponible, lo más nuevo del proveedor (como sus Novedades)
+          .order("orden_novedad", { ascending: false, nullsFirst: false })
           .order("id", { ascending: false })
           .range(0, hasta),
         8000
