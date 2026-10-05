@@ -10,7 +10,7 @@ import { formatPrice } from "@/lib/whatsapp";
 import { nombreCategoria } from "@/lib/categorias";
 import { useActualizarSolo } from "@/lib/datosFrescos";
 import { leerProductosPropiosOffline } from "@/lib/catalogoOffline";
-import { normalizarTexto } from "@/lib/buscar";
+import { normalizarTexto, aplicarBusqueda } from "@/lib/buscar";
 import { textoRespuesta } from "@/lib/respuestaPrecio";
 
 // Filtros rápidos de la lista. Los de stock solo aplican a "Tengo".
@@ -107,7 +107,7 @@ function ListaProductos() {
     }
 
     if (busqueda.trim().length >= 2) {
-      q = q.ilike("nombre", `%${busqueda.trim()}%`);
+      q = aplicarBusqueda(q, busqueda);
     }
 
     if (categoria) q = q.eq("categoria", categoria);

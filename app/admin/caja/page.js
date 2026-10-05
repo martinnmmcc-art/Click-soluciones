@@ -6,7 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import EscanerCodigo from "@/components/EscanerCodigo";
-import { buscarClientes } from "@/lib/buscar";
+import { aplicarBusqueda, buscarClientes } from "@/lib/buscar";
 import { useActualizarSolo } from "@/lib/datosFrescos";
 import {
   catalogoLocal, guardarCatalogo, fechaCatalogo,
@@ -274,10 +274,10 @@ function Caja() {
     // contesta en 2,5 segundos quedan los resultados locales.
     ultimaBusquedaProducto.current = texto;
     const respuesta = await Promise.race([
-      supabase
-        .from("Productos")
-        .select("id, nombre, precio, precio_oferta, stock, imagen_url, bajo_pedido")
-        .ilike("nombre", `%${texto.trim()}%`)
+      aplicarBusqueda(
+        supabase.from("Productos").select("id, nombre, precio, precio_oferta, stock, imagen_url, bajo_pedido"),
+        texto
+      )
         .eq("activo", true)
         .order("stock", { ascending: false })
         .limit(8),

@@ -6,6 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import { NEGOCIO as CFG } from "@/lib/config";
+import { aplicarBusqueda } from "@/lib/buscar";
 import {
   generarPlaca,
   textoPara,
@@ -151,7 +152,7 @@ function Promocionar() {
         .eq("activo", true)
         .not("imagen_url", "is", null);
 
-      for (const w of palabras) q = q.ilike("nombre", `%${w}%`);
+      q = aplicarBusqueda(q, palabras.join(" "));
       if (soloOfertas) q = q.not("precio_oferta", "is", null);
 
       // Sin búsqueda, mostramos lo más nuevo del proveedor

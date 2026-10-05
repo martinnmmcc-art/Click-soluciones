@@ -301,6 +301,9 @@ export async function POST(request) {
     let actualizados = 0;
     let protegidos = 0;
     let omitidos = 0;
+    // Por qué se salteó cada producto: para poder explicar la diferencia
+    // entre lo que muestra el proveedor y lo que hay en la tienda.
+    const motivos = { sin_precio: 0, categoria_excluida: 0, nombre_repetido: 0, sin_cambios: 0 };
 
     for (const p of productos) {
       const ref = String(p.id);
@@ -309,6 +312,7 @@ export async function POST(request) {
       // Sin precio no podemos calcular nada
       if (!costo) {
         omitidos++;
+        motivos.sin_precio++;
         continue;
       }
 
@@ -316,6 +320,7 @@ export async function POST(request) {
       // Si su categoría está excluida, no lo traemos
       if (listaExcluidas.has(categoriaDeProducto(p))) {
         omitidos++;
+        motivos.categoria_excluida++;
         continue;
       }
 
@@ -329,6 +334,7 @@ export async function POST(request) {
         (yaExistePorNombre.has(nombreOriginal) || yaExistePorNombre.has(nombreLimpio))
       ) {
         omitidos++;
+        motivos.nombre_repetido++;
         continue;
       }
 
@@ -377,6 +383,7 @@ export async function POST(request) {
           actualizados++;
         } else {
           omitidos++;
+          motivos.sin_cambios++;
         }
 
         // Contamos los que protegimos, para poder avisarlo
@@ -428,11 +435,17 @@ export async function POST(request) {
       importados = data?.length || 0;
     }
 
+    // Todos los productos de esta página quedan marcados como "vistos" (los
+    // nuevos también). Al terminar una vuelta completa, los "a pedido" que no
+    // se vieron se ocultan: el proveedor ya no los tiene.
+    await supabase.rpc("marcar_vistos_proveedor", { p_refs: refs });
+
     return NextResponse.json({
       ok: true,
       importados,
       actualizados,
       omitidos,
+      motivos,
       protegidos,
       pagina,
       total_paginas: totalPaginas,

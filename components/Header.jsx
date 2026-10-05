@@ -21,7 +21,7 @@ const MENU_PC = [
   { href: "/login", label: "Mi cuenta" }
 ];
 
-export default function Header({ showSearch = true, initialQuery = "", busqueda, setBusqueda }) {
+export default function Header({ showSearch = true, initialQuery = "", busqueda, setBusqueda, buscarEnCatalogo = false }) {
   const esControlado = typeof setBusqueda === "function";
   const [queryInterno, setQueryInterno] = useState(initialQuery);
   const query = esControlado ? busqueda : queryInterno;
@@ -37,7 +37,9 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
 
   function handleSearch(e) {
     e.preventDefault();
-    if (esControlado) return; // ya filtra en vivo en la misma página, no hace falta navegar
+    // Ya filtra en vivo en la misma página... salvo en el inicio, que solo
+    // tiene lo que está en stock: ahí apretar buscar lleva al catálogo completo
+    if (esControlado && !buscarEnCatalogo) return;
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     router.push(`/catalogo?${params.toString()}`);
@@ -117,6 +119,22 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
             🔍
           </button>
         </form>
+      )}
+
+      {/* En el inicio (que solo muestra lo que hay en stock), mientras escribe
+          se ofrece buscar en TODO, también a pedido. Va acá, en el encabezado
+          que queda fijo arriba, para que se vea siempre mientras escribe. */}
+      {showSearch && buscarEnCatalogo && String(query || "").trim().length >= 2 && (
+        <Link
+          href={`/catalogo?q=${encodeURIComponent(String(query).trim())}`}
+          className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-brand-blue text-white px-3.5 py-2.5 text-sm font-bold"
+        >
+          <span>
+            🔍 Buscar &quot;{String(query).trim()}&quot; en todos los productos
+            <span className="block text-[11px] font-semibold opacity-85">también los que traemos a pedido</span>
+          </span>
+          <span>→</span>
+        </Link>
       )}
     </header>
   );

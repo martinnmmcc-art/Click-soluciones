@@ -14,6 +14,7 @@ import {
   estaSinConexion
 } from "@/lib/catalogoCliente";
 import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
+import { aplicarBusqueda } from "@/lib/buscar";
 
 // Cuántos productos traemos por tanda. Con más de 2000 productos no podemos
 // cargarlos todos juntos: el celular del cliente se traba y consume datos de más.
@@ -35,11 +36,38 @@ export default function CatalogoPage() {
   // veces no llegaba a cambiar.
   const [disponibilidad, setDisponibilidad] = useState(() => {
     if (typeof window === "undefined") return "stock";
-    return new URLSearchParams(window.location.search).get("oferta") === "1"
-      ? "oferta"
-      : "stock";
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("oferta") === "1") return "oferta";
+    // Viene del buscador de arriba (inicio u otra pantalla): se busca en TODO
+    if ((params.get("q") || "").trim()) return "todos";
+    return "stock";
   });
-  const [busqueda, setBusqueda] = useState("");
+  // La palabra que viene del buscador de arriba ("/catalogo?q=torno"). Antes
+  // no se leía: el cliente buscaba "torno" desde el inicio y le aparecía el
+  // catálogo entero sin buscar nada.
+  const [busqueda, setBusqueda] = useState(() => {
+    if (typeof window === "undefined") return "";
+    return (new URLSearchParams(window.location.search).get("q") || "").trim();
+  });
+
+  // Al llegar desde el buscador de otra pantalla, Next.js cambia de página
+  // sin recargar: mientras se arma el catálogo la dirección del navegador
+  // todavía puede ser la anterior. Se vuelve a leer apenas se mostró, cuando
+  // la dirección ya es "/catalogo?q=...".
+  useEffect(() => {
+    const q = (new URLSearchParams(window.location.search).get("q") || "").trim();
+    if (q) {
+      setBusqueda(q);
+      setDisponibilidad("todos");
+    }
+  }, []);
+
+  // Si busca estando en "Lo que tengo", se busca en todo: tus productos
+  // primero y después los "a pedido". Antes buscaba solo entre lo que tenés en
+  // stock, y "torno" (que es a pedido) no aparecía.
+  useEffect(() => {
+    if (busqueda.trim().length >= 2 && disponibilidad === "stock") setDisponibilidad("todos");
+  }, [busqueda, disponibilidad]);
   const [loading, setLoading] = useState(true);
   const [cargandoMas, setCargandoMas] = useState(false);
   const [hayMas, setHayMas] = useState(true);
@@ -180,7 +208,7 @@ export default function CatalogoPage() {
     }
 
     if (busqueda.trim().length >= 2) {
-      q = q.ilike("nombre", `%${busqueda.trim()}%`);
+      q = aplicarBusqueda(q, busqueda);
     }
 
     return q;

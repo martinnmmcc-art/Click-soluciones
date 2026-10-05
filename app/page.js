@@ -15,6 +15,7 @@ import BotonFavorito from "@/components/BotonFavorito";
 import FotoRotativa from "@/components/FotoRotativa";
 import { fotosDe, urlImagen } from "@/lib/imagenProducto";
 import RedesSociales from "@/components/RedesSociales";
+import { coincideBusqueda } from "@/lib/buscar";
 
 export default function HomePage() {
   const { addItem } = useCart();
@@ -151,12 +152,10 @@ export default function HomePage() {
     const coincideCategoria =
       categoriaSeleccionada === "todas" || prod.categoria === categoriaSeleccionada;
 
-    const coincideBusqueda =
-      !busqueda.trim() ||
-      prod.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      prod.descripcion?.toLowerCase().includes(busqueda.toLowerCase());
+    const coincide =
+      !busqueda.trim() || coincideBusqueda(prod.nombre, busqueda) || coincideBusqueda(prod.descripcion, busqueda);
 
-    return coincideCategoria && coincideBusqueda;
+    return coincideCategoria && coincide;
   })
   // Primero lo que se puede entregar ya: es lo que más rápido se convierte
   // en venta. Los agotados quedan abajo, para consultar.
@@ -177,7 +176,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-28">
-      <Header busqueda={busqueda} setBusqueda={setBusqueda} showSearch={true} />
+      <Header busqueda={busqueda} setBusqueda={setBusqueda} showSearch={true} buscarEnCatalogo />
 
       {mensajeCarrito && (
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-green-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg transition animate-bounce">
@@ -380,7 +379,14 @@ export default function HomePage() {
         ) : productosFiltrados.length === 0 ? (
           <div className="text-center py-12 card p-6 bg-white rounded-2xl shadow-sm">
             <p className="text-2xl mb-2">🔍</p>
-            <p className="text-sm font-bold text-gray-700">No hay productos disponibles</p>
+            <p className="text-sm font-bold text-gray-700">
+              {busqueda.trim() ? "No lo tenemos en stock ahora" : "No hay productos disponibles"}
+            </p>
+            {busqueda.trim().length >= 2 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Tocá &quot;Buscar en todos los productos&quot;, arriba: puede estar a pedido.
+              </p>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-2">

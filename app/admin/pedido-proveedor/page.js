@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import { cabeceraAdmin } from "@/lib/verificarAdmin";
 import DetallePedidoRecibido from "@/components/DetallePedidoRecibido";
+import { aplicarBusqueda } from "@/lib/buscar";
 
 // Pega el texto del pedido tal como sale de la web del proveedor, la app
 // interpreta cada línea y busca la foto. Es lo mismo que se hacía a mano en
@@ -347,7 +348,7 @@ function PedidoProveedor() {
         .select("id, nombre, nombre_proveedor, costo, imagen_url, bajo_pedido, stock")
         .eq("activo", true)
         .limit(12);
-      for (const w of palabras) consulta = consulta.ilike("nombre", `%${w}%`);
+      consulta = aplicarBusqueda(consulta, palabras.join(" "));
       const { data } = await consulta;
       setResultadosAgregar(data || []);
     }, 300);

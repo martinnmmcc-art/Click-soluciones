@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import EstadoSincronizacion from "@/components/EstadoSincronizacion";
 
 function ImportarProveedor() {
   const [categorias, setCategorias] = useState([]);
@@ -155,8 +156,10 @@ function ImportarProveedor() {
         </h1>
         <p className="text-xs text-gray-500 mb-5">
           Trae los productos del proveedor como <b>&quot;a pedido&quot;</b> (stock 0), con la foto,
-          la descripción y el precio ya calculado con tu fórmula: costo + 3% + 5% + 15% de transporte + 80% de ganancia.
+          la descripción y el precio ya calculado con tu fórmula: costo + 3% de transferencia + 10% de transporte + 80% de ganancia.
         </p>
+
+        <EstadoSincronizacion />
 
         {cargandoCats && (
           <div className="card p-6 text-center text-gray-400 text-sm">

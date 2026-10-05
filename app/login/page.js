@@ -14,6 +14,7 @@ import { formatPrice } from "@/lib/whatsapp";
 import { suscribirPush } from "@/lib/push";
 import { avisarAdmin } from "@/lib/avisarAdmin";
 import { estadoEntrega, estadoPago, textoPago, PASOS_SEGUIMIENTO, pasoActual } from "@/lib/estadosPedido";
+import { aplicarBusqueda } from "@/lib/buscar";
 
 
 export default function LoginPage() {
@@ -435,10 +436,10 @@ export default function LoginPage() {
       return;
     }
     setBuscandoProducto(true);
-    const { data } = await supabase
-      .from("Productos")
-      .select("id, nombre, precio, precio_oferta, imagen_url")
-      .ilike("nombre", `%${texto.trim()}%`)
+    const { data } = await aplicarBusqueda(
+      supabase.from("Productos").select("id, nombre, precio, precio_oferta, imagen_url"),
+      texto
+    )
       .eq("activo", true)
       .limit(8);
     setResultadosProducto(data || []);

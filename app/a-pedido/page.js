@@ -9,6 +9,7 @@ import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSali
 import { formatPrice, buildWhatsAppLink, whatsappAPedidoMessage } from "@/lib/whatsapp";
 import FotoRotativa from "@/components/FotoRotativa";
 import { fotosDe } from "@/lib/imagenProducto";
+import { aplicarBusqueda } from "@/lib/buscar";
 
 export default function APedidoPage() {
   const [productos, setProductos] = useState([]);
@@ -84,7 +85,7 @@ export default function APedidoPage() {
       q = q.eq("categoria", categoriaSeleccionada);
     }
     if (busqueda.trim().length >= 2) {
-      q = q.ilike("nombre", `%${busqueda.trim()}%`);
+      q = aplicarBusqueda(q, busqueda);
     }
 
     // Lo más nuevo primero: es lo que da razón para volver a mirar.
