@@ -142,10 +142,23 @@ function limpiarCodigos(nombre) {
   return r.length >= 8 ? r : nombre;
 }
 
+// Corta un texto sin partir un emoji al medio. Los emojis ocupan dos
+// "pedazos" internos: cortar con .slice() podía dejar medio emoji suelto, que
+// no es texto válido, y la base rechazaba la tanda ENTERA de esa página (la
+// sincronización quedó trabada en la página 48 por una descripción así).
+// También saca cualquier medio emoji suelto que ya venga del proveedor.
+function cortarSeguro(texto, max) {
+  const limpio = String(texto || "")
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, "")
+    .replace(/(^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "$1")
+    .replace(/\u0000/g, "");
+  return Array.from(limpio).slice(0, max).join("");
+}
+
 // Limpia las etiquetas HTML de la descripción del proveedor.
 function limpiarHtml(html) {
   if (!html) return "";
-  return html
+  const texto = html
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
@@ -153,10 +166,9 @@ function limpiarHtml(html) {
     .replace(/&#8217;/g, "'")
     .replace(/\bnext\s*cell\b/gi, "")
     .replace(/\bnextcell(\.com\.ar)?\b/gi, "")
-    .replace(/\b(c[oó]digo|cod|sku|modelo)\s*:?\s*[A-Za-z0-9./-]+/gi, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 1500);
+    .replace(/\b(c[oó]digo|cod|sku|modelo)\s*:?\s*[A-Za-z0-9./-]+/gi, "");
+  // Corte seguro: nunca en medio de un emoji
+  return cortarSeguro(texto.replace(/\s+/g, " ").trim(), 1500);
 }
 
 async function traerPagina(pagina, categoria) {
@@ -395,7 +407,7 @@ export async function POST(request) {
 
       // Guardamos el nombre del proveedor aparte y mostramos uno limpio:
       // así el cliente no puede rastrear de dónde sacamos la mercadería.
-      const nombreProveedor = decodificarHtml(p.name || "").slice(0, 200) || "Sin nombre";
+      const nombreProveedor = cortarSeguro(decodificarHtml(p.name || ""), 200) || "Sin nombre";
 
       aInsertar.push({
         nombre: limpiarCodigos(nombreProveedor),
@@ -431,8 +443,22 @@ export async function POST(request) {
         .from("Productos")
         .insert(aInsertar)
         .select("id");
-      if (error) throw new Error(error.message);
-      importados = data?.length || 0;
+      if (!error) {
+        importados = data?.length || 0;
+      } else {
+        // Antes un solo producto con un dato raro tiraba abajo la página
+        // entera y la sincronización se trababa. Ahora se reintenta de a uno:
+        // el que falla se saltea (y se cuenta), los demás entran.
+        for (const fila of aInsertar) {
+          const r = await supabase.from("Productos").insert(fila).select("id");
+          if (r.error) {
+            motivos.error_al_guardar = (motivos.error_al_guardar || 0) + 1;
+            console.error("No se pudo importar", fila.proveedor_ref, r.error.message);
+          } else {
+            importados += r.data?.length || 0;
+          }
+        }
+      }
     }
 
     // Todos los productos de esta página quedan marcados como "vistos" (los

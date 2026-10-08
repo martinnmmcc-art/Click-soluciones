@@ -19,6 +19,10 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.
 
 const HORAS_ENTRE_VUELTAS = 20;
 const TIEMPO_MAXIMO_MS = 45000;
+// Si una página falla 6 veces seguidas (una hora), se saltea y se sigue.
+// Antes un solo producto con un dato raro dejaba la sincronización trabada
+// en la misma página para siempre (pasó 3 días en la página 48).
+const MAX_REINTENTOS = 6;
 
 function sumar(a = {}, b = {}) {
   const r = { ...a };
@@ -86,14 +90,27 @@ export async function POST(request) {
         motivos: r.motivos || {}
       });
       pagina++;
+      s.reintentos = 0;
       await supabase
         .from("sync_proveedor")
-        .update({ pagina_actual: pagina, total_paginas: total, contadores, ultimo_error: null })
+        .update({ pagina_actual: pagina, total_paginas: total, contadores, ultimo_error: null, reintentos: 0 })
         .eq("id", 1);
     } catch (e) {
+      const intentos = (s.reintentos || 0) + 1;
+      if (intentos >= MAX_REINTENTOS) {
+        // Esta página no hay forma de pasarla: se anota y se sigue con la próxima
+        contadores = sumar(contadores, { paginas_salteadas: 1 });
+        pagina++;
+        s.reintentos = 0;
+        await supabase
+          .from("sync_proveedor")
+          .update({ pagina_actual: pagina, contadores, reintentos: 0, ultimo_error: `Página ${pagina - 1} salteada: ${e.message}` })
+          .eq("id", 1);
+        continue;
+      }
       // Proveedor caído o en mantenimiento: se reintenta en la próxima llamada
       error = e.message;
-      await supabase.from("sync_proveedor").update({ ultimo_error: error }).eq("id", 1);
+      await supabase.from("sync_proveedor").update({ ultimo_error: error, reintentos: intentos }).eq("id", 1);
       break;
     }
   }

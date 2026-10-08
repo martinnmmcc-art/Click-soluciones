@@ -31,7 +31,8 @@ export default function EstadoSincronizacion() {
 
   const r = s.ultimo_resumen;
   const m = r?.motivos || {};
-  const salteados = (m.sin_precio || 0) + (m.nombre_repetido || 0) + (m.categoria_excluida || 0);
+  const salteados =
+    (m.sin_precio || 0) + (m.nombre_repetido || 0) + (m.categoria_excluida || 0) + (m.error_al_guardar || 0);
   const enCurso = s.estado === "en_curso";
 
   return (
@@ -57,8 +58,13 @@ export default function EstadoSincronizacion() {
           )}
           {s.ultimo_error && (
             <p className="text-[11px] text-amber-800 mt-1.5">
-              El proveedor no responde ({s.ultimo_error}). Se reintenta sola en unos minutos.
+              {s.ultimo_error.startsWith("Página")
+                ? `⚠️ ${s.ultimo_error}. Siguió con las demás.`
+                : `Esta página falló (${s.reintentos || 1} de 6 intentos). Se reintenta sola cada 10 minutos; si sigue fallando, la saltea y sigue.`}
             </p>
+          )}
+          {s.ultima_llamada && (
+            <p className="text-[10px] text-gray-500 mt-1">Último movimiento: {fechaYHora(s.ultima_llamada)}</p>
           )}
         </div>
       ) : (
@@ -102,6 +108,12 @@ export default function EstadoSincronizacion() {
                 {m.sin_precio > 0 && (
                   <li>
                     • <b>{m.sin_precio}</b> sin precio en el proveedor ("consultar"): no se puede calcular el tuyo.
+                  </li>
+                )}
+                {m.error_al_guardar > 0 && (
+                  <li>
+                    • <b>{m.error_al_guardar}</b> con datos que no se pudieron guardar: se saltearon y se reintentan en
+                    la próxima vuelta.
                   </li>
                 )}
                 {m.categoria_excluida > 0 && (
