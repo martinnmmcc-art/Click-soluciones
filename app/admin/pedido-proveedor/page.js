@@ -73,7 +73,7 @@ function PedidoProveedor() {
     setLoading(true);
     const { data } = await supabase
       .from("pedidos_proveedor")
-      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, imagen_url, aplicada, Productos(nombre, imagen_url, precio))")
+      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, tipo, costo_real, nota, imagen_url, aplicada, Productos(nombre, imagen_url, precio, costo))")
       .order("created_at", { ascending: false });
     setPedidos(data || []);
     setLoading(false);
@@ -259,11 +259,74 @@ function PedidoProveedor() {
     );
   }
 
+  // Tipo de línea:
+  //  - normal:     pagás el precio y ese es su costo
+  //  - reposicion: llega sin cobrar (no vino en el pedido anterior, o vino roto
+  //                y lo reponen). Pagás $0, y su costo sigue siendo lo que ya
+  //                pagaste: así su precio de venta y tu ganancia no cambian.
+  //  - cambio:     te lo cambiaron por otro y pagaste la diferencia. Pagás la
+  //                diferencia, y su costo es el precio entero del producto nuevo.
+  function cambiarTipoEdicion(idx, tipo) {
+    setItemsEditando((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const costoConocido =
+          Number(it.costo_real) || Number(it.precio_unitario) || Number(it.Productos?.costo) || 0;
+        if (tipo === "normal") {
+          return { ...it, tipo, precio_unitario: costoConocido, costo_real: null };
+        }
+        if (tipo === "reposicion") {
+          return { ...it, tipo, costo_real: costoConocido, precio_unitario: 0 };
+        }
+        // cambio: arranca sin crédito; se completa cuánto tenías pagado
+        return { ...it, tipo, costo_real: costoConocido, precio_unitario: costoConocido };
+      })
+    );
+  }
+
+  function cambiarCostoReal(idx, valor) {
+    setItemsEditando((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        const costo = Number(valor) || 0;
+        if (it.tipo === "cambio") {
+          // Mantiene el crédito que ya tenía y recalcula la diferencia
+          const credito = Math.max(0, Number(it.costo_real || 0) - Number(it.precio_unitario || 0));
+          return { ...it, costo_real: costo, precio_unitario: Math.max(0, costo - credito) };
+        }
+        return { ...it, costo_real: costo };
+      })
+    );
+  }
+
+  // En un cambio: cuánto ya habías pagado por el producto que no llegó
+  function cambiarCredito(idx, valor) {
+    setItemsEditando((prev) =>
+      prev.map((it, i) =>
+        i === idx
+          ? { ...it, precio_unitario: Math.max(0, Number(it.costo_real || 0) - (Number(valor) || 0)) }
+          : it
+      )
+    );
+  }
+
+  function cambiarNota(idx, valor) {
+    setItemsEditando((prev) => prev.map((it, i) => (i === idx ? { ...it, nota: valor } : it)));
+  }
+
   function quitarItemEdicion(idx) {
     setItemsEditando((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function guardarEdicion(pedido) {
+    const sinCosto = itemsEditando.find((i) => (i.tipo || "normal") !== "normal" && !(Number(i.costo_real) > 0));
+    if (sinCosto) {
+      alert(
+        `"${sinCosto.nombre_normalizado || sinCosto.nombre}" no tiene costo.\n\n` +
+          "Indicá cuánto te costó (lo que pagaste antes), así su precio de venta y tu ganancia quedan bien."
+      );
+      return;
+    }
     setGuardando(true);
     try {
       const existentes = itemsEditando.filter((i) => i.id);
@@ -273,7 +336,13 @@ function PedidoProveedor() {
       for (const item of existentes) {
         const { error } = await supabase
           .from("lineas_pedido_proveedor")
-          .update({ cantidad: item.cantidad, precio_unitario: item.precio_unitario })
+          .update({
+            cantidad: item.cantidad,
+            precio_unitario: item.precio_unitario,
+            tipo: item.tipo || "normal",
+            costo_real: (item.tipo || "normal") === "normal" ? null : Number(item.costo_real) || null,
+            nota: item.nota || null
+          })
           .eq("id", item.id);
         if (error) throw new Error(error.message);
       }
@@ -288,6 +357,9 @@ function PedidoProveedor() {
             nombre: i.nombre,
             cantidad: i.cantidad,
             precio_unitario: i.precio_unitario,
+            tipo: i.tipo || "normal",
+            costo_real: (i.tipo || "normal") === "normal" ? null : Number(i.costo_real) || null,
+            nota: i.nota || null,
             imagen_url: i.imagen_url || null
           }))
         );
@@ -634,6 +706,23 @@ function PedidoProveedor() {
                         {formatPrice(p.subtotal)}
                         {p.flete > 0 ? ` + $${formatPrice(p.flete)} flete` : " · flete sin confirmar"}
                       </p>
+                      {(() => {
+                        const especiales = (p.lineas_pedido_proveedor || []).filter((l) => (l.tipo || "normal") !== "normal");
+                        if (!especiales.length) return null;
+                        const repo = especiales.filter((l) => l.tipo === "reposicion").length;
+                        const camb = especiales.filter((l) => l.tipo === "cambio").length;
+                        const yaPagado = especiales.reduce(
+                          (a, l) => a + (Number(l.costo_real || 0) - Number(l.precio_unitario || 0)) * Number(l.cantidad || 0),
+                          0
+                        );
+                        return (
+                          <p className="text-[11px] font-bold text-purple-700 mt-0.5">
+                            {repo > 0 && `🔁 ${repo} reposición${repo > 1 ? "es" : ""}`}
+                            {repo > 0 && camb > 0 && " · "}
+                            {camb > 0 && `🔄 ${camb} cambio${camb > 1 ? "s" : ""}`} · ya pagado antes: ${formatPrice(yaPagado)}
+                          </p>
+                        );
+                      })()}
                       {(p.lineas_pedido_proveedor || []).filter((l) => !fotoDeLinea(l)).length > 0 && (
                         <p className="text-[11px] font-bold text-amber-700 mt-0.5">
                           📷 {(p.lineas_pedido_proveedor || []).filter((l) => !fotoDeLinea(l)).length} sin foto
@@ -685,6 +774,80 @@ function PedidoProveedor() {
                                   <p className="text-[9px] font-bold text-amber-700">NUEVO</p>
                                 )
                               )}
+
+                              {/* Tipo de línea */}
+                              <div className="flex gap-1 mt-1">
+                                {[
+                                  { id: "normal", label: "Normal" },
+                                  { id: "reposicion", label: "🔁 Reposición" },
+                                  { id: "cambio", label: "🔄 Cambio" }
+                                ].map((op) => (
+                                  <button
+                                    key={op.id}
+                                    type="button"
+                                    onClick={() => cambiarTipoEdicion(idx, op.id)}
+                                    className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${
+                                      (item.tipo || "normal") === op.id
+                                        ? op.id === "normal"
+                                          ? "bg-gray-700 text-white border-gray-700"
+                                          : "bg-purple-600 text-white border-purple-600"
+                                        : "bg-white text-gray-500 border-gray-200"
+                                    }`}
+                                  >
+                                    {op.label}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {item.tipo === "reposicion" && (
+                                <div className="bg-purple-50 rounded-lg p-1.5 mt-1">
+                                  <p className="text-[9px] text-purple-900">
+                                    Llega sin cobrar (no vino antes o vino roto). <b>Pagás $0</b>; el costo sigue siendo
+                                    lo que ya pagaste:
+                                  </p>
+                                  <label className="flex items-center gap-1 mt-0.5 text-[10px] font-bold text-purple-900">
+                                    Te costó $
+                                    <input
+                                      type="number"
+                                      value={item.costo_real ?? ""}
+                                      onChange={(e) => cambiarCostoReal(idx, e.target.value)}
+                                      className="w-20 border border-purple-200 rounded px-1.5 py-0.5 text-[11px] bg-white"
+                                    />
+                                  </label>
+                                </div>
+                              )}
+
+                              {item.tipo === "cambio" && (
+                                <div className="bg-purple-50 rounded-lg p-1.5 mt-1 space-y-0.5">
+                                  <label className="flex items-center gap-1 text-[10px] font-bold text-purple-900">
+                                    Precio del nuevo $
+                                    <input
+                                      type="number"
+                                      value={item.costo_real ?? ""}
+                                      onChange={(e) => cambiarCostoReal(idx, e.target.value)}
+                                      className="w-20 border border-purple-200 rounded px-1.5 py-0.5 text-[11px] bg-white"
+                                    />
+                                  </label>
+                                  <label className="flex items-center gap-1 text-[10px] font-bold text-purple-900">
+                                    Ya tenías pagado $
+                                    <input
+                                      type="number"
+                                      value={Math.max(0, Number(item.costo_real || 0) - Number(item.precio_unitario || 0))}
+                                      onChange={(e) => cambiarCredito(idx, e.target.value)}
+                                      className="w-20 border border-purple-200 rounded px-1.5 py-0.5 text-[11px] bg-white"
+                                    />
+                                  </label>
+                                  <input
+                                    value={item.nota || ""}
+                                    onChange={(e) => cambiarNota(idx, e.target.value)}
+                                    placeholder="Reemplaza a... (ej: Estante 3 Niveles)"
+                                    className="w-full border border-purple-200 rounded px-1.5 py-0.5 text-[10px] bg-white"
+                                  />
+                                  <p className="text-[10px] font-extrabold text-purple-900">
+                                    Pagás la diferencia: ${formatPrice(item.precio_unitario || 0)}
+                                  </p>
+                                </div>
+                              )}
                             </div>
                             <input
                               type="number"
@@ -692,12 +855,18 @@ function PedidoProveedor() {
                               onChange={(e) => cambiarCantidadEdicion(idx, e.target.value)}
                               className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center"
                             />
-                            <input
-                              type="number"
-                              value={item.precio_unitario}
-                              onChange={(e) => cambiarPrecioEdicion(idx, e.target.value)}
-                              className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center"
-                            />
+                            {(item.tipo || "normal") === "normal" ? (
+                              <input
+                                type="number"
+                                value={item.precio_unitario}
+                                onChange={(e) => cambiarPrecioEdicion(idx, e.target.value)}
+                                className="w-20 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center"
+                              />
+                            ) : (
+                              <span className="w-20 text-center text-[10px] font-bold text-purple-700">
+                                paga ${formatPrice(item.precio_unitario || 0)}
+                              </span>
+                            )}
                             <button
                               onClick={() => quitarItemEdicion(idx)}
                               className="text-red-500 text-sm font-bold px-1"

@@ -22,16 +22,31 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
   const lineas = pedido.lineas_pedido_proveedor || [];
   const subtotal = Number(pedido.subtotal) || 0;
   const fleteTotal = Number(pedido.flete) || 0;
+
+  // Lo que se pagó en este pedido (reposiciones a $0, cambios solo la diferencia)
+  // no es lo que cuesta el producto. Para las cuentas de ganancia cada unidad
+  // vale su costo real: lo que se pagó antes o el precio del producto nuevo.
+  const costoBase = (l) => {
+    const pagado = Number(l.precio_unitario) || 0;
+    if (l.tipo === "reposicion" || l.tipo === "cambio") {
+      const real = Number(l.costo_real) || 0;
+      return real > 0 ? real : pagado;
+    }
+    return pagado;
+  };
+  const baseTotal = lineas.reduce((a, l) => a + costoBase(l) * Number(l.cantidad || 0), 0);
   const pctFlete = subtotal > 0 ? (fleteTotal / subtotal) * 100 : 0;
 
-  // Por unidad: costo del proveedor + 3% de transferencia + su parte del flete
+  // Por unidad: costo real + 3% de transferencia + su parte del flete
   const filas = lineas.map((l) => {
-    const costo = Number(l.precio_unitario) || 0;
-    const fleteUnidad = subtotal > 0 ? (costo * fleteTotal) / subtotal : 0;
+    const pagado = Number(l.precio_unitario) || 0;
+    const costo = costoBase(l);
+    const fleteUnidad = baseTotal > 0 ? (costo * fleteTotal) / baseTotal : 0;
     const costoReal = costo * TRANSFERENCIA + fleteUnidad;
     const precio = Number(l.Productos?.precio) || 0;
     return {
       ...l,
+      pagado,
       costo,
       fleteUnidad,
       costoReal,
@@ -40,10 +55,20 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
     };
   });
 
+  const reposiciones = filas.filter((f) => f.tipo === "reposicion").length;
+  const cambios = filas.filter((f) => f.tipo === "cambio").length;
+  const yaPagadoAntes = filas.reduce(
+    (a, f) => a + Math.max(0, f.costo - f.pagado) * Number(f.cantidad || 0),
+    0
+  );
+
   const unidades = filas.reduce((a, f) => a + Number(f.cantidad || 0), 0);
+  // Plata que salió en ESTE pedido
   const costoRealTotal = subtotal * TRANSFERENCIA + fleteTotal;
+  // Lo que vale la mercadería (incluye lo que ya habías pagado antes)
+  const costoMercaderia = baseTotal * TRANSFERENCIA + fleteTotal;
   const ventaPotencial = filas.reduce((a, f) => a + f.precio * Number(f.cantidad || 0), 0);
-  const gananciaPotencial = ventaPotencial - costoRealTotal;
+  const gananciaPotencial = ventaPotencial - costoMercaderia;
 
   async function guardarFlete() {
     const valor = Number(String(flete).replace(",", "."));
@@ -83,6 +108,13 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
                 ? ` + flete $${formatPrice(fleteTotal)}`
                 : " · sin flete cargado"}
             </p>
+            {(reposiciones > 0 || cambios > 0) && (
+              <p className="text-[11px] text-amber-700 mt-0.5">
+                {reposiciones > 0 && `🔁 ${reposiciones} reposición${reposiciones > 1 ? "es" : ""}`}
+                {reposiciones > 0 && cambios > 0 && " · "}
+                {cambios > 0 && `🔄 ${cambios} cambio${cambios > 1 ? "s" : ""}`}
+              </p>
+            )}
           </div>
           <span className="text-gray-400 text-sm">{abierto ? "▲" : "▼"}</span>
         </div>
@@ -110,6 +142,11 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
               <p className="text-[10px] text-gray-500">Te costó en total</p>
               <p className="text-sm font-bold text-gray-800">${formatPrice(costoRealTotal)}</p>
               <p className="text-[9px] text-gray-400">con 3% de transferencia</p>
+              {yaPagadoAntes > 0 && (
+                <p className="text-[9px] text-amber-700">
+                  + ${formatPrice(Math.round(yaPagadoAntes))} ya pagado en pedidos anteriores
+                </p>
+              )}
             </div>
             <div className="bg-green-50 rounded-xl p-2.5">
               <p className="text-[10px] text-green-700">Si vendés todo</p>
@@ -178,8 +215,21 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-semibold text-gray-800 line-clamp-1">
+                    {f.tipo === "reposicion" && "🔁 "}
+                    {f.tipo === "cambio" && "🔄 "}
                     {f.cantidad}× {f.Productos?.nombre || f.nombre_normalizado || f.nombre}
                   </p>
+                  {f.tipo === "reposicion" && (
+                    <p className="text-[10px] text-amber-700">
+                      Reposición: pagaste ${formatPrice(f.pagado)} ahora, ya estaba pagado antes
+                    </p>
+                  )}
+                  {f.tipo === "cambio" && (
+                    <p className="text-[10px] text-amber-700">
+                      Cambio: pagaste la diferencia ${formatPrice(f.pagado)}
+                      {f.nota ? ` · ${f.nota}` : ""}
+                    </p>
+                  )}
                   <p className="text-[10px] text-gray-500">
                     ${formatPrice(f.costo)} + flete ${formatPrice(Math.round(f.fleteUnidad))} → te
                     costó <b>${formatPrice(Math.round(f.costoReal))}</b>
