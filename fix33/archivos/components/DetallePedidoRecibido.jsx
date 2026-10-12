@@ -10,6 +10,10 @@ import { formatPrice } from "@/lib/whatsapp";
 // El flete real de este pedido se muestra para saber cuánto salió de verdad.
 // Los PRECIOS no se calculan con él: usan la regla (10% de transporte).
 // Corregir el flete acá actualiza solo las cuentas (pedido y compra).
+//
+// El descuento del proveedor (ej: 5% sobre el total) baja la plata que
+// pagaste, pero NO el costo de los productos: sus precios de venta siguen
+// saliendo de la lista del proveedor. Por eso lo ganado de más aparece aparte.
 
 const TRANSFERENCIA = 1.03;
 
@@ -18,10 +22,15 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
   const [editandoFlete, setEditandoFlete] = useState(false);
   const [flete, setFlete] = useState(String(pedido.flete ?? 0));
   const [guardando, setGuardando] = useState(false);
+  const [editandoDescuento, setEditandoDescuento] = useState(false);
+  const [descuento, setDescuento] = useState(String(Number(pedido.descuento_pct) || 0));
 
   const lineas = pedido.lineas_pedido_proveedor || [];
   const subtotal = Number(pedido.subtotal) || 0;
   const fleteTotal = Number(pedido.flete) || 0;
+  const pctDescuento = Number(pedido.descuento_pct) || 0;
+  const descuentoPesos = Math.round((subtotal * pctDescuento) / 100);
+  const pagadoMercaderia = subtotal - descuentoPesos;
 
   // Lo que se pagó en este pedido (reposiciones a $0, cambios solo la diferencia)
   // no es lo que cuesta el producto. Para las cuentas de ganancia cada unidad
@@ -63,12 +72,37 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
   );
 
   const unidades = filas.reduce((a, f) => a + Number(f.cantidad || 0), 0);
-  // Plata que salió en ESTE pedido
-  const costoRealTotal = subtotal * TRANSFERENCIA + fleteTotal;
-  // Lo que vale la mercadería (incluye lo que ya habías pagado antes)
-  const costoMercaderia = baseTotal * TRANSFERENCIA + fleteTotal;
+  // Plata que salió en ESTE pedido (con el descuento ya restado)
+  const costoRealTotal = pagadoMercaderia * TRANSFERENCIA + fleteTotal;
+  // Lo que vale la mercadería (incluye lo que ya habías pagado antes) menos
+  // el descuento: es lo que de verdad te costó todo lo que vas a vender
+  const costoMercaderia = (baseTotal - descuentoPesos) * TRANSFERENCIA + fleteTotal;
   const ventaPotencial = filas.reduce((a, f) => a + f.precio * Number(f.cantidad || 0), 0);
   const gananciaPotencial = ventaPotencial - costoMercaderia;
+
+  async function guardarDescuento() {
+    const valor = Number(String(descuento).trim().replace(",", ".") || 0);
+    if (!(valor >= 0 && valor < 100)) {
+      alert("Escribí el descuento en porcentaje, por ejemplo 5 o 7,5");
+      return;
+    }
+    if (valor > 30 && !confirm(`¿Seguro que el descuento es del ${String(valor).replace(".", ",")}%?`)) return;
+    setGuardando(true);
+    try {
+      const { error } = await supabase.rpc("actualizar_descuento_pedido", {
+        p_pedido_id: pedido.id,
+        p_pct: valor
+      });
+      if (error) throw new Error(error.message);
+      alert("✓ Descuento actualizado en el pedido y en Compras al proveedor. Los precios de venta no cambian.");
+      setEditandoDescuento(false);
+      onActualizado?.();
+    } catch (e) {
+      alert("No se pudo actualizar: " + e.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   async function guardarFlete() {
     const valor = Number(String(flete).replace(",", "."));
@@ -108,6 +142,11 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
                 ? ` + flete $${formatPrice(fleteTotal)}`
                 : " · sin flete cargado"}
             </p>
+            {pctDescuento > 0 && (
+              <p className="text-[11px] text-green-700 mt-0.5">
+                🏷️ {String(pctDescuento).replace(".", ",")}% de descuento: −${formatPrice(descuentoPesos)}
+              </p>
+            )}
             {(reposiciones > 0 || cambios > 0) && (
               <p className="text-[11px] text-amber-700 mt-0.5">
                 {reposiciones > 0 && `🔁 ${reposiciones} reposición${reposiciones > 1 ? "es" : ""}`}
@@ -126,7 +165,12 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
           <div className="grid grid-cols-2 gap-2 mb-3">
             <div className="bg-gray-50 rounded-xl p-2.5">
               <p className="text-[10px] text-gray-500">Mercadería</p>
-              <p className="text-sm font-bold text-gray-800">${formatPrice(subtotal)}</p>
+              <p className="text-sm font-bold text-gray-800">${formatPrice(pagadoMercaderia)}</p>
+              {pctDescuento > 0 && (
+                <p className="text-[9px] text-green-700">
+                  lista ${formatPrice(subtotal)} − {String(pctDescuento).replace(".", ",")}%
+                </p>
+              )}
             </div>
             <div className="bg-gray-50 rounded-xl p-2.5">
               <p className="text-[10px] text-gray-500">Transporte</p>
@@ -140,7 +184,7 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
             </div>
             <div className="bg-gray-50 rounded-xl p-2.5">
               <p className="text-[10px] text-gray-500">Te costó en total</p>
-              <p className="text-sm font-bold text-gray-800">${formatPrice(costoRealTotal)}</p>
+              <p className="text-sm font-bold text-gray-800">${formatPrice(Math.round(costoRealTotal))}</p>
               <p className="text-[9px] text-gray-400">con 3% de transferencia</p>
               {yaPagadoAntes > 0 && (
                 <p className="text-[9px] text-amber-700">
@@ -151,7 +195,12 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
             <div className="bg-green-50 rounded-xl p-2.5">
               <p className="text-[10px] text-green-700">Si vendés todo</p>
               <p className="text-sm font-bold text-green-800">${formatPrice(ventaPotencial)}</p>
-              <p className="text-[9px] text-green-700">ganancia ${formatPrice(gananciaPotencial)}</p>
+              <p className="text-[9px] text-green-700">ganancia ${formatPrice(Math.round(gananciaPotencial))}</p>
+              {descuentoPesos > 0 && (
+                <p className="text-[9px] text-green-700">
+                  (incluye ${formatPrice(Math.round(descuentoPesos * TRANSFERENCIA))} extra por el descuento)
+                </p>
+              )}
             </div>
           </div>
 
@@ -186,13 +235,51 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
                 no cambian: usan el 10% de transporte de tu regla.
               </p>
             </div>
+          ) : editandoDescuento ? (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-2.5 mb-3">
+              <p className="text-[11px] font-bold text-gray-700 mb-1">Descuento del proveedor (%)</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={descuento}
+                  onChange={(e) => setDescuento(e.target.value.replace(/[^0-9.,]/g, ""))}
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                />
+                <button
+                  onClick={guardarDescuento}
+                  disabled={guardando}
+                  className="bg-green-600 text-white text-xs font-bold px-3 rounded-lg disabled:opacity-50"
+                >
+                  {guardando ? "..." : "Guardar"}
+                </button>
+                <button
+                  onClick={() => setEditandoDescuento(false)}
+                  className="text-xs text-gray-500 px-1"
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-1.5">
+                Baja lo que pagaste en Compras al proveedor. Los precios de venta no
+                cambian: salen de la lista del proveedor.
+              </p>
+            </div>
           ) : (
-            <button
-              onClick={() => setEditandoFlete(true)}
-              className="w-full text-xs font-bold text-brand-blue border border-brand-blue rounded-xl py-2 mb-3"
-            >
-              ✏️ Corregir el flete
-            </button>
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setEditandoFlete(true)}
+                className="flex-1 text-xs font-bold text-brand-blue border border-brand-blue rounded-xl py-2"
+              >
+                ✏️ Corregir el flete
+              </button>
+              <button
+                onClick={() => setEditandoDescuento(true)}
+                className="flex-1 text-xs font-bold text-green-700 border border-green-600 rounded-xl py-2"
+              >
+                🏷️ {pctDescuento > 0 ? "Corregir descuento" : "Cargar descuento"}
+              </button>
+            </div>
           )}
 
           {/* Producto por producto */}

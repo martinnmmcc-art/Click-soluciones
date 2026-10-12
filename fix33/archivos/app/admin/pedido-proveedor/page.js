@@ -13,8 +13,8 @@ import { aplicarBusqueda } from "@/lib/buscar";
 // interpreta cada línea y busca la foto. Es lo mismo que se hacía a mano en
 // el chat, ahora en un paso.
 //
-// El pedido queda en "camino": aparece sin precio en /proximamente para
-// que el cliente se anticipe. Al llegar, un botón carga todo a Productos
+// El pedido queda en "camino": aparece con su precio en "Llega pronto" para
+// que el cliente se anticipe y lo reserve. Al llegar, un botón carga todo a Productos
 // con stock, precio y foto.
 function PedidoProveedor() {
   const [vista, setVista] = useState("nuevo"); // nuevo | camino | recibidos
@@ -68,6 +68,9 @@ function PedidoProveedor() {
   const [editando, setEditando] = useState(null); // pedido en edición
   const [itemsEditando, setItemsEditando] = useState([]);
   const [fleteEditando, setFleteEditando] = useState(0);
+  // Descuento que hace el proveedor sobre el total (ej: 5%). Baja la plata que
+  // pagás, NO el costo de los productos: los precios siguen saliendo de la lista.
+  const [descuentoEditando, setDescuentoEditando] = useState(0);
 
   async function cargarPedidos() {
     setLoading(true);
@@ -245,6 +248,7 @@ function PedidoProveedor() {
       (pedido.lineas_pedido_proveedor || []).map((l) => ({ ...l }))
     );
     setFleteEditando(pedido.flete || 0);
+    setDescuentoEditando(Number(pedido.descuento_pct) || 0);
   }
 
   function cambiarCantidadEdicion(idx, valor) {
@@ -327,6 +331,12 @@ function PedidoProveedor() {
       );
       return;
     }
+    const pctDescuento = Number(String(descuentoEditando).trim().replace(",", ".") || 0);
+    if (!(pctDescuento >= 0 && pctDescuento < 100)) {
+      alert("El descuento tiene que ser un porcentaje entre 0 y 99. Ej: 5 o 7,5");
+      return;
+    }
+    if (pctDescuento > 30 && !confirm(`¿Seguro que el descuento es del ${String(pctDescuento).replace(".", ",")}%?`)) return;
     setGuardando(true);
     try {
       const existentes = itemsEditando.filter((i) => i.id);
@@ -383,7 +393,7 @@ function PedidoProveedor() {
       );
       const { error: errPedido } = await supabase
         .from("pedidos_proveedor")
-        .update({ subtotal: nuevoSubtotal, flete: fleteEditando })
+        .update({ subtotal: nuevoSubtotal, flete: fleteEditando, descuento_pct: pctDescuento })
         .eq("id", pedido.id);
       if (errPedido) throw new Error(errPedido.message);
 
@@ -664,7 +674,7 @@ function PedidoProveedor() {
                 </button>
 
                 <p className="text-[10px] text-gray-500 mt-2 text-center">
-                  Los productos nuevos van a mostrarse sin precio en &quot;Llega pronto&quot;
+                  Los productos van a mostrarse con su precio en &quot;Llega pronto&quot;
                 </p>
               </div>
             )}
@@ -706,6 +716,13 @@ function PedidoProveedor() {
                         {formatPrice(p.subtotal)}
                         {p.flete > 0 ? ` + $${formatPrice(p.flete)} flete` : " · flete sin confirmar"}
                       </p>
+                      {Number(p.descuento_pct) > 0 && (
+                        <p className="text-[11px] font-bold text-green-700 mt-0.5">
+                          🏷️ Descuento {String(Number(p.descuento_pct)).replace(".", ",")}%: −$
+                          {formatPrice(Math.round((Number(p.subtotal) * Number(p.descuento_pct)) / 100))} · pagás $
+                          {formatPrice(Math.round(Number(p.subtotal) * (1 - Number(p.descuento_pct) / 100)))}
+                        </p>
+                      )}
                       {(() => {
                         const especiales = (p.lineas_pedido_proveedor || []).filter((l) => (l.tipo || "normal") !== "normal");
                         if (!especiales.length) return null;
@@ -959,6 +976,35 @@ function PedidoProveedor() {
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3"
                         placeholder="$"
                       />
+
+                      <label className="text-xs font-bold text-gray-600 block mb-1">
+                        Descuento del proveedor (%)
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={descuentoEditando}
+                        onChange={(e) => setDescuentoEditando(e.target.value.replace(/[^0-9.,]/g, ""))}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        placeholder="Ej: 5"
+                      />
+                      {(() => {
+                        const sub = itemsEditando.reduce(
+                          (a, i) => a + Number(i.cantidad || 0) * Number(i.precio_unitario || 0),
+                          0
+                        );
+                        const pct = Number(String(descuentoEditando).replace(",", ".")) || 0;
+                        return (
+                          <p className="text-[10px] text-gray-500 mt-1 mb-3">
+                            Mercadería ${formatPrice(sub)}
+                            {pct > 0 &&
+                              ` − ${String(pct).replace(".", ",")}% ($${formatPrice(Math.round((sub * pct) / 100))}) = pagás $${formatPrice(
+                                Math.round(sub * (1 - pct / 100))
+                              )}`}
+                            . Solo baja lo que pagás: los precios de venta no cambian.
+                          </p>
+                        );
+                      })()}
 
                       <div className="flex gap-2">
                         <button

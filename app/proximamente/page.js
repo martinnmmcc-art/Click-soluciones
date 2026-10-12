@@ -5,13 +5,13 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import { supabase } from "@/lib/supabaseClient";
 import { urlImagen } from "@/lib/imagenProducto";
+import { buildWhatsAppLink, formatPrice } from "@/lib/whatsapp";
 
 // Lo que viene en el próximo pedido al proveedor.
 //
-// Sin precio para ninguno, a propósito: el precio final se calcula recién
-// cuando llega, con el costo y el flete reales. Mostrar el precio viejo de
-// los que ya vendíamos prometería un número que puede cambiar, y mezclar
-// productos con y sin precio confunde.
+// Con precio: es el que va a tener al llegar. Sale de la misma regla que se
+// usa al recibir el pedido (3% + 10% transporte + 80%), así que no cambia.
+// Los cargados a mano (sin costo) siguen sin precio: se consulta.
 //
 // El nombre siempre sale limpio: nunca el texto tal cual del proveedor,
 // que delataría de dónde compramos.
@@ -22,7 +22,7 @@ export default function ProximamentePage() {
   useEffect(() => {
     async function cargar() {
       const [{ data: enCamino }, { data: manuales }] = await Promise.all([
-        supabase.rpc("productos_en_camino"),
+        supabase.rpc("llega_pronto"),
         supabase
           .from("proximo_pedido")
           .select("id, nombre, imagen_url, fecha_estimada")
@@ -34,7 +34,9 @@ export default function ProximamentePage() {
         ...(enCamino || []).map((p) => ({
           key: `linea-${p.linea_id}`,
           nombre: p.nombre,
-          imagen_url: p.imagen_url
+          imagen_url: p.imagen_url,
+          precio: Number(p.precio) || 0,
+          precio_oferta: Number(p.precio_oferta) || 0
         })),
         ...(manuales || []).map((m) => ({
           key: `manual-${m.id}`,
@@ -123,6 +125,19 @@ export default function ProximamentePage() {
                       {p.nombre}
                     </p>
 
+                    {p.precio > 0 && (
+                      <div className="mt-1.5">
+                        {p.precio_oferta > 0 && p.precio_oferta < p.precio && (
+                          <p className="text-[10px] text-gray-400 line-through leading-none">
+                            ${formatPrice(p.precio)}
+                          </p>
+                        )}
+                        <p className="text-base font-extrabold text-gray-900 leading-tight">
+                          ${formatPrice(p.precio_oferta > 0 && p.precio_oferta < p.precio ? p.precio_oferta : p.precio)}
+                        </p>
+                      </div>
+                    )}
+
                     {p.fecha_estimada && (
                       <p className="text-[10px] text-amber-700 font-semibold mt-1">
                         Estimado:{" "}
@@ -134,9 +149,13 @@ export default function ProximamentePage() {
                     )}
 
                     <a
-                      href={`https://wa.me/5492944396888?text=${encodeURIComponent(
-                        `¡Hola! Vi que vas a tener "${p.nombre}" y me interesa. ¿Me lo reservás cuando llegue?`
-                      )}`}
+                      href={buildWhatsAppLink(
+                        p.precio > 0
+                          ? `¡Hola! Vi que va a llegar *${p.nombre}* a $${formatPrice(
+                              p.precio_oferta > 0 && p.precio_oferta < p.precio ? p.precio_oferta : p.precio
+                            )} y me interesa. ¿Me lo reservás cuando llegue?`
+                          : `¡Hola! Vi que vas a tener "${p.nombre}" y me interesa. ¿Me lo reservás cuando llegue?`
+                      )}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="block w-full bg-[#25D366] text-white text-[11px] font-bold py-2 rounded-lg text-center mt-2"
