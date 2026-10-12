@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
@@ -12,6 +12,7 @@ import { useActualizarSolo } from "@/lib/datosFrescos";
 import { leerProductosPropiosOffline } from "@/lib/catalogoOffline";
 import { normalizarTexto, aplicarBusqueda } from "@/lib/buscar";
 import { textoRespuesta } from "@/lib/respuestaPrecio";
+import { hayRegresoPendiente, leerEstado, esVentanaDeFondo } from "@/lib/estadoNavegacion";
 
 // Filtros rápidos de la lista. Los de stock solo aplican a "Tengo".
 const FILTROS = [
@@ -61,9 +62,19 @@ function ListaProductos() {
   const [loading, setLoading] = useState(true);
   const [duplicandoId, setDuplicandoId] = useState(null);
   const [exportando, setExportando] = useState(false);
-  const tabInicial = searchParams.get("tab") === "a-pedido" ? "a-pedido" : "tengo";
+  // Al volver de editar un producto, la lista arranca EXACTAMENTE como estaba:
+  // misma pestaña, misma búsqueda y la misma cantidad de productos cargados.
+  // Antes solo se recordaban el orden y los filtros: si estabas en "A pedido",
+  // buscando algo, o más abajo de los primeros 100, volvías al principio.
+  const [inicio] = useState(() =>
+    hayRegresoPendiente("admin-productos") ? leerEstado("admin-productos") : null
+  );
+  const tabInicial =
+    searchParams.get("tab") === "a-pedido" ? "a-pedido" : inicio?.tab === "a-pedido" ? "a-pedido" : "tengo";
   const [tab, setTab] = useState(tabInicial); // "tengo" | "a-pedido"
-  const [busqueda, setBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useState(inicio?.busqueda || "");
+  // Cuántos productos traer en la primera carga (los que tenías a la vista)
+  const cantidadARestaurar = useRef(Number(inicio?.cantidad) || 0);
   // Filtros y orden de la lista. "sin-stock" puede venir desde el panel.
   // Se recuerdan mientras la pestaña del navegador esté abierta, así al volver
   // de editar un producto la lista sigue filtrada y ordenada igual.
@@ -87,7 +98,8 @@ function ListaProductos() {
     busqueda,
     mostrar,
     orden,
-    categoria
+    categoria,
+    cantidad: productos.length
   });
   const { alSalir } = posicion;
 
@@ -120,10 +132,20 @@ function ListaProductos() {
 
     // En qué orden
     const o = ORDENES.find((x) => x.valor === orden) || ORDENES[0];
-    // En "A pedido", "Más nuevos" = lo último que publicó el proveedor (igual
-    // que sus Novedades), no lo último que se importó
-    if (tab === "a-pedido" && o.valor === "nuevos") {
-      q = q.order("orden_novedad", { ascending: false, nullsFirst: false });
+    // "Más nuevos" / "Más viejos":
+    //  - En "Tengo": por cuándo ENTRÓ A TU STOCK (fecha de ingreso). Antes era
+    //    la fecha de creación, y casi todos tus productos se crearon como "a
+    //    pedido" a principios de septiembre y entraron al stock después: el
+    //    último que llegó quedaba perdido en el medio.
+    //  - En "A pedido": lo último que publicó el proveedor (como sus Novedades).
+    if (o.valor === "nuevos" || o.valor === "viejos") {
+      const asc = o.valor === "viejos";
+      if (tab === "a-pedido") {
+        q = q.order("orden_novedad", { ascending: asc, nullsFirst: false });
+      } else {
+        // Los que no tienen fecha de ingreso son los más antiguos
+        q = q.order("fecha_ingreso", { ascending: asc, nullsFirst: asc });
+      }
     }
     q = q.order(o.campo, { ascending: o.asc, nullsFirst: false });
     // Desempate fijo para que "Ver más" no repita ni saltee productos
@@ -148,7 +170,13 @@ function ListaProductos() {
     if (mostrar === "inactivos") lista = lista.filter((p) => p.activo === false);
 
     const o = ORDENES.find((x) => x.valor === orden) || ORDENES[0];
+    const porFecha = o.valor === "nuevos" || o.valor === "viejos";
     const valor = (p) => {
+      // Igual que con señal: por la fecha en que entró al stock
+      if (porFecha) {
+        const f = p.fecha_ingreso || p.created_at;
+        return f ? new Date(f).getTime() : null;
+      }
       const v = p[o.campo];
       if (v === null || v === undefined) return null;
       if (o.campo === "nombre") return normalizarTexto(v);
@@ -186,6 +214,10 @@ function ListaProductos() {
 
   async function cargarProductos() {
     setLoading(true);
+    // Al volver de un producto se traen de una vez todos los que estaban a la
+    // vista (si había tocado "Ver más"), para poder volver a esa altura
+    const cantidad = Math.max(POR_TANDA, Math.ceil((cantidadARestaurar.current || 0) / POR_TANDA) * POR_TANDA);
+    cantidadARestaurar.current = 0;
     let respuesta = { data: null, error: null, count: 0 };
     const sinSenal = typeof navigator !== "undefined" && !navigator.onLine;
     const hayCopia = tab === "tengo" && leerProductosPropiosOffline().length > 0;
@@ -198,7 +230,7 @@ function ListaProductos() {
         // Señal muy débil (el celular cree que hay conexión pero no llega
         // nada): si no contesta en 4 segundos, se usa la copia.
         respuesta = await Promise.race([
-          consultaBase().range(0, POR_TANDA - 1),
+          consultaBase().range(0, cantidad - 1),
           new Promise((resolve) =>
             setTimeout(() => resolve({ data: null, error: new Error("sin respuesta"), count: 0 }), hayCopia ? 4000 : 20000)
           )
@@ -225,7 +257,7 @@ function ListaProductos() {
     setDesdeCopia(false);
     setProductos(data || []);
     setTotalTab(count || 0);
-    setHayMas((data?.length || 0) === POR_TANDA);
+    setHayMas((data?.length || 0) === cantidad);
     setLoading(false);
   }
 
@@ -260,6 +292,7 @@ function ListaProductos() {
   }, [tab, busqueda, mostrar, orden, categoria]);
 
   useEffect(() => {
+    if (esVentanaDeFondo()) return; // la recorrida de fondo no pisa tus filtros
     try {
       sessionStorage.setItem(CLAVE_FILTROS, JSON.stringify({ mostrar, orden, categoria }));
     } catch {}

@@ -22,6 +22,8 @@ export default function IrACaja() {
     if (ruta !== "/") return;
 
     async function revisar() {
+      // La ventana invisible de fondo no tiene que mandar a la Caja ni marcar nada
+      if (window.self !== window.top) return;
       try {
         // Si salió de la caja hace poco, respetamos esa decisión
         const salio = sessionStorage.getItem(CLAVE);
