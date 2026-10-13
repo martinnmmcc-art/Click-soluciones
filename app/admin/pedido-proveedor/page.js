@@ -76,10 +76,46 @@ function PedidoProveedor() {
     setLoading(true);
     const { data } = await supabase
       .from("pedidos_proveedor")
-      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, tipo, costo_real, nota, imagen_url, aplicada, Productos(nombre, imagen_url, precio, costo))")
+      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, tipo, costo_real, nota, imagen_url, aplicada, cantidad_no_llego, origen_linea_id, Productos(nombre, imagen_url, precio, costo))")
       .order("created_at", { ascending: false });
     setPedidos(data || []);
     setLoading(false);
+    cargarPendientes();
+  }
+
+  // ---------- LO QUE SE PAGÓ Y NO LLEGÓ ----------
+  // Se marca en "Recibidos". Queda pendiente hasta agregarlo (sin cargo) a
+  // otro pedido: ahí entra como reposición y, cuando llega, suma stock.
+  const [pendientes, setPendientes] = useState([]);
+  const [verPendientes, setVerPendientes] = useState(false);
+
+  async function cargarPendientes() {
+    const { data, error } = await supabase.rpc("pendientes_proveedor");
+    if (!error) setPendientes(data || []);
+  }
+
+  function lineaDePendiente(pd) {
+    return {
+      tmp: `p${pd.linea_id}`,
+      producto_id: pd.producto_id,
+      nombre: pd.nombre_proveedor || pd.nombre,
+      nombre_normalizado: pd.nombre,
+      cantidad: pd.pendiente,
+      precio_unitario: 0,
+      tipo: "reposicion",
+      costo_real: Number(pd.costo) || 0,
+      nota: `No vino en el pedido ${pd.pedido}`,
+      origen_linea_id: pd.linea_id,
+      imagen_url: null,
+      Productos: { nombre: pd.nombre, imagen_url: pd.imagen_url }
+    };
+  }
+
+  function agregarPendientesAEdicion() {
+    setItemsEditando((prev) => {
+      const ya = new Set(prev.map((i) => i.origen_linea_id).filter(Boolean));
+      return [...prev, ...pendientes.filter((pd) => !ya.has(pd.linea_id)).map(lineaDePendiente)];
+    });
   }
 
   const [buscandoFotos, setBuscandoFotos] = useState(false);
@@ -198,14 +234,45 @@ function PedidoProveedor() {
         imagen_url: i.imagen_url
       }));
 
-      await supabase.from("lineas_pedido_proveedor").insert(lineas);
+      // Lo que se pagó antes y no llegó viene en este envío, sin cargo
+      let conPendientes = 0;
+      if (
+        pendientes.length > 0 &&
+        confirm(
+          `Tenés ${pendientes.length} producto${pendientes.length > 1 ? "s" : ""} que pagaste y no llegaron:\n\n` +
+            pendientes
+              .slice(0, 12)
+              .map((pd) => `• ${pd.pendiente}× ${pd.nombre}`)
+              .join("\n") +
+            (pendientes.length > 12 ? `\n… y ${pendientes.length - 12} más` : "") +
+            "\n\n¿Vienen en este pedido? Se agregan SIN CARGO (reposición)."
+        )
+      ) {
+        for (const pd of pendientes) {
+          const l = lineaDePendiente(pd);
+          lineas.push({
+            pedido_proveedor_id: pedido.id,
+            producto_id: l.producto_id,
+            nombre: l.nombre,
+            cantidad: l.cantidad,
+            precio_unitario: 0,
+            tipo: "reposicion",
+            costo_real: l.costo_real || null,
+            nota: l.nota,
+            origen_linea_id: l.origen_linea_id,
+            imagen_url: null
+          });
+        }
+        conPendientes = pendientes.length;
+      }
 
-      const nuevos = items.filter((i) => !i.producto_id).length;
+      const { error: errLineas } = await supabase.from("lineas_pedido_proveedor").insert(lineas);
+      if (errLineas) throw new Error(errLineas.message);
 
       alert(
         `✓ Pedido guardado como "en camino".\n\n` +
-          `${items.length} productos van a mostrarse en "Llega pronto" ` +
-          `(${nuevos} todavía sin precio, el resto con el precio que ya tenés).`
+          `${lineas.length} productos van a mostrarse en "Llega pronto" con su precio.` +
+          (conPendientes ? `\n\nIncluye ${conPendientes} que no habían llegado, sin cargo.` : "")
       );
 
       setTexto("");
@@ -370,6 +437,7 @@ function PedidoProveedor() {
             tipo: i.tipo || "normal",
             costo_real: (i.tipo || "normal") === "normal" ? null : Number(i.costo_real) || null,
             nota: i.nota || null,
+            origen_linea_id: i.origen_linea_id || null,
             imagen_url: i.imagen_url || null
           }))
         );
@@ -440,7 +508,7 @@ function PedidoProveedor() {
   function agregarDelCatalogo(prod) {
     setItemsEditando((prev) => {
       // Si ya está en el pedido, sumamos uno en vez de repetirlo
-      const ya = prev.findIndex((i) => i.producto_id === prod.id);
+      const ya = prev.findIndex((i) => i.producto_id === prod.id && (i.tipo || "normal") === "normal");
       if (ya >= 0) {
         return prev.map((i, idx) =>
           idx === ya ? { ...i, cantidad: Number(i.cantidad || 0) + 1 } : i
@@ -524,6 +592,51 @@ function PedidoProveedor() {
   const enCamino = pedidos.filter((p) => p.estado === "en_camino");
   const recibidos = pedidos.filter((p) => p.estado === "recibido");
 
+  // Para cada línea que no llegó: en qué pedido se volvió a agregar
+  const repuestoEn = {};
+  pedidos.forEach((p) =>
+    (p.lineas_pedido_proveedor || []).forEach((l) => {
+      if (!l.origen_linea_id) return;
+      (repuestoEn[l.origen_linea_id] ||= []).push({
+        cantidad: Number(l.cantidad) || 0,
+        pedido: p.numero_pedido || `#${p.id}`,
+        estado: p.estado
+      });
+    })
+  );
+  const unidadesPendientes = pendientes.reduce((a, pd) => a + Number(pd.pendiente || 0), 0);
+  const plataPendiente = pendientes.reduce((a, pd) => a + Number(pd.pendiente || 0) * Number(pd.costo || 0), 0);
+
+  const cajaPendientes = pendientes.length > 0 && (
+    <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-3 mb-3">
+      <button onClick={() => setVerPendientes(!verPendientes)} className="w-full text-left">
+        <p className="text-xs font-bold text-red-800">
+          ⏳ {pendientes.length} producto{pendientes.length > 1 ? "s" : ""} pagado{pendientes.length > 1 ? "s" : ""} que no
+          llegaron · {unidadesPendientes} u. · ${formatPrice(plataPendiente)}
+          <span className="float-right text-red-400">{verPendientes ? "▲" : "▼"}</span>
+        </p>
+        <p className="text-[10px] text-red-900/80 mt-0.5">
+          Agregalos sin cargo al próximo pedido: al guardarlo te lo pregunta, o con Editar en uno en camino.
+        </p>
+      </button>
+      {verPendientes && (
+        <div className="mt-2 space-y-1 max-h-64 overflow-y-auto">
+          {pendientes.map((pd) => (
+            <div key={pd.linea_id} className="flex items-center gap-2 bg-white rounded-lg p-1.5">
+              <div className="w-8 h-8 bg-gray-50 rounded overflow-hidden flex-shrink-0">
+                {pd.imagen_url && <img src={pd.imagen_url} alt="" className="w-full h-full object-contain" />}
+              </div>
+              <p className="flex-1 min-w-0 text-[11px] font-semibold text-gray-800 line-clamp-1">
+                {pd.pendiente}× {pd.nombre}
+              </p>
+              <span className="text-[10px] text-gray-500 whitespace-nowrap">pedido {pd.pedido}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="max-w-2xl mx-auto px-4 py-6">
@@ -556,6 +669,8 @@ function PedidoProveedor() {
             </button>
           ))}
         </div>
+
+        {vista !== "recibidos" && cajaPendientes}
 
         {vista === "nuevo" && (
           <>
@@ -894,6 +1009,21 @@ function PedidoProveedor() {
                         ))}
                       </div>
 
+                      {(() => {
+                        const ya = new Set(itemsEditando.map((i) => i.origen_linea_id).filter(Boolean));
+                        const faltan = pendientes.filter((pd) => !ya.has(pd.linea_id));
+                        if (!faltan.length) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={agregarPendientesAEdicion}
+                            className="w-full bg-red-50 border-2 border-red-300 text-red-700 text-xs font-bold py-2.5 rounded-xl mb-3"
+                          >
+                            ⏳ Agregar los {faltan.length} que no llegaron antes (sin cargo)
+                          </button>
+                        );
+                      })()}
+
                       {/* Agregar productos a mano */}
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3">
                         <p className="text-xs font-bold text-gray-800 mb-1.5">➕ Agregar producto</p>
@@ -1066,7 +1196,7 @@ function PedidoProveedor() {
               </div>
             ) : (
               recibidos.map((p) => (
-                <DetallePedidoRecibido key={p.id} pedido={p} onActualizado={cargarPedidos} />
+                <DetallePedidoRecibido key={p.id} pedido={p} onActualizado={cargarPedidos} repuestoEn={repuestoEn} />
               ))
             )}
           </div>

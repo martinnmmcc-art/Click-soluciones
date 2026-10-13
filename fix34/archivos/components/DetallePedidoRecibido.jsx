@@ -14,16 +14,25 @@ import { formatPrice } from "@/lib/whatsapp";
 // El descuento del proveedor (ej: 5% sobre el total) baja la plata que
 // pagaste, pero NO el costo de los productos: sus precios de venta siguen
 // saliendo de la lista del proveedor. Por eso lo ganado de más aparece aparte.
+//
+// "Lo que no llegó": se marca acá cuántas unidades de cada producto no
+// vinieron. Se les resta el stock (al recibir ya se había sumado), la plata
+// no cambia (ya estaba pagado) y quedan pendientes para agregarlas sin cargo
+// al próximo pedido.
 
 const TRANSFERENCIA = 1.03;
 
-export default function DetallePedidoRecibido({ pedido, onActualizado }) {
+// repuestoEn: { [id de línea]: [{ cantidad, pedido, estado }] } — dónde se
+// agregó como reposición lo que no llegó de cada línea.
+export default function DetallePedidoRecibido({ pedido, onActualizado, repuestoEn = {} }) {
   const [abierto, setAbierto] = useState(false);
   const [editandoFlete, setEditandoFlete] = useState(false);
   const [flete, setFlete] = useState(String(pedido.flete ?? 0));
   const [guardando, setGuardando] = useState(false);
   const [editandoDescuento, setEditandoDescuento] = useState(false);
   const [descuento, setDescuento] = useState(String(Number(pedido.descuento_pct) || 0));
+  const [marcandoNoLlego, setMarcandoNoLlego] = useState(false);
+  const [noLlego, setNoLlego] = useState({});
 
   const lineas = pedido.lineas_pedido_proveedor || [];
   const subtotal = Number(pedido.subtotal) || 0;
@@ -79,6 +88,81 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
   const costoMercaderia = (baseTotal - descuentoPesos) * TRANSFERENCIA + fleteTotal;
   const ventaPotencial = filas.reduce((a, f) => a + f.precio * Number(f.cantidad || 0), 0);
   const gananciaPotencial = ventaPotencial - costoMercaderia;
+
+  const faltantes = filas.filter((f) => Number(f.cantidad_no_llego) > 0);
+  const unidadesFaltantes = faltantes.reduce((a, f) => a + Number(f.cantidad_no_llego), 0);
+  const pagadoFaltante = faltantes.reduce((a, f) => a + f.pagado * Number(f.cantidad_no_llego), 0);
+
+  function empezarNoLlego() {
+    const inicial = {};
+    lineas.forEach((l) => (inicial[l.id] = Number(l.cantidad_no_llego) || 0));
+    setNoLlego(inicial);
+    setMarcandoNoLlego(true);
+    setEditandoFlete(false);
+    setEditandoDescuento(false);
+  }
+
+  function ponerNoLlego(linea, valor) {
+    const max = Number(linea.cantidad) || 0;
+    const n = Math.max(0, Math.min(max, Math.round(Number(valor) || 0)));
+    setNoLlego((prev) => ({ ...prev, [linea.id]: n }));
+  }
+
+  async function guardarNoLlego() {
+    const cambiadas = lineas.filter((l) => (noLlego[l.id] ?? 0) !== (Number(l.cantidad_no_llego) || 0));
+    if (cambiadas.length === 0) {
+      setMarcandoNoLlego(false);
+      return;
+    }
+    const unidadesQueSalen = cambiadas.reduce(
+      (a, l) => a + Math.max(0, noLlego[l.id] - (Number(l.cantidad_no_llego) || 0)),
+      0
+    );
+    if (
+      !confirm(
+        `Vas a cambiar ${cambiadas.length} producto${cambiadas.length > 1 ? "s" : ""}.\n\n` +
+          (unidadesQueSalen > 0 ? `Se restan ${unidadesQueSalen} unidades del stock. ` : "") +
+          "Quedan pendientes para agregarlas sin cargo al próximo pedido. La plata no cambia: ya estaba pagado."
+      )
+    )
+      return;
+
+    setGuardando(true);
+    const avisos = [];
+    let hechas = 0;
+    try {
+      for (const l of cambiadas) {
+        const { data, error } = await supabase.rpc("marcar_no_llego", {
+          p_linea_id: l.id,
+          p_cantidad: noLlego[l.id]
+        });
+        const nombre = l.Productos?.nombre || l.nombre_normalizado || l.nombre;
+        if (error) {
+          avisos.push(`✗ ${nombre}: ${error.message.replace(/^[A-Z_]+: ?/, "")}`);
+          continue;
+        }
+        hechas++;
+        const r = Array.isArray(data) ? data[0] : data;
+        if (r?.sin_descontar > 0) {
+          avisos.push(
+            `⚠️ ${nombre}: tenía menos stock del que había que restar (faltaron ${r.sin_descontar}). Quedó en 0: fijate si se vendió.`
+          );
+        }
+      }
+      alert(`✓ ${hechas} producto${hechas === 1 ? "" : "s"} actualizado${hechas === 1 ? "" : "s"}.` + (avisos.length ? "\n\n" + avisos.join("\n") : ""));
+      setMarcandoNoLlego(false);
+      onActualizado?.();
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  function estadoReposicion(l) {
+    const destinos = repuestoEn[l.id] || [];
+    const agregadas = destinos.reduce((a, d) => a + Number(d.cantidad || 0), 0);
+    const pendiente = Math.max(0, Number(l.cantidad_no_llego) - agregadas);
+    return { destinos, pendiente };
+  }
 
   async function guardarDescuento() {
     const valor = Number(String(descuento).trim().replace(",", ".") || 0);
@@ -145,6 +229,12 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
             {pctDescuento > 0 && (
               <p className="text-[11px] text-green-700 mt-0.5">
                 🏷️ {String(pctDescuento).replace(".", ",")}% de descuento: −${formatPrice(descuentoPesos)}
+              </p>
+            )}
+            {faltantes.length > 0 && (
+              <p className="text-[11px] font-bold text-red-600 mt-0.5">
+                ❌ No llegaron {unidadesFaltantes} unidades ({faltantes.length} productos) · ya pagado $
+                {formatPrice(pagadoFaltante)}
               </p>
             )}
             {(reposiciones > 0 || cambios > 0) && (
@@ -265,17 +355,48 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
                 cambian: salen de la lista del proveedor.
               </p>
             </div>
+          ) : marcandoNoLlego ? (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-2.5 mb-3 sticky top-0 z-10">
+              <p className="text-[11px] font-bold text-red-800">❌ ¿Qué no llegó?</p>
+              <p className="text-[10px] text-red-900/80 mt-0.5">
+                Tocá un producto para marcarlo entero, o poné cuántas unidades faltaron. Se
+                restan del stock y quedan pendientes para el próximo pedido, sin cargo.
+              </p>
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={() => setMarcandoNoLlego(false)}
+                  className="px-3 text-xs font-bold text-gray-500"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={guardarNoLlego}
+                  disabled={guardando}
+                  className="flex-1 bg-red-600 text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50"
+                >
+                  {guardando
+                    ? "Guardando..."
+                    : `Guardar (${Object.values(noLlego).filter((n) => n > 0).length} sin llegar)`}
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="flex gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              <button
+                onClick={empezarNoLlego}
+                className="col-span-2 text-xs font-bold text-red-600 border border-red-400 rounded-xl py-2"
+              >
+                ❌ Marcar lo que no llegó
+              </button>
               <button
                 onClick={() => setEditandoFlete(true)}
-                className="flex-1 text-xs font-bold text-brand-blue border border-brand-blue rounded-xl py-2"
+                className="text-xs font-bold text-brand-blue border border-brand-blue rounded-xl py-2"
               >
                 ✏️ Corregir el flete
               </button>
               <button
                 onClick={() => setEditandoDescuento(true)}
-                className="flex-1 text-xs font-bold text-green-700 border border-green-600 rounded-xl py-2"
+                className="text-xs font-bold text-green-700 border border-green-600 rounded-xl py-2"
               >
                 🏷️ {pctDescuento > 0 ? "Corregir descuento" : "Cargar descuento"}
               </button>
@@ -289,8 +410,30 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
             sale de tu regla (3% + 10% transporte + 80%).
           </p>
           <div className="space-y-1.5 max-h-[28rem] overflow-y-auto">
-            {filas.map((f) => (
-              <div key={f.id} className="flex gap-2 border-b border-gray-50 pb-1.5">
+            {filas.map((f) => {
+              const faltan = marcandoNoLlego ? noLlego[f.id] || 0 : Number(f.cantidad_no_llego) || 0;
+              const { destinos, pendiente } = estadoReposicion(f);
+              return (
+              <div
+                key={f.id}
+                onClick={
+                  marcandoNoLlego
+                    ? () => ponerNoLlego(f, faltan > 0 ? 0 : f.cantidad)
+                    : undefined
+                }
+                className={`flex gap-2 border-b border-gray-50 pb-1.5 ${
+                  faltan > 0 ? "bg-red-50/60 rounded-lg" : ""
+                } ${marcandoNoLlego ? "cursor-pointer select-none pt-1" : ""}`}
+              >
+                {marcandoNoLlego && (
+                  <span
+                    className={`w-5 h-5 mt-2 rounded border-2 flex-shrink-0 flex items-center justify-center text-[11px] font-black ${
+                      faltan > 0 ? "bg-red-600 border-red-600 text-white" : "border-gray-300"
+                    }`}
+                  >
+                    {faltan > 0 ? "✕" : ""}
+                  </span>
+                )}
                 <div className="w-9 h-9 bg-gray-50 rounded overflow-hidden flex-shrink-0">
                   {(f.imagen_url || f.Productos?.imagen_url) && (
                     <img
@@ -306,6 +449,50 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
                     {f.tipo === "cambio" && "🔄 "}
                     {f.cantidad}× {f.Productos?.nombre || f.nombre_normalizado || f.nombre}
                   </p>
+                  {marcandoNoLlego && Number(f.cantidad) > 1 && (
+                    <div
+                      className="flex items-center gap-1.5 mt-0.5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-[10px] font-bold text-red-800">No llegaron:</span>
+                      <button
+                        type="button"
+                        onClick={() => ponerNoLlego(f, faltan - 1)}
+                        className="w-6 h-6 rounded border border-red-300 bg-white text-red-700 font-bold text-xs"
+                      >
+                        −
+                      </button>
+                      <span className="text-xs font-black text-red-800 w-4 text-center">{faltan}</span>
+                      <button
+                        type="button"
+                        onClick={() => ponerNoLlego(f, faltan + 1)}
+                        className="w-6 h-6 rounded border border-red-300 bg-white text-red-700 font-bold text-xs"
+                      >
+                        +
+                      </button>
+                      <span className="text-[10px] text-red-800/70">de {f.cantidad}</span>
+                    </div>
+                  )}
+                  {!marcandoNoLlego && faltan > 0 && (
+                    <p className="text-[10px] font-bold text-red-600">
+                      ❌{" "}
+                      {faltan === 1
+                        ? Number(f.cantidad) > 1
+                          ? `No llegó 1 de ${f.cantidad}`
+                          : "No llegó"
+                        : faltan < Number(f.cantidad)
+                          ? `No llegaron ${faltan} de ${f.cantidad}`
+                          : `No llegaron las ${faltan}`}
+                      {pendiente > 0 ? " · ⏳ pendiente para el próximo pedido" : ""}
+                      {destinos.map((d, i) => (
+                        <span key={i} className="text-green-700">
+                          {" "}
+                          · {d.estado === "recibido" ? "✓ llegó en" : "🚚 agregado al"} pedido {d.pedido}
+                          {destinos.length > 1 || d.cantidad < faltan ? ` (${d.cantidad})` : ""}
+                        </span>
+                      ))}
+                    </p>
+                  )}
                   {f.tipo === "reposicion" && (
                     <p className="text-[10px] text-amber-700">
                       Reposición: pagaste ${formatPrice(f.pagado)} ahora, ya estaba pagado antes
@@ -332,7 +519,8 @@ export default function DetallePedidoRecibido({ pedido, onActualizado }) {
                   </p>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
