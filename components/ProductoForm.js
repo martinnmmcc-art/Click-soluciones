@@ -152,9 +152,13 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
     setForm(nuevoForm);
   }
 
+  // Escribir el precio a mano lo deja como "precio tuyo": ningún cálculo
+  // automático lo vuelve a la regla. Antes quedaba sin marcar y la
+  // sincronización con el proveedor lo pisaba.
   function handleChangePrecioManual(e) {
     setPrecioAutocalculado(false);
-    handleChange(e);
+    const { value } = e.target;
+    setForm((prev) => ({ ...prev, precio: value, precio_manual: true }));
   }
 
   async function handleSubmit(e) {

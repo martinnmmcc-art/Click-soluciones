@@ -511,6 +511,16 @@ function Dashboard() {
             <span className="text-2xl">🎟️</span>
           </Link>
 
+          <Link href="/admin/elegidos" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-200">
+            <div>
+              <p className="font-semibold text-gray-800">Elegidos para vos</p>
+              <p className="text-sm text-gray-500">
+                Qué productos recomendás en el inicio y cómo van rotando
+              </p>
+            </div>
+            <span className="text-2xl">★</span>
+          </Link>
+
           <Link href="/admin/ofertas" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-red-200">
             <div>
               <p className="font-semibold text-gray-800">Ofertas</p>

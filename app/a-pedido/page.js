@@ -42,6 +42,9 @@ export default function APedidoPage() {
     // Si no viene de un producto, arranca limpio
     if (!vieneDeUnProducto("a-pedido")) {
       limpiarEstado("a-pedido");
+      // Llega desde el buscador del inicio ("Si no está acá, lo traemos")
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q) setBusqueda(q);
       setRestaurado(true);
       return;
     }

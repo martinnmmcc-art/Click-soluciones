@@ -1,22 +1,32 @@
 import { NEGOCIO } from "@/lib/config";
+import { LogoInstagram, LogoFacebook, LogoWhatsApp, telefonoLegible, ENLACES } from "@/components/LogosRedes";
 
-// Enlaces a las redes del negocio. Cada seguidor nuevo es alguien que va a
-// ver tus próximas promociones sin que tengas que mandárselas una por una.
-export default function RedesSociales({ titulo = "Seguinos en redes", compacto = false }) {
+// Enlaces a las redes del negocio, con los logos reales. Cada seguidor nuevo
+// es alguien que va a ver tus próximas promociones sin que tengas que
+// mandárselas una por una.
+export default function RedesSociales({ titulo = "Seguinos en redes", compacto = false, conWhatsApp = false }) {
   const redes = [
     NEGOCIO.instagram && {
       href: NEGOCIO.instagram,
       nombre: "Instagram",
       detalle: NEGOCIO.instagramUsuario ? `@${NEGOCIO.instagramUsuario}` : "Instagram",
-      icono: "📸",
-      color: "bg-gradient-to-r from-[#F58529] via-[#DD2A7B] to-[#8134AF]"
+      logo: <LogoInstagram size={34} />
     },
     NEGOCIO.facebook && {
       href: NEGOCIO.facebook,
       nombre: "Facebook",
       detalle: "Bolson Click",
-      icono: "📘",
-      color: "bg-[#1877F2]"
+      logo: <LogoFacebook size={34} />
+    },
+    conWhatsApp && {
+      href: ENLACES.whatsapp,
+      nombre: "WhatsApp",
+      detalle: telefonoLegible(),
+      logo: (
+        <span className="w-[34px] h-[34px] rounded-full bg-[#25D366] text-white flex items-center justify-center flex-shrink-0">
+          <LogoWhatsApp size={20} />
+        </span>
+      )
     }
   ].filter(Boolean);
 
@@ -30,19 +40,19 @@ export default function RedesSociales({ titulo = "Seguinos en redes", compacto =
           Novedades, ofertas y lo que llega en el próximo pedido.
         </p>
       )}
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid gap-2 ${redes.length === 3 ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-2"}`}>
         {redes.map((r) => (
           <a
             key={r.nombre}
             href={r.href}
             target="_blank"
             rel="noopener noreferrer"
-            className={`${r.color} text-white rounded-xl px-3 py-2.5 flex items-center gap-2`}
+            className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 flex items-center gap-2.5 active:scale-[0.98] transition"
           >
-            <span className="text-xl">{r.icono}</span>
+            {r.logo}
             <span className="leading-tight min-w-0">
-              <span className="block text-xs font-bold">{r.nombre}</span>
-              <span className="block text-[10px] opacity-90 truncate">{r.detalle}</span>
+              <span className="block text-xs font-bold text-gray-800">{r.nombre}</span>
+              <span className="block text-[11px] text-gray-500 truncate">{r.detalle}</span>
             </span>
           </a>
         ))}

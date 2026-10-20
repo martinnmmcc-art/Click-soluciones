@@ -27,6 +27,10 @@ export default function CalculadoraPrecio({
   });
 
   const [manual, setManual] = useState(precioManual);
+  // Si el precio se escribe a mano en el formulario, queda marcado acá también
+  useEffect(() => {
+    setManual(!!precioManual);
+  }, [precioManual]);
 
   const base = Number(costo) || 0;
 
@@ -154,13 +158,33 @@ export default function CalculadoraPrecio({
         />
         <span className="flex-1">
           <span className="text-xs font-semibold text-gray-700 block">
-            Poner el precio a mano
+            ✋ Precio puesto por vos
           </span>
           <span className="text-[10px] text-gray-500 block">
-            Así ningún cálculo automático lo modifica después
+            Ningún cálculo automático lo cambia. Solo si el proveedor SUBE el costo,
+            sube en la misma proporción (así no perdés tu ganancia ni vendés a pérdida).
+            Si el costo baja, queda igual.
           </span>
         </span>
       </label>
+
+      {manual && precioActual && Math.abs(Number(precioActual) - precioFinal) > 50 && (
+        <div className="text-[10px] bg-white rounded-lg p-2 mt-2 flex items-center gap-2">
+          <span className="flex-1 text-gray-600">
+            Tu precio: <b>${fmt(precioActual)}</b> · por la regla sería ${fmt(precioFinal)}
+            {Number(precioActual) > precioFinal
+              ? ` (ganás $${fmt(Number(precioActual) - precioFinal)} más)`
+              : ` ($${fmt(precioFinal - Number(precioActual))} más barato)`}
+          </span>
+          <button
+            type="button"
+            onClick={() => setManual(false)}
+            className="text-brand-blue font-bold whitespace-nowrap"
+          >
+            Usar ${fmt(precioFinal)}
+          </button>
+        </div>
+      )}
 
       {!manual && precioActual && Math.abs(Number(precioActual) - precioFinal) > 50 && (
         <p className="text-[10px] text-amber-800 bg-amber-50 rounded-lg p-2 mt-2">

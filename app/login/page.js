@@ -24,7 +24,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
   const [localidad, setLocalidad] = useState("");
-  const [esRegistro, setEsRegistro] = useState(false);
+  // Quien llega sin sesión casi siempre es nuevo: arrancamos por "Crear cuenta"
+  const [esRegistro, setEsRegistro] = useState(true);
+  // Registro guiado: 1 celular → 2 nombre → 3 localidad → 4 contraseña
+  const [pasoRegistro, setPasoRegistro] = useState(1);
+  const [verPass, setVerPass] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const [chequeando, setChequeando] = useState(false);
 
   const [emailPerfil, setEmailPerfil] = useState("");
   const [direccionPerfil, setDireccionPerfil] = useState("");
@@ -99,6 +105,10 @@ export default function LoginPage() {
     // Si llega desde un catálogo compartido, le abrimos el registro directo
     if (params.get("registro") === "1") {
       setEsRegistro(true);
+    }
+    // "Ya tengo cuenta" desde otras pantallas
+    if (params.get("entrar") === "1") {
+      setEsRegistro(false);
     }
 
     const ref = params.get("ref");
@@ -1270,129 +1280,326 @@ export default function LoginPage() {
     );
   }
 
+  // ---------- Registro guiado ----------
+  const LOCALIDADES = ["El Bolsón", "Lago Puelo", "El Hoyo", "Epuyén", "Mallín Ahogado"];
+  const TOTAL_PASOS = 4;
+
+  function celularLimpio() {
+    let limpio = identificador.trim().replace(/\D/g, "");
+    if (limpio.startsWith("54")) limpio = limpio.slice(2);
+    if (limpio.startsWith("9")) limpio = limpio.slice(1);
+    return limpio;
+  }
+
+  function cambiarModo(registro) {
+    setEsRegistro(registro);
+    setPasoRegistro(1);
+    setError("");
+    setAviso("");
+  }
+
+  async function avanzarRegistro(e) {
+    e.preventDefault();
+    setError("");
+    setAviso("");
+
+    if (pasoRegistro === 1) {
+      const tel = celularLimpio();
+      if (!validarCelular(tel) || tel.length !== 10) {
+        setError("Escribí tu celular con característica, sin 0 ni 15. Ej: 2944123456");
+        return;
+      }
+      setChequeando(true);
+      try {
+        const [{ data: bloqueado }, { data: existe }] = await Promise.all([
+          supabase.rpc("telefono_esta_bloqueado", { p_telefono: tel }),
+          supabase.rpc("telefono_ya_registrado", { p_telefono: tel })
+        ]);
+        if (bloqueado) {
+          setError("Este número no puede acceder. Contactate con Bolson Click por WhatsApp.");
+          return;
+        }
+        if (existe) {
+          // Ya es cliente: lo mandamos directo a entrar, con el celular puesto
+          setEsRegistro(false);
+          setAviso("¡Ese celular ya tiene cuenta! Poné tu contraseña para entrar.");
+          return;
+        }
+        setPasoRegistro(2);
+      } catch {
+        setPasoRegistro(2);
+      } finally {
+        setChequeando(false);
+      }
+      return;
+    }
+    if (pasoRegistro === 2) {
+      if (nombre.trim().length < 2) {
+        setError("Escribí tu nombre y apellido.");
+        return;
+      }
+      setPasoRegistro(3);
+      return;
+    }
+    if (pasoRegistro === 3) {
+      setPasoRegistro(4);
+      return;
+    }
+    if (password.trim().length < 4) {
+      setError("La contraseña tiene que tener al menos 4 caracteres.");
+      return;
+    }
+    await handleSubmit(e);
+  }
+
+  const primerNombre = nombre.trim().split(/\s+/)[0] || "";
+  const titulosRegistro = {
+    1: "¿Cuál es tu celular?",
+    2: "¿Cómo te llamás?",
+    3: `${primerNombre ? primerNombre + ", ¿" : "¿"}dónde te lo entregamos?`,
+    4: "Elegí una contraseña"
+  };
+
   return (
     <main className="pb-28">
       <Header showSearch={false} />
-      <div className="px-4 mt-6 max-w-md mx-auto">
-        <h1 className="font-bold text-xl text-gray-800 mb-1 text-center">
-          {esRegistro ? "Crear una cuenta nueva" : "Bienvenido a Bolson Click"}
-        </h1>
-        {esRegistro && !esCorreo && (
-          <p className="text-xs text-gray-400 mb-3 text-center">
-            El registro de clientes es solo con número de celular.
-          </p>
-        )}
-        {refCode && esRegistro && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-center">
+      <div className="px-4 pt-5 max-w-md mx-auto">
+        {/* Bienvenida: quién somos y qué gana registrándose */}
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="" className="w-14 h-14 rounded-2xl shadow-sm flex-shrink-0" />
+          <div>
+            <h1 className="font-black text-[21px] text-gray-900 leading-tight">Bienvenido a Bolson Click</h1>
+            <p className="text-[12.5px] text-gray-600 leading-snug">
+              Productos para tu casa, con entrega en El Bolsón y la Comarca.
+            </p>
+          </div>
+        </div>
+
+        {refCode && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mt-3 text-center">
             <p className="text-sm text-amber-800 font-semibold">
               🎁 {refNombre ? `${refNombre} te invitó` : "Te invitaron"} a Bolson Click
             </p>
           </div>
         )}
-        {!esRegistro && (
-          <>
-            <p className="text-sm text-brand-orange font-bold mb-1 text-center">
-              Productos importados en El Bolsón y la Comarca Andina
-            </p>
-            <p className="text-xs text-gray-400 mb-3 text-center px-2">
-              🚚 Envíos a El Bolsón y la Comarca Andina. Coordinamos por transporte local o punto de encuentro.
-            </p>
-          </>
-        )}
-        <p className="text-sm text-gray-500 mb-5 text-center">
-          Ingresá con tu celular.
-        </p>
 
+        {/* Nuevo / ya tengo cuenta */}
+        <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-2xl p-1 mt-4" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={esRegistro}
+            onClick={() => cambiarModo(true)}
+            className={`py-2.5 rounded-xl text-sm font-bold transition ${esRegistro ? "bg-white text-brand-blue shadow-sm" : "text-gray-500"}`}
+          >
+            Soy nuevo
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!esRegistro}
+            onClick={() => cambiarModo(false)}
+            className={`py-2.5 rounded-xl text-sm font-bold transition ${!esRegistro ? "bg-white text-brand-blue shadow-sm" : "text-gray-500"}`}
+          >
+            Ya tengo cuenta
+          </button>
+        </div>
+
+        {esRegistro && pasoRegistro === 1 && (
+          <ul className="mt-4 space-y-1.5">
+            {[
+              ["📦", "Seguís tus pedidos sin tener que preguntar"],
+              ["🔔", "Te avisamos cuando llega lo que te interesa"],
+              ["⭐", "Guardás tus favoritos y comprás más rápido"]
+            ].map(([ic, t]) => (
+              <li key={t} className="flex items-center gap-2 text-[12.5px] text-gray-700">
+                <span aria-hidden="true">{ic}</span>
+                {t}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {aviso && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm rounded-xl p-3 mt-4 text-center" role="status">
+            {aviso}
+          </div>
+        )}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 mb-4 text-center">
+          <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 mt-4 text-center" role="alert">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">
-              Celular
-            </label>
-            <input
-              value={identificador}
-              onChange={(e) => setIdentificador(e.target.value)}
-              className="input-field"
-              placeholder="Ej: 2944123456"
-              autoComplete="username"
-              required
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">
-              Contraseña
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field"
-              placeholder="Tu contraseña"
-              autoComplete="current-password"
-              required
-            />
-          </div>
-
-          {esRegistro && !esCorreo && (
-            <div className="bg-blue-50 border border-blue-200 p-3 rounded-xl space-y-3 mt-1">
-              <p className="text-xs text-blue-800 font-medium text-center">
-                Completá tus datos básicos:
-              </p>
-              <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">Nombre y apellido</label>
-                <input
-                  value={nombre}
-                  onChange={(e) => setNombre(e.target.value)}
-                  className="input-field bg-white"
-                  placeholder="Ej: Martín Cáceres"
-                  required={esRegistro}
+        {esRegistro ? (
+          <form onSubmit={avanzarRegistro} noValidate className="mt-4 bg-white rounded-3xl border border-gray-100 shadow-sm p-4">
+            <div className="flex items-center gap-1.5 mb-3">
+              {Array.from({ length: TOTAL_PASOS }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 flex-1 rounded-full transition-colors ${i < pasoRegistro ? "bg-brand-blue" : "bg-gray-200"}`}
                 />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-gray-700 block mb-1">Localidad</label>
-                <input
-                  value={localidad}
-                  onChange={(e) => setLocalidad(e.target.value)}
-                  className="input-field bg-white"
-                  placeholder="Ej: El Bolsón"
-                />
-              </div>
+              ))}
+              <span className="text-[11px] font-bold text-gray-400 ml-1 whitespace-nowrap">
+                Paso {pasoRegistro} de {TOTAL_PASOS}
+              </span>
             </div>
-          )}
 
-          <button
-            disabled={loading}
-            className="btn-primary mt-2 disabled:opacity-50"
-          >
-            {loading
-              ? "Procesando..."
-              : esRegistro && !esCorreo
-              ? "Completar Registro"
-              : "Iniciar Sesión"}
-          </button>
+            <h2 className="font-extrabold text-lg text-gray-800 mb-3">{titulosRegistro[pasoRegistro]}</h2>
 
-          {!esCorreo && (
-            <div className="text-center mt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setEsRegistro(!esRegistro);
-                  setError("");
-                }}
-                className="text-xs font-medium text-brand-blue hover:underline"
-              >
-                {esRegistro
-                  ? "¿Ya tenés cuenta? Iniciá sesión"
-                  : "¿No tenés cuenta? Registrate acá"}
+            {pasoRegistro === 1 && (
+              <>
+                <input
+                  value={identificador}
+                  onChange={(e) => setIdentificador(e.target.value)}
+                  className="input-field text-base tracking-wide"
+                  placeholder="2944 123456"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  autoFocus
+                />
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  Con característica, sin 0 ni 15. Con tu celular entrás a tu cuenta y coordinamos las entregas.
+                </p>
+              </>
+            )}
+
+            {pasoRegistro === 2 && (
+              <input
+                value={nombre}
+                onChange={(e) => setNombre(e.target.value)}
+                className="input-field text-base"
+                placeholder="Nombre y apellido"
+                autoComplete="name"
+                autoFocus
+              />
+            )}
+
+            {pasoRegistro === 3 && (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {LOCALIDADES.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setLocalidad(l)}
+                      aria-pressed={localidad === l}
+                      className={`px-3 py-2 rounded-full text-sm font-semibold border transition ${
+                        localidad === l ? "bg-brand-blue text-white border-brand-blue" : "bg-white text-gray-700 border-gray-300"
+                      }`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  value={LOCALIDADES.includes(localidad) ? "" : localidad}
+                  onChange={(e) => setLocalidad(e.target.value)}
+                  className="input-field text-sm mt-3"
+                  placeholder="¿Otra? Escribila acá"
+                />
+                <p className="text-[11px] text-gray-500 mt-1.5">Si no sabés, tocá Siguiente igual.</p>
+              </>
+            )}
+
+            {pasoRegistro === 4 && (
+              <>
+                <div className="relative">
+                  <input
+                    type={verPass ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input-field text-base pr-20"
+                    placeholder="Mínimo 4 caracteres"
+                    autoComplete="new-password"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVerPass(!verPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-blue"
+                  >
+                    {verPass ? "Ocultar" : "Ver"}
+                  </button>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">
+                  La vas a usar para entrar desde otro celular. Anotala en un lugar seguro.
+                </p>
+              </>
+            )}
+
+            <div className="flex gap-2 mt-4">
+              {pasoRegistro > 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    setPasoRegistro(pasoRegistro - 1);
+                  }}
+                  className="px-4 rounded-xl border border-gray-300 text-gray-600 font-semibold text-sm"
+                >
+                  Atrás
+                </button>
+              )}
+              <button disabled={loading || chequeando} className="btn-primary flex-1 disabled:opacity-50">
+                {loading
+                  ? "Creando tu cuenta..."
+                  : chequeando
+                  ? "Revisando..."
+                  : pasoRegistro < TOTAL_PASOS
+                  ? "Siguiente"
+                  : "Crear mi cuenta"}
               </button>
             </div>
-          )}
-        </form>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="mt-4 bg-white rounded-3xl border border-gray-100 shadow-sm p-4 flex flex-col gap-3">
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1">Celular</label>
+              <input
+                value={identificador}
+                onChange={(e) => setIdentificador(e.target.value)}
+                className="input-field"
+                placeholder="Ej: 2944123456"
+                autoComplete="username"
+                inputMode={esCorreo ? "email" : "tel"}
+                required
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-gray-700 block mb-1">Contraseña</label>
+              <div className="relative">
+                <input
+                  type={verPass ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input-field pr-20"
+                  placeholder="Tu contraseña"
+                  autoComplete="current-password"
+                  autoFocus={!!aviso}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setVerPass(!verPass)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-blue"
+                >
+                  {verPass ? "Ocultar" : "Ver"}
+                </button>
+              </div>
+            </div>
+            <button disabled={loading} className="btn-primary mt-1 disabled:opacity-50">
+              {loading ? "Entrando..." : "Entrar"}
+            </button>
+            <p className="text-[11px] text-gray-500 text-center">
+              ¿Te olvidaste la contraseña? Escribinos por WhatsApp y te la restablecemos.
+            </p>
+          </form>
+        )}
+
+        <div className="mt-6">
+          <RedesSociales titulo="Mientras tanto, seguinos" compacto conWhatsApp />
+        </div>
       </div>
     </main>
   );
