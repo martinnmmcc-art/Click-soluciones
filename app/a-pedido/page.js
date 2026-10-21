@@ -63,14 +63,11 @@ export default function APedidoPage() {
   // Categorías reales de los productos a pedido
   useEffect(() => {
     async function cargarCategorias() {
-      const { data } = await supabase
-        .from("Productos")
-        .select("categoria")
-        .eq("bajo_pedido", true)
-        .eq("activo", true)
-        .not("categoria", "is", null);
+      // Antes se traían las ~6.000 filas para sacar las categorías; ahora la
+      // base devuelve solo la lista
+      const { data } = await supabase.rpc("categorias_a_pedido");
       if (!data) return;
-      setCategorias([...new Set(data.map((p) => p.categoria).filter(Boolean))].sort());
+      setCategorias(data.map((c) => c.categoria).filter(Boolean).sort());
     }
     cargarCategorias();
   }, []);
@@ -80,7 +77,7 @@ export default function APedidoPage() {
   function consultaBase() {
     let q = supabase
       .from("Productos")
-      .select("id, nombre, precio, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, video_url, descripcion, categoria, actualizado_en", { count: "exact" })
+      .select("id, nombre, precio, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, video_url, descripcion, categoria, actualizado_en, sin_stock_proveedor", { count: "exact" })
       .eq("bajo_pedido", true)
       .eq("activo", true);
 
@@ -97,6 +94,9 @@ export default function APedidoPage() {
     // producto crece con cada uno nuevo): el mismo orden que sus Novedades.
     // Antes era la última modificación, y la sincronización diaria ponía
     // productos viejos como "nuevos".
+    // Siempre primero lo que el proveedor tiene: lo que no tiene stock va
+    // al final, con el aviso, en cualquier orden que se elija.
+    q = q.order("prioridad_lista", { ascending: false });
     if (orden === "nuevo") {
       return q
         .order("orden_novedad", { ascending: false, nullsFirst: false })
@@ -288,11 +288,17 @@ export default function APedidoPage() {
                       fotos={fotosDe(prod)}
                       video={prod.video_url}
                       alt={prod.nombre}
-                      className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50"
+                      className={`w-full h-32 object-cover rounded-xl mb-2 bg-gray-50 ${prod.sin_stock_proveedor ? "opacity-50 grayscale" : ""}`}
                     />
-                    <span className="absolute top-1.5 left-1.5 bg-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-                      A PEDIDO
-                    </span>
+                    {prod.sin_stock_proveedor ? (
+                      <span className="absolute top-1.5 left-1.5 bg-gray-700 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        SIN STOCK EN PROVEEDOR
+                      </span>
+                    ) : (
+                      <span className="absolute top-1.5 left-1.5 bg-purple-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
+                        A PEDIDO
+                      </span>
+                    )}
                   </Link>
 
                   <h3 className="font-bold text-xs text-gray-800 line-clamp-2 leading-tight">
@@ -314,19 +320,37 @@ export default function APedidoPage() {
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-gray-50 flex flex-col gap-1.5">
-                  {prod.precio && (
-                    <span className="font-black text-sm text-purple-700">
-                      Aprox. ${formatPrice(prod.precio)}
-                    </span>
+                  {prod.sin_stock_proveedor ? (
+                    <>
+                      <span className="text-[11px] font-semibold text-gray-500 leading-tight">
+                        El proveedor no tiene stock por ahora
+                      </span>
+                      <a
+                        href={mensajeConsulta(prod)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full bg-white border border-gray-300 text-gray-700 text-[11px] font-bold py-2 rounded-xl text-center"
+                      >
+                        Avisame cuando vuelva
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      {prod.precio && (
+                        <span className="font-black text-sm text-purple-700">
+                          Aprox. ${formatPrice(prod.precio)}
+                        </span>
+                      )}
+                      <a
+                        href={mensajeConsulta(prod)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full bg-purple-600 text-white text-[11px] font-bold py-2 rounded-xl shadow-sm text-center"
+                      >
+                        Consultar y pedir
+                      </a>
+                    </>
                   )}
-                  <a
-                    href={mensajeConsulta(prod)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full bg-purple-600 text-white text-[11px] font-bold py-2 rounded-xl shadow-sm text-center"
-                  >
-                    Consultar y pedir
-                  </a>
                 </div>
               </div>
             ))}

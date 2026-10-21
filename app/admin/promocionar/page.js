@@ -42,6 +42,21 @@ function Promocionar() {
   const [modo, setModo] = useState("uno"); // uno | varios
   const [varios, setVarios] = useState([]);
   const [yaPromocionados, setYaPromocionados] = useState({});
+  // Filtrar por categoría: para armar promos temáticas ("todo para la
+  // cocina", "ideas para regalar"...) sin buscar producto por producto
+  const [categoria, setCategoria] = useState("todas");
+  const [categoriasPedido, setCategoriasPedido] = useState([]);
+
+  // Al cambiar entre Con stock / Sin stock / A pedido, la categoría elegida
+  // puede no existir en la otra lista: volvemos a "Todas"
+  useEffect(() => {
+    setCategoria("todas");
+  }, [disponibilidad]);
+
+  useEffect(() => {
+    if (disponibilidad !== "pedido" || categoriasPedido.length) return;
+    supabase.rpc("categorias_a_pedido").then(({ data }) => setCategoriasPedido(data || []));
+  }, [disponibilidad, categoriasPedido.length]);
 
   // Qué productos ya publicaste en las últimas 2 semanas, para no repetir
   useEffect(() => {
@@ -147,11 +162,14 @@ function Promocionar() {
       const palabras = busqueda.trim().split(/\s+/).filter((w) => w.length >= 2).slice(0, 4);
       let q = supabase
         .from("Productos")
-        .select("id, nombre, precio, precio_oferta, imagen_url, stock, bajo_pedido, descripcion, fecha_ingreso")
+        .select("id, nombre, precio, precio_oferta, imagen_url, stock, bajo_pedido, descripcion, fecha_ingreso, categoria")
         .eq("bajo_pedido", true)
         .eq("activo", true)
+        // No promocionamos lo que el proveedor no tiene: no se podría cumplir
+        .eq("sin_stock_proveedor", false)
         .not("imagen_url", "is", null);
 
+      if (categoria !== "todas") q = q.eq("categoria", categoria);
       q = aplicarBusqueda(q, palabras.join(" "));
       if (soloOfertas) q = q.not("precio_oferta", "is", null);
 
@@ -167,7 +185,7 @@ function Promocionar() {
       cancelado = true;
       clearTimeout(t);
     };
-  }, [disponibilidad, busqueda, soloOfertas]);
+  }, [disponibilidad, busqueda, soloOfertas, categoria]);
 
   const textoActual = useMemo(() => {
     if (!fuenteTexto) return "";
@@ -180,7 +198,7 @@ function Promocionar() {
       // promocionar. Lo ordenamos por lo último que entró.
       const { data } = await supabase
         .from("Productos")
-        .select("id, nombre, precio, precio_oferta, imagen_url, stock, bajo_pedido, descripcion, fecha_ingreso")
+        .select("id, nombre, precio, precio_oferta, imagen_url, stock, bajo_pedido, descripcion, fecha_ingreso, categoria")
         .or("bajo_pedido.is.null,bajo_pedido.eq.false")
         .eq("activo", true)
         .not("imagen_url", "is", null)
@@ -334,7 +352,22 @@ function Promocionar() {
   const base =
     disponibilidad === "pedido" ? aPedido : disponibilidad === "sinstock" ? sinStock : conStock;
 
+  // Categorías de la lista que se está viendo, las que más productos tienen primero
+  const categoriasLista =
+    disponibilidad === "pedido"
+      ? categoriasPedido.map((c) => ({ nombre: c.categoria, cantidad: Number(c.cantidad) }))
+      : Object.entries(
+          base.reduce((acc, p) => {
+            if (p.categoria) acc[p.categoria] = (acc[p.categoria] || 0) + 1;
+            return acc;
+          }, {})
+        )
+          .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+          .sort((a, b) => b.cantidad - a.cantidad);
+
   const filtrados = base.filter((p) => {
+    // Los a pedido ya vienen filtrados por categoría desde la base
+    if (disponibilidad !== "pedido" && categoria !== "todas" && p.categoria !== categoria) return false;
     // Los a pedido ya vienen filtrados por la búsqueda desde la base
     if (disponibilidad !== "pedido" && busqueda.trim()) {
       const n = (p.nombre || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -627,6 +660,28 @@ function Promocionar() {
                   : "Buscar producto..."
               }
             />
+
+            {categoriasLista.length > 1 && (
+              <div className="mb-3">
+                <p className="text-[11px] font-bold text-gray-500 mb-1.5">Categoría</p>
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+                  {[{ nombre: "todas", cantidad: null }, ...categoriasLista].map((c) => (
+                    <button
+                      key={c.nombre}
+                      onClick={() => setCategoria(c.nombre)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap ${
+                        categoria === c.nombre
+                          ? "bg-gray-800 text-white"
+                          : "bg-white text-gray-600 border border-gray-200"
+                      }`}
+                    >
+                      {c.nombre === "todas" ? "Todas" : c.nombre}
+                      {c.cantidad ? <span className="font-normal opacity-70"> {c.cantidad}</span> : null}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {(cuantasOfertas > 0 || soloOfertas || disponibilidad === "pedido") && (
               <div className="flex gap-2 mb-3">

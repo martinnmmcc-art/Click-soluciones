@@ -133,6 +133,7 @@ export default function CatalogoPage() {
     estadoInicial.current = previo;
     if (previo) {
       if (previo.disponibilidad) setDisponibilidad(previo.disponibilidad);
+      if (previo.orden) setOrden(previo.orden);
       if (previo.categoria) setCategoriaSeleccionada(previo.categoria);
       if (previo.busqueda) setBusqueda(previo.busqueda);
       if (previo.tandas) setTandasCargadas(previo.tandas);
@@ -187,7 +188,7 @@ export default function CatalogoPage() {
     let q = supabase
       .from("Productos")
       .select(
-        "id, nombre, precio, precio_oferta, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, imagen_url_5, imagen_url_6, video_url, stock, bajo_pedido, categoria, descripcion, actualizado_en",
+        "id, nombre, precio, precio_oferta, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, imagen_url_5, imagen_url_6, video_url, stock, bajo_pedido, categoria, descripcion, actualizado_en, sin_stock_proveedor",
         { count: "exact" }
       )
       .eq("activo", true);
@@ -216,22 +217,26 @@ export default function CatalogoPage() {
 
   // Aplica el orden elegido a la consulta
   function aplicarOrden(q) {
-    // En "Lo que tengo" priorizamos siempre lo disponible: mostrar primero
-    // un agotado sería jugar en contra de la venta.
+    // Con cualquier orden elegido, primero va lo que se puede llevar ya,
+    // después lo tuyo agotado y lo que el proveedor tiene, y al final lo que
+    // el proveedor no tiene: mostrar primero algo que no se puede conseguir
+    // juega en contra de la venta. Dentro de cada grupo, el orden elegido.
+    q = q.order("prioridad_lista", { ascending: false });
+
+    if (orden === "precio-asc") return q.order("precio", { ascending: true }).order("id", { ascending: false });
+    if (orden === "precio-desc") return q.order("precio", { ascending: false }).order("id", { ascending: false });
+    if (orden === "nombre") return q.order("nombre", { ascending: true });
+
+    // Más nuevo: en lo tuyo, lo último que entró al depósito; en lo a pedido,
+    // lo último que publicó el proveedor (el mismo orden que sus Novedades)
     if (disponibilidad === "stock") {
       return q
-        .order("stock", { ascending: false, nullsFirst: false })
-        // Después de lo disponible, lo más nuevo del proveedor (como sus Novedades)
+        .order("fecha_ingreso", { ascending: false, nullsFirst: false })
         .order("orden_novedad", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false });
     }
-
-    if (orden === "precio-asc") return q.order("precio", { ascending: true });
-    if (orden === "precio-desc") return q.order("precio", { ascending: false });
-    if (orden === "nombre") return q.order("nombre", { ascending: true });
-
     return q
-      .order("actualizado_en", { ascending: false, nullsFirst: false })
+      .order("orden_novedad", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false });
   }
 
@@ -262,14 +267,10 @@ export default function CatalogoPage() {
       // Con límite de tiempo: con poca señal la consulta puede no contestar
       // nunca, y la pantalla quedaba en "Cargando..."
       const { data, count } = await conLimite(
-        construirConsulta()
-          // Los que tenés disponibles van primero; los agotados al final,
-          // para que el cliente vea lo que puede llevarse ya.
-          .order("stock", { ascending: false, nullsFirst: false })
-          // Después de lo disponible, lo más nuevo del proveedor (como sus Novedades)
-          .order("orden_novedad", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: false })
-          .range(0, hasta),
+        // El orden elegido (con lo disponible siempre primero). Antes esta
+        // primera tanda ignoraba la elección: "Más barato" no cambiaba nada
+        // hasta tocar "Ver más".
+        aplicarOrden(construirConsulta()).range(0, hasta),
         8000
       );
 
@@ -320,6 +321,7 @@ export default function CatalogoPage() {
       categoria: categoriaSeleccionada,
       busqueda,
       tandas: tandasCargadas,
+      orden,
       scroll: window.scrollY
     };
     guardarEstado("catalogo", estado);
@@ -332,7 +334,7 @@ export default function CatalogoPage() {
     }
     window.addEventListener("scroll", guardarScroll, { passive: true });
     return () => window.removeEventListener("scroll", guardarScroll);
-  }, [disponibilidad, categoriaSeleccionada, busqueda, tandasCargadas, restaurado]);
+  }, [disponibilidad, categoriaSeleccionada, busqueda, tandasCargadas, restaurado, orden]);
 
   async function cargarMas() {
     setCargandoMas(true);
@@ -473,10 +475,11 @@ export default function CatalogoPage() {
           </div>
         )}
 
-        {/* Ordenar: no aparece en "Lo que tengo" porque ahí el orden por
-            stock manda siempre, y ofrecer otra opción sería confuso. */}
-        {disponibilidad !== "stock" && (
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+        {/* Ordenar: en todas las pestañas y categorías. Lo disponible va
+            siempre primero dentro de cualquier orden. */}
+        {(
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none items-center">
+            <span className="text-[11px] font-semibold text-gray-500 whitespace-nowrap">Ordenar:</span>
             {[
               { key: "nuevo", label: "🆕 Más nuevo" },
               { key: "precio-asc", label: "💲 Más barato" },
@@ -541,6 +544,7 @@ export default function CatalogoPage() {
                       categoria: categoriaSeleccionada,
                       busqueda,
                       tandas: tandasCargadas,
+                      orden,
                       scroll: window.scrollY
                     });
                     marcarSalidaAProducto("catalogo");

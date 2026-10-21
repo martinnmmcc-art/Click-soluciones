@@ -121,11 +121,21 @@ export default function APedidoDetallePage() {
           </p>
         )}
 
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mt-3">
-          <p className="text-sm text-purple-800">
-            Este producto no está en stock ahora, lo pedimos especialmente a nuestro proveedor. Consultanos por WhatsApp para confirmar precio final y tiempo de entrega.
-          </p>
-        </div>
+        {producto.sin_stock_proveedor ? (
+          <div className="bg-gray-100 border border-gray-300 rounded-xl p-3 mt-3">
+            <p className="text-sm font-bold text-gray-800">😕 Sin stock en el proveedor por ahora</p>
+            <p className="text-sm text-gray-600 mt-0.5">
+              Nuestro proveedor se quedó sin este producto. Escribinos y te avisamos apenas vuelva, o te
+              recomendamos algo parecido.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mt-3">
+            <p className="text-sm text-purple-800">
+              Este producto no está en stock ahora, lo pedimos especialmente a nuestro proveedor. Consultanos por WhatsApp para confirmar precio final y tiempo de entrega.
+            </p>
+          </div>
+        )}
 
         <DesgloseAdmin producto={producto} />
         <ResponderPrecio producto={producto} />
@@ -136,7 +146,7 @@ export default function APedidoDetallePage() {
           rel="noopener noreferrer"
           className="btn-primary block text-center mt-4"
         >
-          💬 Consultar y pedir por WhatsApp
+          {producto.sin_stock_proveedor ? "💬 Avisame cuando vuelva" : "💬 Consultar y pedir por WhatsApp"}
         </a>
 
         <div className="mt-8 border-t border-gray-100 pt-6 space-y-6">

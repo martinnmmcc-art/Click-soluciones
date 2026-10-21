@@ -171,6 +171,14 @@ function limpiarHtml(html) {
   return cortarSeguro(texto.replace(/\s+/g, " ").trim(), 1500);
 }
 
+// La tienda del proveedor (WooCommerce) informa en cada producto si tiene
+// stock: is_in_stock y stock_availability.class ("out-of-stock").
+function proveedorSinStock(p) {
+  if (p?.is_in_stock === false) return true;
+  if (p?.stock_availability?.class === "out-of-stock") return true;
+  return false;
+}
+
 async function traerPagina(pagina, categoria) {
   const params = new URLSearchParams({
     per_page: "100",
@@ -276,7 +284,7 @@ export async function POST(request) {
     const refs = productos.map((p) => String(p.id));
     const { data: existentes } = await supabase
       .from("Productos")
-      .select("id, proveedor_ref, costo, categoria, bajo_pedido, imagen_url_4, imagen_url_5, imagen_url_6, pct_transferencia, pct_dolar, pct_transporte, pct_ganancia, precio_manual")
+      .select("id, proveedor_ref, costo, categoria, bajo_pedido, imagen_url_4, imagen_url_5, imagen_url_6, pct_transferencia, pct_dolar, pct_transporte, pct_ganancia, precio_manual, sin_stock_proveedor")
       .eq("proveedor", PROVEEDOR)
       .in("proveedor_ref", refs);
 
@@ -352,6 +360,10 @@ export async function POST(request) {
 
       const yaExiste = mapaExistentes.get(ref);
 
+      // ¿El proveedor tiene stock? Su tienda lo informa en cada producto.
+      // Si no viene el dato, lo damos por disponible (como hasta ahora).
+      const sinStockProveedor = proveedorSinStock(p);
+
       if (yaExiste) {
         // Nunca tocamos el costo de mercadería que ya compraste: ese es lo
         // que pagaste de verdad y es la base para calcular tu ganancia. Si
@@ -363,6 +375,9 @@ export async function POST(request) {
           actualizar_precios && !esTuyo && Number(yaExiste.costo) !== costo;
         const categoriaCorrecta = categoriaDeProducto(p);
         const cambioCategoria = yaExiste.categoria !== categoriaCorrecta;
+        // Solo importa en los "a pedido": lo tuyo se vende de tu depósito
+        const cambioStockProveedor =
+          !esTuyo && Boolean(yaExiste.sin_stock_proveedor) !== sinStockProveedor;
 
         // Completamos fotos que falten aunque no haya cambiado el precio:
         // el proveedor va agregando imágenes con el tiempo.
@@ -375,12 +390,13 @@ export async function POST(request) {
         });
         const hayFotosNuevas = Object.keys(fotosNuevas).length > 0;
 
-        if (cambioPrecio || cambioCategoria || hayFotosNuevas) {
+        if (cambioPrecio || cambioCategoria || hayFotosNuevas || cambioStockProveedor) {
           const cambios = {
             categoria: categoriaCorrecta,
             categoria_proveedor: p.categories?.[0]?.name || null,
             ...fotosNuevas
           };
+          if (cambioStockProveedor) cambios.sin_stock_proveedor = sinStockProveedor;
           if (cambioPrecio) {
             cambios.costo = costo;
             cambios.costo_envio = 0;
@@ -429,6 +445,7 @@ export async function POST(request) {
         stock: 0,
         bajo_pedido: true,
         activo: true,
+        sin_stock_proveedor: sinStockProveedor,
         categoria: categoriaDeProducto(p),
         categoria_proveedor: p.categories?.[0]?.name || null,
         proveedor: PROVEEDOR,

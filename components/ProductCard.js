@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
-import { buildWhatsAppLink, whatsappProductMessage, formatPrice } from "@/lib/whatsapp";
+import { buildWhatsAppLink, whatsappProductMessage, whatsappAPedidoMessage, formatPrice } from "@/lib/whatsapp";
 import BotonFavorito from "@/components/BotonFavorito";
 import FotoRotativa from "@/components/FotoRotativa";
 import { fotosDe } from "@/lib/imagenProducto";
@@ -18,8 +18,13 @@ export default function ProductCard({ producto }) {
   const precio = tieneOferta ? producto.precio_oferta : producto.precio;
 
   const stock = producto.stock;
-  const sinStock = stock !== null && stock !== undefined && Number(stock) <= 0;
-  const ultimaUnidad = stock !== null && stock !== undefined && Number(stock) === 1;
+  // Los "a pedido" no tienen stock tuyo: se consultan y se encargan. Si el
+  // proveedor tampoco tiene, se avisa y se ofrece avisar cuando vuelva.
+  const aPedido = producto.bajo_pedido === true;
+  const sinStockProveedor = aPedido && producto.sin_stock_proveedor === true;
+  const sinStock = !aPedido && stock !== null && stock !== undefined && Number(stock) <= 0;
+  const ultimaUnidad = !aPedido && stock !== null && stock !== undefined && Number(stock) === 1;
+  const enlace = aPedido ? `/a-pedido/${idProducto}` : `/producto/${idProducto}`;
 
   const esNuevo = (() => {
     if (!producto.created_at) return false;
@@ -30,12 +35,12 @@ export default function ProductCard({ producto }) {
   return (
     <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm flex flex-col justify-between">
       <div>
-        <Link href={`/producto/${idProducto}`} className="block relative">
+        <Link href={enlace} className="block relative">
           <FotoRotativa
             fotos={fotosDe(producto)}
             video={producto.video_url}
             alt={nombre}
-            className="w-full h-40 object-contain rounded-xl mb-2 bg-white"
+            className={`w-full h-40 object-contain rounded-xl mb-2 bg-white ${sinStockProveedor ? "opacity-50 grayscale" : ""}`}
           />
 
           {tieneOferta && (
@@ -53,6 +58,15 @@ export default function ProductCard({ producto }) {
               Consultar stock
             </span>
           )}
+          {aPedido && (
+            <span
+              className={`absolute top-1.5 right-1.5 text-white text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                sinStockProveedor ? "bg-gray-700" : "bg-purple-600"
+              }`}
+            >
+              {sinStockProveedor ? "Sin stock en proveedor" : "A pedido"}
+            </span>
+          )}
           {!sinStock && ultimaUnidad && (
             <span className="absolute top-1.5 right-1.5 bg-red-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full animate-pulse">
               ¡Última unidad!
@@ -63,7 +77,7 @@ export default function ProductCard({ producto }) {
         </Link>
 
         <h3 className="font-bold text-[13px] text-gray-800 line-clamp-2 leading-snug">
-          <Link href={`/producto/${idProducto}`} className="block">
+          <Link href={enlace} className="block">
             {nombre}
           </Link>
         </h3>
@@ -85,7 +99,25 @@ export default function ProductCard({ producto }) {
           )}
         </div>
 
-        {sinStock ? (
+        {aPedido ? (
+          <>
+            {sinStockProveedor && (
+              <span className="text-[10.5px] font-semibold text-gray-500 leading-tight">
+                El proveedor no tiene stock por ahora
+              </span>
+            )}
+            <a
+              href={buildWhatsAppLink(whatsappAPedidoMessage(producto))}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`w-full text-[11px] font-bold py-2 rounded-xl text-center active:scale-95 transition ${
+                sinStockProveedor ? "bg-white border border-gray-300 text-gray-700" : "bg-purple-600 text-white shadow-sm"
+              }`}
+            >
+              {sinStockProveedor ? "Avisame cuando vuelva" : "💬 Consultar y pedir"}
+            </a>
+          </>
+        ) : sinStock ? (
           <a
             href={buildWhatsAppLink(whatsappProductMessage(producto))}
             target="_blank"
