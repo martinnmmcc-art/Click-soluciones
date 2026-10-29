@@ -1,5 +1,7 @@
 export const dynamic = "force-dynamic";
 
+import { taparMarcaProveedor } from "@/lib/taparMarca";
+
 // Trae una foto de producto desde el sitio del proveedor y la devuelve desde
 // nuestro dominio. Sirve para dos cosas: no dejar a la vista de dónde
 // compramos, y poder usar la foto para armar placas de promoción (el
@@ -81,11 +83,14 @@ export async function GET(request) {
     const tipo = res.headers.get("content-type") || "";
     if (!tipo.startsWith("image/")) return marcador();
 
-    const buffer = await res.arrayBuffer();
+    // Si la foto trae la franja con la marca del proveedor, sale con la
+    // nuestra encima (ver lib/taparMarca.js)
+    const original = Buffer.from(await res.arrayBuffer());
+    const { bytes, tipo: tipoFinal } = await taparMarcaProveedor(original, tipo);
 
-    return new Response(buffer, {
+    return new Response(bytes, {
       headers: {
-        "Content-Type": tipo,
+        "Content-Type": tipoFinal || tipo,
         // Un mes en el navegador Y en la red de Vercel: si el proveedor se
         // cae, las fotos ya vistas se siguen sirviendo desde Vercel.
         "Cache-Control":
