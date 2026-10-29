@@ -17,6 +17,7 @@ import { nombreCategoria } from "@/lib/categorias";
 import { pedirAvisoDeStock } from "@/lib/push";
 import ResenasProducto from "@/components/ResenasProducto";
 import CompradosJuntos from "@/components/CompradosJuntos";
+import { urlImagen } from "@/lib/imagenProducto";
 
 export default function ProductoDetallePage() {
   const params = useParams();
@@ -54,7 +55,7 @@ export default function ProductoDetallePage() {
           setDebugError(error.message);
         } else if (data) {
           setProducto(data);
-          setImagenPrincipal(data.imagen_url || "");
+          setImagenPrincipal(urlImagen(data.imagen_url) || "");
         } else {
           setDebugError("El producto no existe en la base de datos con ese ID.");
         }
@@ -135,7 +136,9 @@ export default function ProductoDetallePage() {
     producto.imagen_url_4,
     producto.imagen_url_5,
     producto.imagen_url_6
-  ].filter(Boolean);
+  ]
+    .map(urlImagen)
+    .filter(Boolean);
 
   function handleAgregar() {
     addItem(producto, cantidad);
@@ -363,7 +366,7 @@ export default function ProductoDetallePage() {
                     className="flex-shrink-0 w-32 bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm"
                   >
                     {rel.imagen_url ? (
-                      <img src={rel.imagen_url} alt={rel.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
+                      <img src={urlImagen(rel.imagen_url)} alt={rel.nombre} className="w-full h-24 object-cover rounded-xl mb-1.5 bg-gray-50" />
                     ) : (
                       <div className="w-full h-24 bg-gray-100 rounded-xl mb-1.5 flex items-center justify-center text-gray-400 text-xl">📦</div>
                     )}

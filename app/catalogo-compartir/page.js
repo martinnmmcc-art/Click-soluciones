@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
+import { urlImagen } from "@/lib/imagenProducto";
 
 function CatalogoCompartirContent() {
   const searchParams = useSearchParams();
@@ -122,8 +123,8 @@ function CatalogoCompartirContent() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {productos.map((prod) => {
               const imagenes = fotos === "todas"
-                ? [prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3, prod.imagen_url_4, prod.imagen_url_5, prod.imagen_url_6].filter(Boolean)
-                : [prod.imagen_url].filter(Boolean);
+                ? [prod.imagen_url, prod.imagen_url_2, prod.imagen_url_3, prod.imagen_url_4, prod.imagen_url_5, prod.imagen_url_6].map(urlImagen).filter(Boolean)
+                : [prod.imagen_url].map(urlImagen).filter(Boolean);
 
               const stock = prod.stock !== null && prod.stock !== undefined ? Number(prod.stock) : null;
               const sinStock = stock !== null && stock <= 0;

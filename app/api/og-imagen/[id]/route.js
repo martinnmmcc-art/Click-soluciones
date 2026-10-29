@@ -1,4 +1,5 @@
 import sharp from "sharp";
+import { taparMarcaProveedor } from "@/lib/taparMarca";
 
 // Devuelve la foto de un producto achicada a JPG liviano (600x600, < 100 KB).
 // WhatsApp solo muestra la foto en la vista previa del link si la imagen
@@ -27,9 +28,13 @@ export async function GET(_req, { params }) {
     if (!original) return new Response("Sin imagen", { status: 404 });
 
     const res = await fetch(original, { next: { revalidate: 86400 } });
-    if (!res.ok) return Response.redirect(original, 302);
+    // Nunca redirigimos a la foto original: delataría al proveedor
+    if (!res.ok) return new Response("Sin imagen", { status: 404 });
 
-    const buffer = Buffer.from(await res.arrayBuffer());
+    const { bytes: buffer } = await taparMarcaProveedor(
+      Buffer.from(await res.arrayBuffer()),
+      res.headers.get("content-type") || ""
+    );
     const jpg = await sharp(buffer)
       .resize(600, 600, { fit: "contain", background: "#ffffff" })
       .flatten({ background: "#ffffff" })

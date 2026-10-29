@@ -15,6 +15,7 @@ import { suscribirPush } from "@/lib/push";
 import { avisarAdmin } from "@/lib/avisarAdmin";
 import { estadoEntrega, estadoPago, textoPago, PASOS_SEGUIMIENTO, pasoActual } from "@/lib/estadosPedido";
 import { aplicarBusqueda } from "@/lib/buscar";
+import { urlImagen } from "@/lib/imagenProducto";
 
 
 export default function LoginPage() {
@@ -917,7 +918,7 @@ export default function LoginPage() {
                     <div className="w-11 h-11 bg-gray-50 rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center">
                       {p.imagen_url ? (
                         <img
-                          src={p.imagen_url}
+                          src={urlImagen(p.imagen_url)}
                           alt=""
                           className="max-w-full max-h-full object-contain"
                         />
@@ -1222,7 +1223,7 @@ export default function LoginPage() {
                                     >
                                       {prod.imagen_url && (
                                         <img
-                                          src={prod.imagen_url}
+                                          src={urlImagen(prod.imagen_url)}
                                           alt=""
                                           className="w-10 h-10 object-cover rounded-md flex-shrink-0"
                                         />

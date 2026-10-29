@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRecordarPosicion, useRestaurarAlDibujar } from "@/lib/useRecordarPosicion";
 import { formatPrice } from "@/lib/whatsapp";
 import { obtenerTelefonoCliente, listarFavoritos } from "@/lib/favoritos";
+import { urlImagen } from "@/lib/imagenProducto";
 
 export default function FavoritosPage() {
   const [productos, setProductos] = useState([]);
@@ -72,7 +73,7 @@ export default function FavoritosPage() {
                   <BotonFavorito productoId={prod.id} className="absolute top-4 right-4 w-8 h-8 z-10" />
                   <Link href={`/producto/${prod.id}`} onClick={alSalir}>
                     {prod.imagen_url ? (
-                      <img src={prod.imagen_url} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
+                      <img src={urlImagen(prod.imagen_url)} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
                     ) : (
                       <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-2xl">📦</div>
                     )}

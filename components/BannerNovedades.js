@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import { urlImagen } from "@/lib/imagenProducto";
 
 // Carrusel de novedades de la semana.
 //
@@ -147,7 +148,7 @@ export default function BannerNovedades() {
           {/* FOTO */}
           <div className="relative w-2/5 flex-shrink-0 bg-white flex items-center justify-center aspect-square p-2">
             <img
-              src={p.imagen_url}
+              src={urlImagen(p.imagen_url)}
               alt={p.nombre}
               // object-contain muestra el producto entero. Con object-cover
               // se recortaban los bordes y quedaban productos cortados.

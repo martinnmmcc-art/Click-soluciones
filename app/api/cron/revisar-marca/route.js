@@ -4,6 +4,7 @@ export const maxDuration = 60;
 import { createClient } from "@supabase/supabase-js";
 import { esAdminRequest } from "@/lib/verificarAdmin";
 import { taparMarcaProveedor } from "@/lib/taparMarca";
+import { copiarAFotosPropias } from "@/lib/fotosProveedor";
 
 // Revisa las fotos que YA están copiadas en nuestro almacenamiento y tapa la
 // marca del proveedor donde aparezca (las nuevas ya se tapan al copiarlas y
@@ -18,7 +19,7 @@ import { taparMarcaProveedor } from "@/lib/taparMarca";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const BUCKET = "fotos-productos";
-const POR_TANDA = 30;
+const POR_TANDA = 70;
 const LIMITE_MS = 45000;
 
 function rutaEnBucket(url) {
@@ -65,6 +66,7 @@ export async function POST(request) {
   let revisados = 0;
   let tapadas = 0;
   let fallidas = 0;
+  let copiadas = 0;
 
   for (const [id, lista] of porProducto) {
     if (Date.now() - inicio > LIMITE_MS) break;
@@ -73,9 +75,22 @@ export async function POST(request) {
     const viejas = [];
 
     for (const f of lista) {
-      // Las que todavía se muestran desde el proveedor ya se tapan en /api/img
       const ruta = rutaEnBucket(f.url);
-      if (!ruta) continue;
+
+      // Todavía se muestra desde la página del proveedor: la copiamos a
+      // nuestro almacenamiento (la copia ya sale con la marca tapada). Así
+      // ninguna pantalla puede mostrar la original, use o no /api/img.
+      if (!ruta) {
+        if (!/^https:\/\//i.test(f.url || "")) continue;
+        const copia = await copiarAFotosPropias(supabase, f.url, `p${id}-${f.columna}`);
+        if (copia) {
+          cambios[f.columna] = copia;
+          copiadas++;
+        } else {
+          fallidas++;
+        }
+        continue;
+      }
 
       const foto = await descargar(f.url);
       if (!foto) {
@@ -122,6 +137,7 @@ export async function POST(request) {
     ok: true,
     revisados,
     tapadas,
+    copiadas,
     fallidas,
     pendientes: estado?.[0]?.pendientes ?? null
   });

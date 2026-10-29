@@ -8,6 +8,7 @@ import ResponderPrecio from "@/components/ResponderPrecio";
 import VideoProducto from "@/components/VideoProducto";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice, buildWhatsAppLink, whatsappAPedidoMessage } from "@/lib/whatsapp";
+import { urlImagen } from "@/lib/imagenProducto";
 
 export default function APedidoDetallePage() {
   const params = useParams();
@@ -31,7 +32,7 @@ export default function APedidoDetallePage() {
 
       if (data) {
         setProducto(data);
-        setImagenPrincipal(data.imagen_url || "");
+        setImagenPrincipal(urlImagen(data.imagen_url) || "");
       }
       setLoading(false);
     }
@@ -58,7 +59,7 @@ export default function APedidoDetallePage() {
     );
   }
 
-  const listaImagenes = [producto.imagen_url, producto.imagen_url_2, producto.imagen_url_3].filter(Boolean);
+  const listaImagenes = [producto.imagen_url, producto.imagen_url_2, producto.imagen_url_3].map(urlImagen).filter(Boolean);
 
   const linkWhatsapp = buildWhatsAppLink(whatsappAPedidoMessage(producto));
 

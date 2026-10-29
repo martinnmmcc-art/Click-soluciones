@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import { urlImagen } from "@/lib/imagenProducto";
 
 // Cartel de la oferta vigente.
 //
@@ -143,7 +144,7 @@ export default function BannerOferta() {
             <div className="flex-1 flex items-center gap-2 p-2 min-w-0">
               <div className="w-28 h-28 bg-white rounded-2xl flex-shrink-0 flex items-center justify-center p-1.5 shadow-md">
                 <img
-                  src={prod.imagen_url}
+                  src={urlImagen(prod.imagen_url)}
                   alt=""
                   className="max-w-full max-h-full object-contain"
                   key={prod.id}

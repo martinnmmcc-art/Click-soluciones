@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/whatsapp";
 import { obtenerTelefonoCliente } from "@/lib/favoritos";
+import { urlImagen } from "@/lib/imagenProducto";
 
 const OPCIONES_ENTREGA_LABEL = {
   pendiente: "Pendiente",
@@ -186,7 +187,7 @@ export default function CarritoPage() {
                     <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 flex-shrink-0">
                       {item.imagen_url ? (
                         <Image
-                          src={item.imagen_url}
+                          src={urlImagen(item.imagen_url)}
                           alt={item.nombre}
                           fill
                           sizes="64px"
