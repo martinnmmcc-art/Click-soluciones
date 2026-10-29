@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { taparMarcaProveedor } from "@/lib/taparMarca";
+import { agregarMarcaDeAgua, yaTieneMarcaDeAgua } from "@/lib/marcaDeAgua";
 
 // Trae una foto de producto desde el sitio del proveedor y la devuelve desde
 // nuestro dominio. Sirve para dos cosas: no dejar a la vista de dónde
@@ -86,7 +87,11 @@ export async function GET(request) {
     // Si la foto trae la franja con la marca del proveedor, sale con la
     // nuestra encima (ver lib/taparMarca.js)
     const original = Buffer.from(await res.arrayBuffer());
-    const { bytes, tipo: tipoFinal } = await taparMarcaProveedor(original, tipo);
+    let { bytes, tipo: tipoFinal } = await taparMarcaProveedor(original, tipo);
+    // Nuestra marca de agua, salvo que la foto ya la tenga
+    if (!yaTieneMarcaDeAgua(destino.pathname)) {
+      ({ bytes, tipo: tipoFinal } = await agregarMarcaDeAgua(bytes, tipoFinal || tipo));
+    }
 
     return new Response(bytes, {
       headers: {

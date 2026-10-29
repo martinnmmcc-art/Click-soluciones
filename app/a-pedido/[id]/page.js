@@ -118,7 +118,7 @@ export default function APedidoDetallePage() {
 
         {producto.precio && (
           <p className="text-2xl font-extrabold text-purple-700 mt-2">
-            Aprox. ${formatPrice(producto.precio)}
+            ${formatPrice(producto.precio)}
           </p>
         )}
 
@@ -133,7 +133,7 @@ export default function APedidoDetallePage() {
         ) : (
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mt-3">
             <p className="text-sm text-purple-800">
-              Este producto no está en stock ahora, lo pedimos especialmente a nuestro proveedor. Consultanos por WhatsApp para confirmar precio final y tiempo de entrega.
+              Este producto no está en stock ahora, lo pedimos especialmente a nuestro proveedor. Consultanos por WhatsApp el tiempo de entrega.
             </p>
           </div>
         )}

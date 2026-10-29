@@ -53,7 +53,7 @@ export async function GET(request, { params }) {
   const precioFinal = enOferta ? producto.precio_oferta : producto?.precio;
   // La foto ya achicada a JPG (las fotos guardadas son WebP, que este
   // generador no lee)
-  const foto = producto?.imagen_url ? `${origen}/api/og-imagen/${producto.id}?m=1` : null;
+  const foto = producto?.imagen_url ? `${origen}/api/og-imagen/${producto.id}?m=2` : null;
 
   const etiqueta = producto?.bajo_pedido
     ? { texto: "A PEDIDO", fondo: "#7C3AED" }

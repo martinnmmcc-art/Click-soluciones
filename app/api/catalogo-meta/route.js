@@ -92,13 +92,13 @@ export async function GET(request) {
           `${p.nombre}. Disponible en Bolson Click, El Bolsón y la Comarca Andina.`;
 
         // Las fotos pasan por nuestro dominio para no exponer al proveedor
-        const foto = `${SITIO}/api/img?u=${encodeURIComponent(p.imagen_url)}&m=1`;
+        const foto = `${SITIO}/api/img?u=${encodeURIComponent(p.imagen_url)}&m=2`;
         const extras = [p.imagen_url_2, p.imagen_url_3]
           .filter(Boolean)
           .map(
             (u) =>
               `    <g:additional_image_link>${escapar(
-                `${SITIO}/api/img?u=${encodeURIComponent(u)}&m=1`
+                `${SITIO}/api/img?u=${encodeURIComponent(u)}&m=2`
               )}</g:additional_image_link>`
           )
           .join("\n");

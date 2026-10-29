@@ -190,7 +190,7 @@ export default function APedidoPage() {
           <h1 className="font-bold text-purple-900">🛍️ Productos a pedido</h1>
           <p className="text-sm text-purple-800 mt-1">
             Estos productos no están en stock ahora mismo, pero los podemos pedir a nuestro proveedor.
-            Consultanos por WhatsApp el precio final y el tiempo de entrega estimado.
+            Consultanos por WhatsApp el tiempo de entrega estimado.
           </p>
         </div>
 
@@ -338,7 +338,7 @@ export default function APedidoPage() {
                     <>
                       {prod.precio && (
                         <span className="font-black text-sm text-purple-700">
-                          Aprox. ${formatPrice(prod.precio)}
+                          ${formatPrice(prod.precio)}
                         </span>
                       )}
                       <a

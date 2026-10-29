@@ -5,9 +5,10 @@ import { createClient } from "@supabase/supabase-js";
 import { esAdminRequest } from "@/lib/verificarAdmin";
 import { taparMarcaProveedor } from "@/lib/taparMarca";
 import { copiarAFotosPropias } from "@/lib/fotosProveedor";
+import { agregarMarcaDeAgua, yaTieneMarcaDeAgua, MARCA_EN_NOMBRE } from "@/lib/marcaDeAgua";
 
-// Revisa las fotos que YA están copiadas en nuestro almacenamiento y tapa la
-// marca del proveedor donde aparezca (las nuevas ya se tapan al copiarlas y
+// Revisa las fotos que YA están copiadas en nuestro almacenamiento: tapa la
+// marca del proveedor donde aparezca y les pone nuestra marca de agua a todas (las nuevas ya se tapan al copiarlas y
 // las que se muestran desde el proveedor, al pasar por /api/img).
 //
 // La llama la base de datos cada pocos minutos (pg_cron, con la clave
@@ -54,7 +55,7 @@ export async function POST(request) {
   }
 
   const inicio = Date.now();
-  const { data: fotos, error } = await supabase.rpc("fotos_para_revisar_marca", { p_limite: POR_TANDA });
+  const { data: fotos, error } = await supabase.rpc("fotos_para_marca_agua", { p_limite: POR_TANDA });
   if (error) return Response.json({ error: error.message }, { status: 500 });
 
   const porProducto = new Map();
@@ -67,6 +68,7 @@ export async function POST(request) {
   let tapadas = 0;
   let fallidas = 0;
   let copiadas = 0;
+  let marcadas = 0;
 
   for (const [id, lista] of porProducto) {
     if (Date.now() - inicio > LIMITE_MS) break;
@@ -92,17 +94,26 @@ export async function POST(request) {
         continue;
       }
 
+      // Ya tiene nuestra marca de agua (y la del proveedor tapada): nada que hacer
+      if (yaTieneMarcaDeAgua(f.url)) continue;
+
       const foto = await descargar(f.url);
       if (!foto) {
         fallidas++;
         continue;
       }
 
-      const r = await taparMarcaProveedor(foto.bytes, foto.tipo);
-      if (!r.tapada) continue;
+      // Tapamos la marca del proveedor (si está) y ponemos la nuestra.
+      // Vale también para tus fotos propias.
+      const tapada = await taparMarcaProveedor(foto.bytes, foto.tipo);
+      const r = await agregarMarcaDeAgua(tapada.bytes, "image/webp");
+      if (!r.marcada && !tapada.tapada) continue;
+      if (tapada.tapada) tapadas++;
+      if (r.marcada) marcadas++;
 
       const extension = r.tipo.includes("png") ? "png" : r.tipo.includes("webp") ? "webp" : "jpg";
-      const nueva = `espejo/p${id}-${f.columna}-bc${Date.now().toString(36)}.${extension}`;
+      const sufijo = r.marcada ? MARCA_EN_NOMBRE : "-bc";
+      const nueva = `espejo/p${id}-${f.columna}${sufijo}${Date.now().toString(36)}.${extension}`;
       const { error: errSubir } = await supabase.storage.from(BUCKET).upload(nueva, r.bytes, {
         contentType: r.tipo,
         upsert: true,
@@ -114,7 +125,6 @@ export async function POST(request) {
       }
       cambios[f.columna] = supabase.storage.from(BUCKET).getPublicUrl(nueva).data.publicUrl;
       viejas.push(ruta);
-      tapadas++;
     }
 
     // Una foto que no se puede bajar (rota o borrada) no traba la cola: el
@@ -122,21 +132,22 @@ export async function POST(request) {
     // vuelve a revisar solo.
     const { error: errProd } = await supabase
       .from("Productos")
-      .update({ ...cambios, marca_revisada_en: new Date().toISOString() })
+      .update({ ...cambios, marca_revisada_en: new Date().toISOString(), marca_agua_en: new Date().toISOString() })
       .eq("id", id);
 
     if (!errProd) {
       revisados++;
-      // La foto vieja (con la marca del proveedor) ya no la usa nadie
+      // La foto vieja (sin nuestra marca de agua) ya no la usa nadie
       if (viejas.length) await supabase.storage.from(BUCKET).remove(viejas);
     }
   }
 
-  const { data: estado } = await supabase.rpc("estado_revision_marca");
+  const { data: estado } = await supabase.rpc("estado_marca_agua");
   return Response.json({
     ok: true,
     revisados,
     tapadas,
+    marcadas,
     copiadas,
     fallidas,
     pendientes: estado?.[0]?.pendientes ?? null

@@ -3,6 +3,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import sharp from "sharp";
 import { createClient } from "@supabase/supabase-js";
 import { taparMarcaProveedor } from "@/lib/taparMarca";
+import { agregarMarcaDeAgua, yaTieneMarcaDeAgua } from "@/lib/marcaDeAgua";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -40,10 +41,11 @@ async function bajarComoPng(url, maxWidth = 380) {
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
     if (!res.ok) return null;
-    const { bytes: buffer } = await taparMarcaProveedor(
-      Buffer.from(await res.arrayBuffer()),
-      res.headers.get("content-type") || ""
-    );
+    const tipoOriginal = res.headers.get("content-type") || "";
+    let { bytes: buffer, tipo } = await taparMarcaProveedor(Buffer.from(await res.arrayBuffer()), tipoOriginal);
+    if (!yaTieneMarcaDeAgua(url)) {
+      ({ bytes: buffer } = await agregarMarcaDeAgua(buffer, tipo || tipoOriginal));
+    }
     const png = await sharp(buffer)
       .resize({ width: maxWidth, withoutEnlargement: true })
       .png({ compressionLevel: 8 })
