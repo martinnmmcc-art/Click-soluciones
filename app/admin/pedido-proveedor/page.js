@@ -26,6 +26,7 @@ function PedidoProveedor() {
   const [guardando, setGuardando] = useState(false);
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorCarga, setErrorCarga] = useState("");
   const [recibiendoId, setRecibiendoId] = useState(null);
   const [borrandoId, setBorrandoId] = useState(null);
   const [subiendoFotoLinea, setSubiendoFotoLinea] = useState(null);
@@ -74,11 +75,21 @@ function PedidoProveedor() {
 
   async function cargarPedidos() {
     setLoading(true);
-    const { data } = await supabase
+    // "!pedido_proveedor_id" dice por cuál relación traer las líneas. Sin
+    // esto, si la base suma otra relación entre las dos tablas, la consulta
+    // queda ambigua y la pantalla aparecía vacía ("En camino (0)").
+    const { data, error } = await supabase
       .from("pedidos_proveedor")
-      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, tipo, costo_real, nota, imagen_url, aplicada, cantidad_no_llego, cantidad_reintegrada, origen_linea_id, Productos(nombre, imagen_url, precio, costo))")
+      .select("*, lineas_pedido_proveedor!pedido_proveedor_id(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, tipo, costo_real, nota, imagen_url, aplicada, cantidad_no_llego, cantidad_reintegrada, origen_linea_id, Productos(nombre, imagen_url, precio, costo))")
       .order("created_at", { ascending: false });
-    setPedidos(data || []);
+    if (error) {
+      // Nunca mostrar "0 pedidos" cuando en realidad falló la carga: se
+      // conserva lo que había y se avisa
+      setErrorCarga(error.message || "No se pudieron cargar los pedidos");
+    } else {
+      setErrorCarga("");
+      setPedidos(data || []);
+    }
     setLoading(false);
     cargarPendientes();
   }
@@ -832,6 +843,23 @@ function PedidoProveedor() {
             </button>
           ))}
         </div>
+
+        {errorCarga && (
+          <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-3 mb-3" role="alert">
+            <p className="text-sm font-bold text-red-700">⚠️ No se pudieron cargar los pedidos</p>
+            <p className="text-[11px] text-red-800 mt-0.5">
+              No se borró nada: es un problema al traerlos. Revisá la señal y probá de nuevo.
+            </p>
+            <p className="text-[10px] text-red-700/70 mt-1 break-all">{errorCarga}</p>
+            <button
+              type="button"
+              onClick={cargarPedidos}
+              className="mt-2 w-full bg-red-600 text-white text-xs font-bold py-2 rounded-xl"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
 
         {vista !== "recibidos" && cajaPendientes}
 
