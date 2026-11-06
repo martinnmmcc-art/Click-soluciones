@@ -994,16 +994,29 @@ function PedidoProveedor() {
                         {formatPrice(p.subtotal)}
                         {p.flete > 0 ? ` + $${formatPrice(p.flete)} flete` : " · flete sin confirmar"}
                       </p>
-                      {(Number(p.descuento_pct) > 0 || Number(p.saldo_favor) > 0) && (() => {
+                      {(() => {
                         const sub = Number(p.subtotal) || 0;
                         const desc = Math.round((sub * (Number(p.descuento_pct) || 0)) / 100);
                         const saldo = Number(p.saldo_favor) || 0;
+                        const pagado = Math.max(0, sub - desc - saldo);
+                        // El 3% de la transferencia es fijo: es plata que sale igual
+                        const transferencia = Math.round(pagado * TRANSFERENCIA_PCT / 100);
                         return (
-                          <p className="text-[11px] font-bold text-green-700 mt-0.5">
-                            {desc > 0 && `🏷️ Descuento ${String(Number(p.descuento_pct)).replace(".", ",")}%: −$${formatPrice(desc)} · `}
-                            {saldo > 0 && `💵 Saldo a favor: −$${formatPrice(saldo)} · `}
-                            pagás ${formatPrice(Math.max(0, sub - desc - saldo))}
-                          </p>
+                          <>
+                            {(desc > 0 || saldo > 0) && (
+                              <p className="text-[11px] font-bold text-green-700 mt-0.5">
+                                {desc > 0 && `🏷️ Descuento ${String(Number(p.descuento_pct)).replace(".", ",")}%: −$${formatPrice(desc)}`}
+                                {desc > 0 && saldo > 0 && " · "}
+                                {saldo > 0 && `💵 Saldo a favor: −$${formatPrice(saldo)}`}
+                              </p>
+                            )}
+                            <p className="text-[12px] font-extrabold text-gray-800 mt-0.5">
+                              A transferir: ${formatPrice(pagado + transferencia)}
+                              <span className="text-[10px] font-semibold text-gray-500">
+                                {" "}(${formatPrice(pagado)} + 3% transferencia ${formatPrice(transferencia)})
+                              </span>
+                            </p>
+                          </>
                         );
                       })()}
                       {(() => {
@@ -1311,8 +1324,10 @@ function PedidoProveedor() {
                             Mercadería ${formatPrice(sub)}
                             {pct > 0 && ` − ${String(pct).replace(".", ",")}% ($${formatPrice(desc)})`}
                             {saldo > 0 && ` − saldo a favor $${formatPrice(saldo)}`}
-                            {(pct > 0 || saldo > 0) && ` = pagás $${formatPrice(Math.max(0, sub - desc - saldo))}`}
-                            . Solo baja lo que pagás: los precios de venta no cambian.
+                            {` + 3% transferencia = a transferir $${formatPrice(
+                              Math.round(Math.max(0, sub - desc - saldo) * (1 + TRANSFERENCIA_PCT / 100))
+                            )}`}
+                            . El descuento y el saldo solo bajan lo que pagás: los precios de venta no cambian.
                           </p>
                           </>
                         );
@@ -1388,6 +1403,9 @@ function PedidoProveedor() {
   );
 }
 
+
+// Recargo fijo por pagar con transferencia (también en la base: ajustes_app)
+const TRANSFERENCIA_PCT = 3;
 export default function PedidoProveedorPage() {
   return (
     <AdminGuard>
