@@ -39,7 +39,10 @@ export default function DetallePedidoRecibido({ pedido, onActualizado, repuestoE
   const fleteTotal = Number(pedido.flete) || 0;
   const pctDescuento = Number(pedido.descuento_pct) || 0;
   const descuentoPesos = Math.round((subtotal * pctDescuento) / 100);
-  const pagadoMercaderia = subtotal - descuentoPesos;
+  // Saldo a favor: lo que el proveedor te descontó por mercadería de otro
+  // pedido que no te mandó. Baja lo que pagaste en ESTE pedido.
+  const saldoFavor = Number(pedido.saldo_favor) || 0;
+  const pagadoMercaderia = Math.max(0, subtotal - descuentoPesos - saldoFavor);
 
   // Lo que se pagó en este pedido (reposiciones a $0, cambios solo la diferencia)
   // no es lo que cuesta el producto. Para las cuentas de ganancia cada unidad
@@ -160,8 +163,9 @@ export default function DetallePedidoRecibido({ pedido, onActualizado, repuestoE
   function estadoReposicion(l) {
     const destinos = repuestoEn[l.id] || [];
     const agregadas = destinos.reduce((a, d) => a + Number(d.cantidad || 0), 0);
-    const pendiente = Math.max(0, Number(l.cantidad_no_llego) - agregadas);
-    return { destinos, pendiente };
+    const reintegradas = Number(l.cantidad_reintegrada) || 0;
+    const pendiente = Math.max(0, Number(l.cantidad_no_llego) - agregadas - reintegradas);
+    return { destinos, pendiente, reintegradas };
   }
 
   async function guardarDescuento() {
@@ -231,6 +235,11 @@ export default function DetallePedidoRecibido({ pedido, onActualizado, repuestoE
                 🏷️ {String(pctDescuento).replace(".", ",")}% de descuento: −${formatPrice(descuentoPesos)}
               </p>
             )}
+            {saldoFavor > 0 && (
+              <p className="text-[11px] text-green-700 mt-0.5">
+                💵 Saldo a favor del proveedor: −${formatPrice(saldoFavor)}
+              </p>
+            )}
             {faltantes.length > 0 && (
               <p className="text-[11px] font-bold text-red-600 mt-0.5">
                 ❌ No llegaron {unidadesFaltantes} unidades ({faltantes.length} productos) · ya pagado $
@@ -256,9 +265,11 @@ export default function DetallePedidoRecibido({ pedido, onActualizado, repuestoE
             <div className="bg-gray-50 rounded-xl p-2.5">
               <p className="text-[10px] text-gray-500">Mercadería</p>
               <p className="text-sm font-bold text-gray-800">${formatPrice(pagadoMercaderia)}</p>
-              {pctDescuento > 0 && (
+              {(pctDescuento > 0 || saldoFavor > 0) && (
                 <p className="text-[9px] text-green-700">
-                  lista ${formatPrice(subtotal)} − {String(pctDescuento).replace(".", ",")}%
+                  lista ${formatPrice(subtotal)}
+                  {pctDescuento > 0 && ` − ${String(pctDescuento).replace(".", ",")}%`}
+                  {saldoFavor > 0 && ` − saldo $${formatPrice(saldoFavor)}`}
                 </p>
               )}
             </div>
@@ -412,7 +423,7 @@ export default function DetallePedidoRecibido({ pedido, onActualizado, repuestoE
           <div className="space-y-1.5 max-h-[28rem] overflow-y-auto">
             {filas.map((f) => {
               const faltan = marcandoNoLlego ? noLlego[f.id] || 0 : Number(f.cantidad_no_llego) || 0;
-              const { destinos, pendiente } = estadoReposicion(f);
+              const { destinos, pendiente, reintegradas } = estadoReposicion(f);
               return (
               <div
                 key={f.id}
@@ -484,6 +495,9 @@ export default function DetallePedidoRecibido({ pedido, onActualizado, repuestoE
                           ? `No llegaron ${faltan} de ${f.cantidad}`
                           : `No llegaron las ${faltan}`}
                       {pendiente > 0 ? " · ⏳ pendiente para el próximo pedido" : ""}
+                      {reintegradas > 0 && (
+                        <span className="text-green-700"> · 💵 te devolvieron la plata{reintegradas > 1 ? ` (${reintegradas})` : ""}</span>
+                      )}
                       {destinos.map((d, i) => (
                         <span key={i} className="text-green-700">
                           {" "}

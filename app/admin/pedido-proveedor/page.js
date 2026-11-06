@@ -76,7 +76,7 @@ function PedidoProveedor() {
     setLoading(true);
     const { data } = await supabase
       .from("pedidos_proveedor")
-      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, tipo, costo_real, nota, imagen_url, aplicada, cantidad_no_llego, origen_linea_id, Productos(nombre, imagen_url, precio, costo))")
+      .select("*, lineas_pedido_proveedor(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, tipo, costo_real, nota, imagen_url, aplicada, cantidad_no_llego, cantidad_reintegrada, origen_linea_id, Productos(nombre, imagen_url, precio, costo))")
       .order("created_at", { ascending: false });
     setPedidos(data || []);
     setLoading(false);
@@ -88,6 +88,14 @@ function PedidoProveedor() {
   // otro pedido: ahí entra como reposición y, cuando llega, suma stock.
   const [pendientes, setPendientes] = useState([]);
   const [verPendientes, setVerPendientes] = useState(false);
+  // "Me devolvieron la plata": el proveedor no los manda y te los descuenta
+  // de otro pedido (saldo a favor). Se eligen cuáles y en qué pedido.
+  const [reintegrando, setReintegrando] = useState(false);
+  const [elegidosReintegro, setElegidosReintegro] = useState({});
+  const [montoReintegro, setMontoReintegro] = useState("");
+  const [pedidoReintegro, setPedidoReintegro] = useState("");
+  // Saldo a favor al editar un pedido
+  const [saldoEditando, setSaldoEditando] = useState(0);
 
   async function cargarPendientes() {
     const { data, error } = await supabase.rpc("pendientes_proveedor");
@@ -316,6 +324,7 @@ function PedidoProveedor() {
     );
     setFleteEditando(pedido.flete || 0);
     setDescuentoEditando(Number(pedido.descuento_pct) || 0);
+    setSaldoEditando(Number(pedido.saldo_favor) || 0);
   }
 
   function cambiarCantidadEdicion(idx, valor) {
@@ -461,7 +470,12 @@ function PedidoProveedor() {
       );
       const { error: errPedido } = await supabase
         .from("pedidos_proveedor")
-        .update({ subtotal: nuevoSubtotal, flete: fleteEditando, descuento_pct: pctDescuento })
+        .update({
+          subtotal: nuevoSubtotal,
+          flete: fleteEditando,
+          descuento_pct: pctDescuento,
+          saldo_favor: Math.max(0, Math.round(Number(String(saldoEditando).replace(/\./g, "").replace(",", ".")) || 0))
+        })
         .eq("id", pedido.id);
       if (errPedido) throw new Error(errPedido.message);
 
@@ -604,6 +618,71 @@ function PedidoProveedor() {
       });
     })
   );
+  function empezarReintegro() {
+    const todos = {};
+    pendientes.forEach((pd) => (todos[pd.linea_id] = Number(pd.pagado) > 0));
+    setElegidosReintegro(todos);
+    setMontoReintegro(String(sugeridoReintegro(todos)));
+    setPedidoReintegro(enCamino[0]?.id ? String(enCamino[0].id) : recibidos[0]?.id ? String(recibidos[0].id) : "");
+    setVerPendientes(true);
+    setReintegrando(true);
+  }
+
+  // Lo que pagaste por esas unidades: es lo que el proveedor te debería devolver
+  function sugeridoReintegro(elegidos) {
+    return pendientes
+      .filter((pd) => elegidos[pd.linea_id])
+      .reduce((a, pd) => a + Number(pd.pendiente || 0) * Number(pd.pagado || 0), 0);
+  }
+
+  function tocarReintegro(id) {
+    setElegidosReintegro((prev) => {
+      const nuevo = { ...prev, [id]: !prev[id] };
+      setMontoReintegro(String(sugeridoReintegro(nuevo)));
+      return nuevo;
+    });
+  }
+
+  async function guardarReintegro() {
+    const lineas = pendientes.filter((pd) => elegidosReintegro[pd.linea_id]).map((pd) => pd.linea_id);
+    const monto = Math.round(Number(String(montoReintegro).replace(/\./g, "").replace(",", ".")) || 0);
+    if (!lineas.length) {
+      alert("Elegí los productos que te devolvieron en plata.");
+      return;
+    }
+    if (!pedidoReintegro) {
+      alert("Elegí en qué pedido te descontaron el saldo a favor.");
+      return;
+    }
+    const pedido = pedidos.find((p) => String(p.id) === String(pedidoReintegro));
+    if (
+      !confirm(
+        (lineas.length > 1
+          ? `${lineas.length} productos dejan de estar pendientes (ya no se esperan).\n\n`
+          : "1 producto deja de estar pendiente (ya no se espera).\n\n") +
+          `Saldo a favor de $${formatPrice(monto)} en el pedido ${pedido?.numero_pedido || "#" + pedidoReintegro}: ` +
+          "se resta de lo que pagás en ese pedido."
+      )
+    )
+      return;
+    setGuardando(true);
+    try {
+      const { error } = await supabase.rpc("reintegrar_pendientes", {
+        p_pedido_id: Number(pedidoReintegro),
+        p_lineas: lineas,
+        p_monto: monto
+      });
+      if (error) throw new Error(error.message);
+      setReintegrando(false);
+      alert("✓ Listo. Ya no figuran como pendientes y el saldo a favor quedó en el pedido.");
+      cargarPedidos();
+    } catch (e) {
+      alert("No se pudo guardar: " + e.message);
+    } finally {
+      setGuardando(false);
+    }
+  }
+
   const unidadesPendientes = pendientes.reduce((a, pd) => a + Number(pd.pendiente || 0), 0);
   const plataPendiente = pendientes.reduce((a, pd) => a + Number(pd.pendiente || 0) * Number(pd.costo || 0), 0);
 
@@ -616,22 +695,106 @@ function PedidoProveedor() {
           <span className="float-right text-red-400">{verPendientes ? "▲" : "▼"}</span>
         </p>
         <p className="text-[10px] text-red-900/80 mt-0.5">
-          Agregalos sin cargo al próximo pedido: al guardarlo te lo pregunta, o con Editar en uno en camino.
+          Si vienen en el próximo envío, agregalos sin cargo (al guardar el pedido te lo pregunta, o con Editar).
+          Si no vienen y te los descontaron, tocá “Me devolvieron la plata”.
         </p>
       </button>
-      {verPendientes && (
+      {!reintegrando && (
+        <button
+          type="button"
+          onClick={empezarReintegro}
+          className="mt-2 w-full bg-white border border-green-600 text-green-700 text-xs font-bold py-2 rounded-xl"
+        >
+          💵 Me devolvieron la plata (saldo a favor)
+        </button>
+      )}
+      {reintegrando && (
+        <div className="mt-2 bg-green-50 border border-green-200 rounded-xl p-2.5">
+          <p className="text-[11px] font-bold text-green-800">Marcá los que te devolvieron en plata</p>
+          <p className="text-[10px] text-green-900/80">Dejan de estar pendientes y no se esperan más.</p>
+        </div>
+      )}
+      {(verPendientes || reintegrando) && (
         <div className="mt-2 space-y-1 max-h-64 overflow-y-auto">
           {pendientes.map((pd) => (
-            <div key={pd.linea_id} className="flex items-center gap-2 bg-white rounded-lg p-1.5">
+            <div
+              key={pd.linea_id}
+              onClick={reintegrando ? () => tocarReintegro(pd.linea_id) : undefined}
+              className={`flex items-center gap-2 bg-white rounded-lg p-1.5 ${reintegrando ? "cursor-pointer" : ""} ${
+                reintegrando && elegidosReintegro[pd.linea_id] ? "ring-2 ring-green-500" : ""
+              }`}
+            >
+              {reintegrando && (
+                <span
+                  className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center text-[11px] font-black ${
+                    elegidosReintegro[pd.linea_id] ? "bg-green-600 border-green-600 text-white" : "border-gray-300"
+                  }`}
+                >
+                  {elegidosReintegro[pd.linea_id] ? "✓" : ""}
+                </span>
+              )}
               <div className="w-8 h-8 bg-gray-50 rounded overflow-hidden flex-shrink-0">
                 {pd.imagen_url && <img src={pd.imagen_url} alt="" className="w-full h-full object-contain" />}
               </div>
               <p className="flex-1 min-w-0 text-[11px] font-semibold text-gray-800 line-clamp-1">
                 {pd.pendiente}× {pd.nombre}
               </p>
-              <span className="text-[10px] text-gray-500 whitespace-nowrap">pedido {pd.pedido}</span>
+              <span className="text-[10px] text-gray-500 whitespace-nowrap text-right leading-tight">
+                pedido {pd.pedido}
+                {Number(pd.pagado) > 0 ? (
+                  <span className="block">pagaste ${formatPrice(Number(pd.pagado) * Number(pd.pendiente))}</span>
+                ) : (
+                  <span className="block">sin cargo</span>
+                )}
+              </span>
             </div>
           ))}
+        </div>
+      )}
+      {reintegrando && (
+        <div className="mt-2 bg-white rounded-xl border border-green-200 p-2.5 space-y-2">
+          <label className="block">
+            <span className="text-[11px] font-bold text-gray-700">¿Cuánto te descontaron? $</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={montoReintegro}
+              onChange={(e) => setMontoReintegro(e.target.value.replace(/[^0-9.,]/g, ""))}
+              className="input-field text-sm mt-1"
+            />
+            <span className="text-[10px] text-gray-500">
+              Te sugerimos lo que pagaste por esos productos. Poné lo que figura en la factura.
+            </span>
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-bold text-gray-700">¿En qué pedido te lo descontaron?</span>
+            <select
+              value={pedidoReintegro}
+              onChange={(e) => setPedidoReintegro(e.target.value)}
+              className="input-field text-sm mt-1"
+            >
+              <option value="">Elegí un pedido</option>
+              {[...enCamino, ...recibidos].map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.estado === "en_camino" ? "🚚 " : "✓ "}Pedido {p.numero_pedido || "#" + p.id} ·{" "}
+                  {new Date(p.fecha_pedido || p.created_at).toLocaleDateString("es-AR")} · ${formatPrice(p.subtotal)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setReintegrando(false)} className="px-3 text-xs font-bold text-gray-500">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={guardarReintegro}
+              disabled={guardando}
+              className="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded-lg disabled:opacity-50"
+            >
+              {guardando ? "Guardando..." : "Guardar saldo a favor"}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -831,13 +994,18 @@ function PedidoProveedor() {
                         {formatPrice(p.subtotal)}
                         {p.flete > 0 ? ` + $${formatPrice(p.flete)} flete` : " · flete sin confirmar"}
                       </p>
-                      {Number(p.descuento_pct) > 0 && (
-                        <p className="text-[11px] font-bold text-green-700 mt-0.5">
-                          🏷️ Descuento {String(Number(p.descuento_pct)).replace(".", ",")}%: −$
-                          {formatPrice(Math.round((Number(p.subtotal) * Number(p.descuento_pct)) / 100))} · pagás $
-                          {formatPrice(Math.round(Number(p.subtotal) * (1 - Number(p.descuento_pct) / 100)))}
-                        </p>
-                      )}
+                      {(Number(p.descuento_pct) > 0 || Number(p.saldo_favor) > 0) && (() => {
+                        const sub = Number(p.subtotal) || 0;
+                        const desc = Math.round((sub * (Number(p.descuento_pct) || 0)) / 100);
+                        const saldo = Number(p.saldo_favor) || 0;
+                        return (
+                          <p className="text-[11px] font-bold text-green-700 mt-0.5">
+                            {desc > 0 && `🏷️ Descuento ${String(Number(p.descuento_pct)).replace(".", ",")}%: −$${formatPrice(desc)} · `}
+                            {saldo > 0 && `💵 Saldo a favor: −$${formatPrice(saldo)} · `}
+                            pagás ${formatPrice(Math.max(0, sub - desc - saldo))}
+                          </p>
+                        );
+                      })()}
                       {(() => {
                         const especiales = (p.lineas_pedido_proveedor || []).filter((l) => (l.tipo || "normal") !== "normal");
                         if (!especiales.length) return null;
@@ -1124,15 +1292,29 @@ function PedidoProveedor() {
                           0
                         );
                         const pct = Number(String(descuentoEditando).replace(",", ".")) || 0;
+                        const saldo = Math.round(Number(String(saldoEditando).replace(/\./g, "").replace(",", ".")) || 0);
+                        const desc = Math.round((sub * pct) / 100);
                         return (
+                          <>
+                          <label className="text-xs font-bold text-gray-600 block mb-1 mt-3">
+                            Saldo a favor que te descontó el proveedor ($)
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={saldoEditando}
+                            onChange={(e) => setSaldoEditando(e.target.value.replace(/[^0-9.,]/g, ""))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                            placeholder="Ej: 32000"
+                          />
                           <p className="text-[10px] text-gray-500 mt-1 mb-3">
                             Mercadería ${formatPrice(sub)}
-                            {pct > 0 &&
-                              ` − ${String(pct).replace(".", ",")}% ($${formatPrice(Math.round((sub * pct) / 100))}) = pagás $${formatPrice(
-                                Math.round(sub * (1 - pct / 100))
-                              )}`}
+                            {pct > 0 && ` − ${String(pct).replace(".", ",")}% ($${formatPrice(desc)})`}
+                            {saldo > 0 && ` − saldo a favor $${formatPrice(saldo)}`}
+                            {(pct > 0 || saldo > 0) && ` = pagás $${formatPrice(Math.max(0, sub - desc - saldo))}`}
                             . Solo baja lo que pagás: los precios de venta no cambian.
                           </p>
+                          </>
                         );
                       })()}
 
