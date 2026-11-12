@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
+import { nombrePedido } from "@/lib/nombrePedidoProveedor";
 
 // Detalle de un pedido al proveedor ya recibido: qué vino, cuánto costó
 // cada cosa con el flete incluido, a cuánto se vende y cuánto deja.
@@ -215,15 +216,41 @@ export default function DetallePedidoRecibido({ pedido, onActualizado, repuestoE
     }
   }
 
+  // Pedidos de antes de que existiera esta pantalla: solo se sabe cuánto se
+  // pagó. No tienen productos cargados ni tocan el stock.
+  if (pedido.historico) {
+    return (
+      <div className="bg-gray-50 rounded-2xl border border-gray-200 p-3">
+        <div className="flex justify-between items-start gap-2">
+          <div>
+            <p className="text-xs font-bold text-gray-700">
+              📁 Pedido {nombrePedido(pedido)} ·{" "}
+              {new Date(`${pedido.fecha_pedido}T12:00:00`).toLocaleDateString("es-AR")}
+            </p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              ${formatPrice(subtotal)}
+              {fleteTotal > 0 ? ` + flete $${formatPrice(fleteTotal)}` : ""}
+            </p>
+            {pedido.nota && <p className="text-[11px] text-gray-500 mt-0.5">{pedido.nota}</p>}
+            <p className="text-[10px] text-gray-400 mt-1">
+              Cargado antes de esta pantalla: sin detalle de productos.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-white rounded-2xl border border-gray-100">
       <button onClick={() => setAbierto(!abierto)} className="w-full text-left p-3">
         <div className="flex justify-between items-start gap-2">
           <div>
             <p className="text-xs font-bold text-gray-800">
-              ✅ Pedido {pedido.numero_pedido || `#${pedido.id}`} · recibido el{" "}
+              ✅ Pedido {nombrePedido(pedido)} · recibido el{" "}
               {new Date(pedido.fecha_recibido).toLocaleDateString("es-AR")}
             </p>
+            {pedido.nota && <p className="text-[11px] font-bold text-green-700 mt-0.5">🎁 {pedido.nota}</p>}
             <p className="text-[11px] text-gray-500 mt-0.5">
               {lineas.length} productos · {unidades} unidades · ${formatPrice(subtotal)}
               {fleteTotal > 0

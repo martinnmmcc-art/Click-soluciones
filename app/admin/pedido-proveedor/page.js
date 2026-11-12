@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { formatPrice } from "@/lib/whatsapp";
 import { cabeceraAdmin } from "@/lib/verificarAdmin";
 import DetallePedidoRecibido from "@/components/DetallePedidoRecibido";
+import { nombrePedido } from "@/lib/nombrePedidoProveedor";
 import { aplicarBusqueda } from "@/lib/buscar";
 
 // Pega el texto del pedido tal como sale de la web del proveedor, la app
@@ -81,7 +82,8 @@ function PedidoProveedor() {
     const { data, error } = await supabase
       .from("pedidos_proveedor")
       .select("*, lineas_pedido_proveedor!pedido_proveedor_id(id, nombre, nombre_normalizado, producto_id, cantidad, precio_unitario, tipo, costo_real, nota, imagen_url, aplicada, cantidad_no_llego, cantidad_reintegrada, origen_linea_id, Productos(nombre, imagen_url, precio, costo))")
-      .order("created_at", { ascending: false });
+      // Por número correlativo: el más nuevo arriba
+      .order("numero", { ascending: false });
     if (error) {
       // Nunca mostrar "0 pedidos" cuando en realidad falló la carga: se
       // conserva lo que había y se avisa
@@ -584,7 +586,7 @@ function PedidoProveedor() {
   async function marcarRecibido(pedido) {
     if (
       !confirm(
-        `¿Marcar como recibido "${pedido.numero_pedido || "este pedido"}"?\n\n` +
+        `¿Marcar como recibido el pedido ${nombrePedido(pedido)}?\n\n` +
           `Se va a sumar el stock, actualizar precios y sacarlos de "Próximo pedido".`
       )
     )
@@ -624,7 +626,7 @@ function PedidoProveedor() {
       if (!l.origen_linea_id) return;
       (repuestoEn[l.origen_linea_id] ||= []).push({
         cantidad: Number(l.cantidad) || 0,
-        pedido: p.numero_pedido || `#${p.id}`,
+        pedido: nombrePedido(p),
         estado: p.estado
       });
     })
@@ -634,7 +636,8 @@ function PedidoProveedor() {
     pendientes.forEach((pd) => (todos[pd.linea_id] = Number(pd.pagado) > 0));
     setElegidosReintegro(todos);
     setMontoReintegro(String(sugeridoReintegro(todos)));
-    setPedidoReintegro(enCamino[0]?.id ? String(enCamino[0].id) : recibidos[0]?.id ? String(recibidos[0].id) : "");
+    const recibidosConDetalle = recibidos.filter((p) => !p.historico);
+    setPedidoReintegro(enCamino[0]?.id ? String(enCamino[0].id) : recibidosConDetalle[0]?.id ? String(recibidosConDetalle[0].id) : "");
     setVerPendientes(true);
     setReintegrando(true);
   }
@@ -671,7 +674,7 @@ function PedidoProveedor() {
         (lineas.length > 1
           ? `${lineas.length} productos dejan de estar pendientes (ya no se esperan).\n\n`
           : "1 producto deja de estar pendiente (ya no se espera).\n\n") +
-          `Saldo a favor de $${formatPrice(monto)} en el pedido ${pedido?.numero_pedido || "#" + pedidoReintegro}: ` +
+          `Saldo a favor de $${formatPrice(monto)} en el pedido ${pedido ? nombrePedido(pedido) : "#" + pedidoReintegro}: ` +
           "se resta de lo que pagás en ese pedido."
       )
     )
@@ -785,9 +788,9 @@ function PedidoProveedor() {
               className="input-field text-sm mt-1"
             >
               <option value="">Elegí un pedido</option>
-              {[...enCamino, ...recibidos].map((p) => (
+              {[...enCamino, ...recibidos.filter((p) => !p.historico)].map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.estado === "en_camino" ? "🚚 " : "✓ "}Pedido {p.numero_pedido || "#" + p.id} ·{" "}
+                  {p.estado === "en_camino" ? "🚚 " : "✓ "}Pedido {nombrePedido(p)} ·{" "}
                   {new Date(p.fecha_pedido || p.created_at).toLocaleDateString("es-AR")} · ${formatPrice(p.subtotal)}
                 </option>
               ))}
@@ -1014,7 +1017,7 @@ function PedidoProveedor() {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <p className="text-sm font-bold text-gray-800">
-                        Pedido {p.numero_pedido || "#" + p.id} ·{" "}
+                        Pedido {nombrePedido(p)} ·{" "}
                         {new Date(p.fecha_pedido).toLocaleDateString("es-AR")}
                       </p>
                       <p className="text-[11px] text-gray-500">
