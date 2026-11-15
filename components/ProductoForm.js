@@ -237,16 +237,45 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
       </div>
 
       <div>
-        <label className="text-sm font-medium text-gray-700 block mb-1">
-          Descripción
+        <label htmlFor="descripcion" className="text-sm font-medium text-gray-700 block mb-1">
+          Descripción (la que ve el cliente y lee Google)
         </label>
         <textarea
+          id="descripcion"
           name="descripcion"
           value={form.descripcion}
           onChange={handleChange}
-          rows={3}
-          className="input-field resize-none"
+          rows={7}
+          className="input-field"
         />
+        <p className="text-[11px] text-gray-500 mt-1">
+          Primera línea con gancho (es la que se ve en la tarjeta del catálogo), después los datos con "•". Solo cosas
+          ciertas del producto.
+        </p>
+
+        {/* El texto y el nombre del proveedor quedan guardados aparte, sin tocar:
+            sirven para comparar y para encontrar el producto en su catálogo.
+            Cambiar la descripción de acá NO afecta cómo se vincula con el
+            proveedor (eso va por el nombre del proveedor y su código). */}
+        {(initialData?.nombre_proveedor || initialData?.descripcion_proveedor) && (
+          <details className="mt-2 bg-gray-50 border border-gray-200 rounded-xl p-2.5">
+            <summary className="text-xs font-bold text-gray-700 cursor-pointer">
+              Ver cómo lo publica el proveedor
+            </summary>
+            {initialData?.nombre_proveedor && (
+              <p className="text-xs text-gray-700 mt-2">
+                <b>Nombre del proveedor:</b> {initialData.nombre_proveedor}
+              </p>
+            )}
+            {initialData?.descripcion_proveedor ? (
+              <p className="text-xs text-gray-700 mt-1 whitespace-pre-line">
+                <b>Texto del proveedor:</b> {initialData.descripcion_proveedor}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500 mt-1">El proveedor no tiene descripción para este producto.</p>
+            )}
+          </details>
+        )}
       </div>
 
       {/* ===== CALCULADORA DE PRECIO ===== */}
