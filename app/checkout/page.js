@@ -530,7 +530,7 @@ export default function CheckoutPage() {
                   placeholder="Calle, número, barrio"
                 />
                 <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-2.5 mt-2">
-                  🚚 Enviamos a El Bolsón y la Comarca Andina. El costo depende de la distancia: <b>te lo confirmamos por WhatsApp antes de cobrarte</b>, y si no te sirve cancelás el pedido sin pagar nada. También podemos acordar un punto de encuentro.
+                  🚚 En la Comarca Andina te lo llevamos nosotros. Al resto del país lo mandamos por Andreani u otro transporte, y el envío lo pagás vos. En los dos casos <b>te confirmamos el costo por WhatsApp antes de cobrarte</b>, y si no te sirve cancelás el pedido sin pagar nada.
                 </p>
               </div>
             )}

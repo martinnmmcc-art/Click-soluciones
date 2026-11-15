@@ -58,7 +58,7 @@ export default function Terminos() {
 
       <Seccion titulo="5. Formas de pago">
         <p>
-          Efectivo al retirar o recibir, o transferencia bancaria. Las formas habilitadas se muestran al confirmar
+          Efectivo al retirar o recibir (solo en la Comarca Andina), o transferencia bancaria. Las formas habilitadas se muestran al confirmar
           el pedido. Con transferencia, el pedido queda confirmado cuando recibimos el pago.
         </p>
       </Seccion>
@@ -72,7 +72,20 @@ export default function Terminos() {
             <b>Envío a domicilio</b> en {NEGOCIO.zona}: el costo depende de la distancia.{" "}
             <b>Te lo decimos antes de que pagues</b>, y si no te sirve podés cancelar el pedido sin pagar nada.
           </li>
+          <li>
+            <b>Resto del país</b> (Bariloche, Villa La Angostura, San Martín de los Andes y cualquier localidad):
+            despachamos por Andreani u otro transporte. El envío lo paga el comprador; te pasamos el costo exacto
+            antes de cobrarte y el pago es por transferencia. Te damos el número de seguimiento. Desde que lo
+            entregamos al transporte, los plazos dependen de la empresa de transporte.
+          </li>
         </ul>
+        <p>
+          Más detalles en{" "}
+          <Link href="/envios" className={enlace}>
+            Envíos
+          </Link>
+          .
+        </p>
       </Seccion>
 
       <Seccion titulo="7. Cancelar, cambiar o devolver">

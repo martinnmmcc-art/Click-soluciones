@@ -29,7 +29,7 @@ const MENU_PC = [
 ];
 
 const MENSAJE_ENVIOS =
-  "Envíos a El Bolsón y la Comarca Andina — coordinamos transporte local o punto de encuentro.";
+  "Envíos a todo el país — entrega en mano en la Comarca Andina.";
 
 export default function Header({ showSearch = true, initialQuery = "", busqueda, setBusqueda, buscarEnCatalogo = false }) {
   const esControlado = typeof setBusqueda === "function";

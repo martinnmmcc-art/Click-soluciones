@@ -22,12 +22,23 @@ import BottomNav from "@/components/BottomNav";
 import ProtegerContenido from "@/components/ProtegerContenido";
 import BannerCookies from "@/components/BannerCookies";
 import PieLegal from "@/components/PieLegal";
+import { DatosTienda } from "@/components/DatosEstructurados";
 
 export const metadata = {
   metadataBase: new URL("https://www.bolsonclick.com.ar"),
-  title: "Bolson Click | Productos para el hogar",
+  title: "Bolson Click | Productos para el hogar en El Bolsón y la Comarca Andina",
   description:
-    "Iluminación, cocina y organización para tu hogar. Comprá fácil y rápido en Bolson Click.",
+    "Tienda online de El Bolsón: cocina, iluminación, belleza, herramientas y tecnología con precio y stock real. Entrega en la Comarca Andina y envíos a Bariloche, Villa La Angostura, San Martín de los Andes y todo el país.",
+  openGraph: {
+    siteName: "Bolson Click",
+    locale: "es_AR",
+    type: "website"
+  },
+  // Código de verificación de Google Search Console (variable de entorno en
+  // Vercel: NEXT_PUBLIC_GOOGLE_VERIFICACION). Si no está, no se agrega nada.
+  ...(process.env.NEXT_PUBLIC_GOOGLE_VERIFICACION
+    ? { verification: { google: process.env.NEXT_PUBLIC_GOOGLE_VERIFICACION } }
+    : {}),
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -51,6 +62,8 @@ export default function RootLayout({ children }) {
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA_INICIAL }} />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <link rel="icon" href="/icons/icon-192.png" />
+        {/* Para Google: quién es la tienda, dónde está y a qué zonas llega */}
+        <DatosTienda />
       </head>
       <body className="bg-brand-bg min-h-screen font-sans">
         {/* Para navegar con teclado: el primer Tab salta directo al contenido */}

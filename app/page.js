@@ -260,7 +260,7 @@ export default function HomePage() {
         {/* Lo que da confianza a quien no nos conoce */}
         <ul className="flex gap-2 overflow-x-auto scrollbar-none mt-3 -mx-4 px-4 pb-1">
           <li className="flex-shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 rounded-full pl-2 pr-3 py-1.5 text-[11.5px] font-semibold text-gray-700">
-            <span aria-hidden="true">📍</span> Entregamos en toda la Comarca
+            <span aria-hidden="true">📍</span> Envíos a todo el país
           </li>
           <li className="flex-shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 rounded-full pl-2 pr-3 py-1.5 text-[11.5px] font-semibold text-gray-700">
             <span aria-hidden="true">💳</span> Pagás con {formasDePago}

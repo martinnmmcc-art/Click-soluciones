@@ -41,7 +41,8 @@ export default function Privacidad() {
           </li>
         </ul>
         <p>
-          No pedimos DNI, datos de tarjetas ni datos sensibles. No usamos herramientas de publicidad ni de
+          No pedimos datos de tarjetas ni datos sensibles. El DNI solo te lo pedimos si un transporte lo exige para
+          entregarte un envío. No usamos herramientas de publicidad ni de
           seguimiento de terceros (como Google Analytics o el píxel de Facebook).
         </p>
       </Seccion>
@@ -80,6 +81,10 @@ export default function Privacidad() {
           </li>
           <li>
             <b>El servicio de notificaciones de tu celular</b> (Google, Apple o Mozilla), si activás los avisos.
+          </li>
+          <li>
+            <b>La empresa de transporte</b> (por ejemplo, Andreani), solo si te mandamos el pedido por transporte:
+            le pasamos tu nombre, celular y dirección, y el DNI si la empresa lo pide para entregarte.
           </li>
         </ul>
         <p>

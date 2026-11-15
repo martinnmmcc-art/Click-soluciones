@@ -51,8 +51,8 @@ export default function Reembolsos() {
         <p>
           Te devolvemos <b>el total que pagaste</b>, incluido el envío, por el mismo medio que usaste
           (transferencia o efectivo), apenas recibimos el producto y como máximo dentro de los 10 días. Los gastos
-          de devolución corren por nuestra cuenta: lo retiramos nosotros en {NEGOCIO.zona} o te decimos dónde
-          dejarlo sin costo.
+          de devolución corren por nuestra cuenta: en {NEGOCIO.zona} lo retiramos nosotros; si estás en otra ciudad,
+          te mandamos la etiqueta del transporte pagada o te reintegramos lo que gastes en mandarlo.
         </p>
       </Seccion>
 

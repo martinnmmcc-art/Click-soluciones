@@ -1,5 +1,6 @@
 "use client";
 
+import { idDeRuta } from "@/lib/seo";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -21,7 +22,8 @@ import { urlImagen } from "@/lib/imagenProducto";
 
 export default function ProductoDetallePage() {
   const params = useParams();
-  const id = params?.id ? decodeURIComponent(params.id) : null;
+  // "123-termo-acero" → "123" (la dirección lleva el nombre para Google)
+  const id = params?.id ? idDeRuta(params.id) : null;
   
   const router = useRouter();
   const { addItem } = useCart();

@@ -45,6 +45,11 @@ export default function PieLegal() {
       <nav aria-label="Información legal" className="mt-3">
         <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
           <li>
+            <Link href="/envios" className={enlace}>
+              Envíos
+            </Link>
+          </li>
+          <li>
             <Link href="/terminos" className={enlace}>
               Términos y condiciones
             </Link>

@@ -1,5 +1,6 @@
 "use client";
 
+import { rutaProducto } from "@/lib/seo";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
 import { buildWhatsAppLink, whatsappProductMessage, whatsappAPedidoMessage, formatPrice } from "@/lib/whatsapp";
@@ -24,7 +25,8 @@ export default function ProductCard({ producto }) {
   const sinStockProveedor = aPedido && producto.sin_stock_proveedor === true;
   const sinStock = !aPedido && stock !== null && stock !== undefined && Number(stock) <= 0;
   const ultimaUnidad = !aPedido && stock !== null && stock !== undefined && Number(stock) === 1;
-  const enlace = aPedido ? `/a-pedido/${idProducto}` : `/producto/${idProducto}`;
+  // Dirección con el nombre ("/producto/123-termo-acero"): Google la entiende mejor
+  const enlace = rutaProducto({ id: idProducto, nombre: producto.nombre, bajo_pedido: aPedido });
 
   const esNuevo = (() => {
     if (!producto.created_at) return false;
