@@ -65,6 +65,14 @@ const PLANTILLAS = {
   comprobante: (e) => ({
     titulo: "📎 Subió comprobante",
     cuerpo: `${e.nombre || "Un cliente"} cargó el comprobante de pago`
+  }),
+  arrepentimiento: (e) => ({
+    titulo: "↩️ Botón de arrepentimiento",
+    cuerpo: `${e.nombre || "Un cliente"} pidió cancelar una compra (${e.detalle}). Tenés 24 h para responderle.`
+  }),
+  eliminar_datos: (e) => ({
+    titulo: "🗑️ Pidió borrar sus datos",
+    cuerpo: `${e.nombre || "Un cliente"} (${e.telefono}) pidió eliminar su cuenta. Tenés 5 días hábiles.`
   })
 };
 
@@ -104,7 +112,9 @@ export async function POST(request) {
     // escribirle al toque si no sabe cómo contactarse.
     // Las opiniones sobre la tienda abren directo la pantalla para revisarlas.
     const urlDestino =
-      tipo === "opinion_tienda"
+      tipo === "arrepentimiento" || tipo === "eliminar_datos"
+        ? "/admin/solicitudes"
+        : tipo === "opinion_tienda"
         ? "/admin/opiniones"
         : telefono
           ? `https://wa.me/${telefonoParaWhatsapp(telefono)}`

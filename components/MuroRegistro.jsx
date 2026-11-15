@@ -5,6 +5,10 @@ import { supabase } from "@/lib/supabaseClient";
 import { correoGuardado } from "@/lib/sesionGuardada";
 import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
 import { avisarAdmin } from "@/lib/avisarAdmin";
+import ConsentimientoRegistro, {
+  guardarConsentimientoCliente,
+  MENSAJE_FALTA_ACEPTAR
+} from "@/components/ConsentimientoRegistro";
 
 // Registro guiado, de a un paso por pantalla: nombre → celular → localidad.
 //
@@ -13,39 +17,28 @@ import { avisarAdmin } from "@/lib/avisarAdmin";
 // Sin contraseña: cada campo extra hace que se vaya más gente.
 //
 // Se abre de dos formas:
-//  - Sola, a los 20 segundos (o enseguida si ya miró varias veces sin
-//    registrarse). Esa es obligatoria para seguir.
+//  - Sola, una vez, a los 20 segundos de mirar la tienda sin cuenta.
 //  - Cuando el cliente toca "Crear mi cuenta" (evento "bolsonclick:registrarse").
-//    Esa se puede cerrar.
+//
+// SIEMPRE se puede cerrar ("Ahora no"): la tienda se mira sin registrarse.
+// Obligar a dar los datos para seguir mirando es un patrón oscuro. Si la
+// cierra, no vuelve a aparecer sola por una semana.
 //
 // No aparece en los catálogos compartidos: esos links se mandan a personas
 // que todavía no son clientes y ahí sí hay que dejarlas mirar libremente.
-
 const SEGUNDOS_ANTES_DE_PEDIR = 20;
+const DIAS_SIN_INSISTIR = 7;
+const CLAVE_CERRADO = "bolsonclick_registro_cerrado";
 export const EVENTO_REGISTRO = "bolsonclick:registrarse";
 
 const LOCALIDADES = ["El Bolsón", "Lago Puelo", "El Hoyo", "Epuyén", "Mallín Ahogado"];
 
-// Huella básica del dispositivo. No identifica a la persona, solo ayuda a
-// distinguir dos celulares distintos detrás de la misma conexión, algo
-// habitual en las redes móviles de la zona.
-function huellaDispositivo() {
+function lacerroHacePoco() {
   try {
-    const partes = [
-      navigator.userAgent || "",
-      navigator.language || "",
-      screen.width + "x" + screen.height,
-      new Date().getTimezoneOffset()
-    ].join("|");
-
-    let h = 0;
-    for (let i = 0; i < partes.length; i++) {
-      h = (h << 5) - h + partes.charCodeAt(i);
-      h |= 0;
-    }
-    return "d" + Math.abs(h).toString(36);
+    const f = localStorage.getItem(CLAVE_CERRADO);
+    return !!f && Date.now() - new Date(f).getTime() < DIAS_SIN_INSISTIR * 86400000;
   } catch (e) {
-    return null;
+    return false;
   }
 }
 
@@ -73,7 +66,8 @@ export default function MuroRegistro() {
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState(false);
   const [error, setError] = useState("");
-  const [yaMiroAntes, setYaMiroAntes] = useState(false);
+  const [acepta, setAcepta] = useState(false);
+  const [novedades, setNovedades] = useState(false);
   const campo = useRef(null);
 
   useEffect(() => {
@@ -90,49 +84,16 @@ export default function MuroRegistro() {
       return !!correoGuardado();
     }
 
-    // Contamos la visita apenas entra. El servidor lleva la cuenta por IP,
-    // así que entrar en incógnito o borrar los datos no la reinicia.
-    let visitaPrevia = null;
-    // El muro solo aparece si se CONFIRMÓ que hay conexión (el servidor
-    // contestó). Sin señal nadie tiene que toparse con un formulario que
-    // tampoco podría enviar: se deja mirar el catálogo.
-    let hayConexion = false;
-    async function contarVisita() {
-      if (!navigator.onLine) return;
-      try {
-        const res = await Promise.race([
-          fetch("/api/visita", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ huella: huellaDispositivo() })
-          }),
-          new Promise((_, no) => setTimeout(() => no(new Error("sin respuesta")), 8000))
-        ]);
-        if (!res.ok) return;
-        visitaPrevia = await res.json();
-        hayConexion = true;
-
-        // Si ya miró varias veces sin registrarse, no esperamos los
-        // 20 segundos: se lo pedimos enseguida.
-        if (visitaPrevia?.exigir_registro && !estaLibre() && !tieneSesionCliente()) {
-          if (!(await esAdminLogueado())) {
-            setYaMiroAntes(true);
-            setVoluntario(false);
-            setMostrar(true);
-          }
-        }
-      } catch (e) {}
-    }
-    contarVisita();
-
     async function decidir() {
-      if (!hayConexion || !navigator.onLine) return;
-      if (estaLibre() || tieneSesionCliente()) return;
+      // Sin señal no tiene sentido ofrecer un formulario que no se puede enviar
+      if (!navigator.onLine) return;
+      if (estaLibre() || tieneSesionCliente() || lacerroHacePoco()) return;
       if (await esAdminLogueado()) return;
       // Volvemos a revisar recién al momento de mostrar: en esos 20 segundos
       // el usuario pudo haberse registrado o iniciado sesión.
       if (estaLibre() || tieneSesionCliente()) return;
       setVoluntario(false);
+      setPaso(1);
       setMostrar(true);
     }
 
@@ -185,6 +146,26 @@ export default function MuroRegistro() {
     if (mostrar) setTimeout(() => campo.current?.focus(), 80);
   }, [paso, mostrar, otraLocalidad]);
 
+  function cerrar() {
+    setMostrar(false);
+    // Si se abrió sola y la cerró, no volvemos a insistir por una semana
+    if (!voluntario) {
+      try {
+        localStorage.setItem(CLAVE_CERRADO, new Date().toISOString());
+      } catch (e) {}
+    }
+  }
+
+  // Escape cierra, como cualquier ventana
+  useEffect(() => {
+    if (!mostrar || listo) return;
+    const alTeclear = (e) => {
+      if (e.key === "Escape") cerrar();
+    };
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  });
+
   function siguiente(e) {
     e?.preventDefault();
     setError("");
@@ -203,6 +184,10 @@ export default function MuroRegistro() {
         return;
       }
       setPaso(3);
+      return;
+    }
+    if (!acepta) {
+      setError(MENSAJE_FALTA_ACEPTAR);
       return;
     }
     registrarse();
@@ -238,6 +223,7 @@ export default function MuroRegistro() {
       }
 
       const cuenta = data[0];
+      await guardarConsentimientoCliente(cuenta.cliente_id, tel, novedades);
       localStorage.setItem(
         "cliente_sesion",
         JSON.stringify({
@@ -267,7 +253,7 @@ export default function MuroRegistro() {
 
   const primerNombre = nombre.trim().split(/\s+/)[0] || "";
   const titulos = {
-    1: yaMiroAntes && !voluntario ? "Creá tu cuenta para seguir mirando" : "¿Cómo te llamás?",
+    1: "¿Cómo te llamás?",
     2: `${primerNombre ? primerNombre + ", ¿" : "¿"}cuál es tu celular?`,
     3: "¿Dónde te lo entregamos?"
   };
@@ -281,11 +267,11 @@ export default function MuroRegistro() {
     >
       <div className="min-h-full flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl relative">
-          {voluntario && !listo && (
+          {!listo && (
             <button
               type="button"
-              onClick={() => setMostrar(false)}
-              className="absolute top-3 right-3 w-9 h-9 rounded-full text-gray-400 hover:bg-gray-100 text-xl"
+              onClick={cerrar}
+              className="absolute top-3 right-3 w-9 h-9 rounded-full text-gray-600 hover:bg-gray-100 text-xl"
               aria-label="Cerrar"
             >
               ×
@@ -317,9 +303,7 @@ export default function MuroRegistro() {
                 <div className="flex items-center gap-3 mb-4">
                   <img src="/icons/icon-192.png" alt="" className="w-12 h-12 rounded-2xl flex-shrink-0" />
                   <p className="text-xs text-gray-600 leading-snug">
-                    {yaMiroAntes && !voluntario
-                      ? "Ya miraste varias veces 🙂 Creá tu cuenta gratis y seguí sin límite."
-                      : "Creá tu cuenta gratis en 3 pasos. No necesitás contraseña."}
+                    Creá tu cuenta gratis en 3 pasos y seguí tus pedidos. Es opcional: podés seguir mirando sin cuenta.
                   </p>
                 </div>
               )}
@@ -336,6 +320,7 @@ export default function MuroRegistro() {
                     onChange={(e) => setNombre(e.target.value)}
                     className="input-field text-base"
                     placeholder="Tu nombre y apellido"
+                    aria-label="Nombre y apellido"
                     autoComplete="name"
                     enterKeyHint="next"
                   />
@@ -349,6 +334,7 @@ export default function MuroRegistro() {
                       onChange={(e) => setTelefono(e.target.value)}
                       className="input-field text-base tracking-wide"
                       placeholder="2944 123456"
+                      aria-label="Celular"
                       inputMode="tel"
                       autoComplete="tel"
                       enterKeyHint="next"
@@ -401,11 +387,19 @@ export default function MuroRegistro() {
                         onChange={(e) => setLocalidad(e.target.value)}
                         className="input-field text-base mt-3"
                         placeholder="Escribí tu localidad"
+                        aria-label="Localidad"
                       />
                     )}
-                    <p className="text-[11px] text-gray-500 mt-2">
+                    <p className="text-[11px] text-gray-600 mt-2">
                       Entregamos en El Bolsón y la Comarca Andina. Si no sabés, seguí igual.
                     </p>
+                    <ConsentimientoRegistro
+                      id="muro"
+                      acepta={acepta}
+                      setAcepta={setAcepta}
+                      novedades={novedades}
+                      setNovedades={setNovedades}
+                    />
                   </>
                 )}
 
@@ -434,7 +428,15 @@ export default function MuroRegistro() {
                 </div>
               </form>
 
-              <p className="text-[10px] text-gray-400 text-center mt-4">
+              <button
+                type="button"
+                onClick={cerrar}
+                className="w-full mt-3 py-2.5 text-sm font-semibold text-gray-700 underline underline-offset-2"
+              >
+                Ahora no, seguir mirando
+              </button>
+
+              <p className="text-[11px] text-gray-600 text-center mt-2">
                 ¿Ya tenés cuenta?{" "}
                 <a href="/login?entrar=1" className="text-brand-blue font-semibold underline">
                   Entrá acá

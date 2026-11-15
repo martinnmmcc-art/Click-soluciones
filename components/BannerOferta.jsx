@@ -145,7 +145,7 @@ export default function BannerOferta() {
               <div className="w-28 h-28 bg-white rounded-2xl flex-shrink-0 flex items-center justify-center p-1.5 shadow-md">
                 <img
                   src={urlImagen(prod.imagen_url)}
-                  alt=""
+                  alt={prod.nombre || "Producto en oferta"}
                   className="max-w-full max-h-full object-contain"
                   key={prod.id}
                 />

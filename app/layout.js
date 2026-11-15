@@ -20,6 +20,8 @@ import IrACaja from "@/components/IrACaja";
 import WhatsAppFloatingButton from "@/components/WhatsAppFloatingButton";
 import BottomNav from "@/components/BottomNav";
 import ProtegerContenido from "@/components/ProtegerContenido";
+import BannerCookies from "@/components/BannerCookies";
+import PieLegal from "@/components/PieLegal";
 
 export const metadata = {
   metadataBase: new URL("https://www.bolsonclick.com.ar"),
@@ -37,7 +39,7 @@ export const metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // Sin "maximumScale": quien ve poco tiene que poder agrandar con dos dedos
   themeColor: "#1560D4"
 };
 
@@ -51,6 +53,10 @@ export default function RootLayout({ children }) {
         <link rel="icon" href="/icons/icon-192.png" />
       </head>
       <body className="bg-brand-bg min-h-screen font-sans">
+        {/* Para navegar con teclado: el primer Tab salta directo al contenido */}
+        <a href="#contenido-principal" className="saltar-al-contenido">
+          Saltar al contenido
+        </a>
         <SesionEnPedidos />
         <AdminProvider>
           <AuthProvider>
@@ -85,7 +91,13 @@ export default function RootLayout({ children }) {
                 <LimiteDeError>
                   <IrACaja />
                 </LimiteDeError>
-                <div className="container-app pb-24">{children}</div>
+                <div id="contenido-principal" tabIndex={-1} className="container-app pb-24 outline-none">
+                  {children}
+                  <PieLegal />
+                </div>
+                <LimiteDeError>
+                  <BannerCookies />
+                </LimiteDeError>
                 <LimiteDeError>
                   <WhatsAppFloatingButton />
                 </LimiteDeError>

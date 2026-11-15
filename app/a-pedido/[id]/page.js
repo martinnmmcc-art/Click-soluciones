@@ -98,7 +98,7 @@ export default function APedidoDetallePage() {
                   imagenPrincipal === img ? "border-purple-600 ring-2 ring-purple-100" : "border-gray-200"
                 }`}
               >
-                <img src={img} className="w-full h-full object-cover" alt="miniatura" />
+                <img src={img} className="w-full h-full object-cover" alt={`Ver foto ${index + 1} de ${producto.nombre}`} />
               </button>
             ))}
           </div>

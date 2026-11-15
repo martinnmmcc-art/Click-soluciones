@@ -249,3 +249,60 @@ html.cambiando-tema, html.cambiando-tema * {
   transition: background-color .25s ease, color .25s ease, border-color .25s ease !important;
 }
 
+
+/* ===== Accesibilidad ===== */
+
+/* Navegación con teclado: el elemento enfocado siempre se ve.
+   Solo con teclado (focus-visible): al tocar con el dedo no aparece. */
+:focus-visible {
+  outline: 3px solid #1560d4;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+html.dark :focus-visible {
+  outline-color: #93c5fd;
+}
+
+/* "Saltar al contenido": invisible hasta que se llega con Tab */
+.saltar-al-contenido {
+  position: absolute;
+  left: 8px;
+  top: -60px;
+  z-index: 200;
+  background: #0e3f91;
+  color: #fff;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+.saltar-al-contenido:focus {
+  top: 8px;
+}
+
+/* Contraste mínimo (WCAG AA, 4,5:1). El gris 400 sobre blanco daba 2,5:1:
+   en modo claro se usa un gris más oscuro que se lee bien. */
+html:not(.dark) .text-gray-400 {
+  color: #6b7280;
+}
+/* Texto blanco sobre el naranja de marca daba 2,6:1: el fondo de los
+   botones naranjas pasa a un naranja más profundo (5,2:1). */
+.btn-accent,
+.bg-brand-orange.text-white {
+  background-color: #c2410c;
+}
+.btn-accent:hover,
+.bg-brand-orange.text-white:hover {
+  background-color: #9a3412;
+}
+
+/* Quien pidió menos movimiento en el celular no ve animaciones */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

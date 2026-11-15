@@ -8,6 +8,10 @@ import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabaseClient";
 import { leerOrigen } from "@/components/RegistrarOrigen";
+import ConsentimientoRegistro, {
+  guardarConsentimientoCliente,
+  MENSAJE_FALTA_ACEPTAR
+} from "@/components/ConsentimientoRegistro";
 import { avisarAdmin } from "@/lib/avisarAdmin";
 import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
 import OpinionesTienda from "@/components/OpinionesTienda";
@@ -44,7 +48,10 @@ export default function CheckoutPage() {
   const [datosPrecargados, setDatosPrecargados] = useState(false);
   // Por defecto le creamos la cuenta: es lo que le conviene al cliente
   // (puede seguir su pedido) y a nosotros (podemos avisarle de novedades).
-  const [crearCuenta, setCrearCuenta] = useState(true);
+  // La cuenta es opcional y NO viene tildada: el cliente elige
+  const [crearCuenta, setCrearCuenta] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [aceptaNovedades, setAceptaNovedades] = useState(false);
   const [yaTieneCuenta, setYaTieneCuenta] = useState(false);
   const [metodosPago, setMetodosPago] = useState([]);
   const [copiado, setCopiado] = useState("");
@@ -238,6 +245,10 @@ export default function CheckoutPage() {
       setError("Ingresá la dirección para el envío.");
       return;
     }
+    if (crearCuenta && !yaTieneCuenta && !aceptaTerminos) {
+      setError(MENSAJE_FALTA_ACEPTAR + " O destildá “Crear mi cuenta” para comprar sin cuenta.");
+      return;
+    }
     if (items.length === 0) {
       setError("Tu carrito está vacío.");
       return;
@@ -317,6 +328,11 @@ export default function CheckoutPage() {
           });
 
           if (cuenta && cuenta.length > 0) {
+            await guardarConsentimientoCliente(
+              cuenta[0].cliente_id,
+              normalizarTelefono(form.telefono_cliente),
+              aceptaNovedades
+            );
             // Lo dejamos con la sesión iniciada: puede ver su pedido enseguida
             localStorage.setItem(
               "cliente_sesion",
@@ -495,7 +511,7 @@ export default function CheckoutPage() {
                     Envío a domicilio
                   </p>
                   <p className="text-xs text-gray-500">
-                    Coordinamos el costo de envío por WhatsApp.
+                    El envío se paga aparte: te decimos cuánto cuesta antes de que pagues.
                   </p>
                 </div>
               </label>
@@ -514,7 +530,7 @@ export default function CheckoutPage() {
                   placeholder="Calle, número, barrio"
                 />
                 <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-2.5 mt-2">
-                  🚚 Enviamos a El Bolsón y la Comarca Andina. Fuera del casco urbano puede tener recargo — coordinamos transporte local o punto de encuentro por WhatsApp.
+                  🚚 Enviamos a El Bolsón y la Comarca Andina. El costo depende de la distancia: <b>te lo confirmamos por WhatsApp antes de cobrarte</b>, y si no te sirve cancelás el pedido sin pagar nada. También podemos acordar un punto de encuentro.
                 </p>
               </div>
             )}
@@ -750,6 +766,12 @@ export default function CheckoutPage() {
                 ${formatPrice(totalConCupon - saldoAUsar)}
               </span>
             </div>
+            {/* Nada de cobros sorpresa: se dice qué incluye y qué no el total */}
+            <p className="text-[12px] text-gray-700 mt-1.5">
+              {form.metodo_entrega === "envio"
+                ? "No incluye el envío: te decimos el costo antes de cobrarte y podés cancelar sin cargo si no te sirve."
+                : "Precio final. Retiro sin costo."}
+            </p>
             {saldoAUsar > 0 && saldoFavor > saldoAUsar && (
               <p className="text-[11px] text-green-700 mt-1">
                 Te siguen quedando ${formatPrice(saldoFavor - saldoAUsar)} a favor para la próxima.
@@ -787,14 +809,32 @@ export default function CheckoutPage() {
                     <span className="flex items-center gap-1.5 text-[11px] text-gray-700">
                       <span>🔁</span> La próxima compra, sin volver a cargar tus datos
                     </span>
-                    <span className="flex items-center gap-1.5 text-[11px] text-gray-700">
-                      <span>✨</span> Te avisamos cuando llega mercadería nueva
-                    </span>
                   </span>
                 </span>
               </label>
+              {crearCuenta && (
+                <ConsentimientoRegistro
+                  id="checkout"
+                  acepta={aceptaTerminos}
+                  setAcepta={setAceptaTerminos}
+                  novedades={aceptaNovedades}
+                  setNovedades={setAceptaNovedades}
+                />
+              )}
             </div>
           )}
+
+          <p className="text-[12px] text-gray-700 text-center">
+            Al confirmar aceptás los{" "}
+            <a href="/terminos" target="_blank" className="text-brand-blue underline underline-offset-2">
+              términos y condiciones
+            </a>
+            . Tenés 10 días para{" "}
+            <a href="/arrepentimiento" target="_blank" className="text-brand-blue underline underline-offset-2">
+              arrepentirte
+            </a>
+            .
+          </p>
 
           <button disabled={enviando} className="btn-primary">
             {enviando ? "Confirmando pedido..." : "Confirmar pedido"}

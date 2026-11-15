@@ -431,6 +431,16 @@ function Dashboard() {
             <span className="text-2xl">🛍️</span>
           </Link>
 
+          <Link href="/admin/solicitudes" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-red-300">
+            <div>
+              <p className="font-semibold text-gray-800">Solicitudes de clientes</p>
+              <p className="text-sm text-gray-500">
+                Botón de arrepentimiento (responder en 24 h) y pedidos de borrar datos
+              </p>
+            </div>
+            <span className="text-2xl">↩️</span>
+          </Link>
+
           <Link href="/admin/opiniones" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
             <div>
               <p className="font-semibold text-gray-800">Opiniones sobre la tienda</p>

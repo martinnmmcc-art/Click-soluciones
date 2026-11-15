@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { aceptaMedicion } from "@/lib/consentimiento";
 
 // Recuerda por qué canal llegó el cliente, para poder medir después si la
 // venta vino de WhatsApp, de Facebook o de que entró directo.
@@ -27,10 +28,11 @@ export default function RegistrarOrigen() {
 
       const origen = MAPA[de] || de;
 
-      localStorage.setItem(
-        CLAVE,
-        JSON.stringify({ origen, fecha: new Date().toISOString() })
-      );
+      const valor = JSON.stringify({ origen, fecha: new Date().toISOString() });
+      // Es medición: se recuerda entre visitas solo si el cliente lo aceptó.
+      // Mientras tanto queda en esta pestaña (sirve si compra ahora mismo).
+      sessionStorage.setItem(CLAVE, valor);
+      if (aceptaMedicion()) localStorage.setItem(CLAVE, valor);
     } catch (e) {}
   }, []);
 
@@ -40,7 +42,7 @@ export default function RegistrarOrigen() {
 // Devuelve de dónde vino el cliente, si la visita es reciente
 export function leerOrigen() {
   try {
-    const g = localStorage.getItem(CLAVE);
+    const g = (aceptaMedicion() && localStorage.getItem(CLAVE)) || sessionStorage.getItem(CLAVE);
     if (!g) return null;
 
     const { origen, fecha } = JSON.parse(g);

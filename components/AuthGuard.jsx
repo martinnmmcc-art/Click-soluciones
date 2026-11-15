@@ -9,10 +9,11 @@ export default function AuthGuard({ children }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Rutas públicas: no se valida sesión acá.
-    // /login: la propia pantalla de login.
-    // /catalogo-compartir: el catálogo que se comparte por WhatsApp, debe verse sin registrarse.
-    if (pathname.startsWith("/login") || pathname.startsWith("/catalogo-compartir")) return;
+    // La tienda se puede mirar SIN registrarse: obligar a dar los datos para
+    // ver precios es un patrón oscuro. Solo piden sesión las pantallas que
+    // son de una cuenta (Mi cuenta). El panel tiene su propio control.
+    const RUTAS_CON_CUENTA = ["/cuenta"];
+    if (!RUTAS_CON_CUENTA.some((r) => pathname === r || pathname.startsWith(r + "/"))) return;
 
     // Verificación instantánea de sesión local (Cliente o Admin)
     const sesionCliente = typeof window !== "undefined"

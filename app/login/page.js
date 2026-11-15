@@ -3,6 +3,10 @@
 import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import ControlNotificaciones from "@/components/ControlNotificaciones";
+import ConsentimientoRegistro, {
+  guardarConsentimientoCliente,
+  MENSAJE_FALTA_ACEPTAR
+} from "@/components/ConsentimientoRegistro";
 import SelectorTema from "@/components/SelectorTema";
 import RedesSociales from "@/components/RedesSociales";
 import PedirNotificaciones from "@/components/PedirNotificaciones";
@@ -27,6 +31,9 @@ export default function LoginPage() {
   const [localidad, setLocalidad] = useState("");
   // Quien llega sin sesión casi siempre es nuevo: arrancamos por "Crear cuenta"
   const [esRegistro, setEsRegistro] = useState(true);
+  // Consentimientos del registro: ninguno viene tildado
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [aceptaNovedades, setAceptaNovedades] = useState(false);
   // Registro guiado: 1 celular → 2 nombre → 3 localidad → 4 contraseña
   const [pasoRegistro, setPasoRegistro] = useState(1);
   const [verPass, setVerPass] = useState(false);
@@ -347,6 +354,7 @@ export default function LoginPage() {
     }
 
     const clienteRegistrado = nuevoCliente[0];
+    await guardarConsentimientoCliente(clienteRegistrado.id, clienteRegistrado.telefono || telLimpio, aceptaNovedades);
     localStorage.setItem("cliente_sesion", JSON.stringify(clienteRegistrado));
     setSesionActiva(clienteRegistrado);
 
@@ -1350,6 +1358,10 @@ export default function LoginPage() {
       setError("La contraseña tiene que tener al menos 4 caracteres.");
       return;
     }
+    if (!aceptaTerminos) {
+      setError(MENSAJE_FALTA_ACEPTAR);
+      return;
+    }
     await handleSubmit(e);
   }
 
@@ -1455,6 +1467,7 @@ export default function LoginPage() {
                   onChange={(e) => setIdentificador(e.target.value)}
                   className="input-field text-base tracking-wide"
                   placeholder="2944 123456"
+                  aria-label="Celular"
                   inputMode="tel"
                   autoComplete="tel"
                   autoFocus
@@ -1471,6 +1484,7 @@ export default function LoginPage() {
                 onChange={(e) => setNombre(e.target.value)}
                 className="input-field text-base"
                 placeholder="Nombre y apellido"
+                aria-label="Nombre y apellido"
                 autoComplete="name"
                 autoFocus
               />
@@ -1498,6 +1512,7 @@ export default function LoginPage() {
                   onChange={(e) => setLocalidad(e.target.value)}
                   className="input-field text-sm mt-3"
                   placeholder="¿Otra? Escribila acá"
+                  aria-label="Otra localidad"
                 />
                 <p className="text-[11px] text-gray-500 mt-1.5">Si no sabés, tocá Siguiente igual.</p>
               </>
@@ -1512,6 +1527,7 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     className="input-field text-base pr-20"
                     placeholder="Mínimo 4 caracteres"
+                    aria-label="Contraseña"
                     autoComplete="new-password"
                     autoFocus
                   />
@@ -1526,6 +1542,13 @@ export default function LoginPage() {
                 <p className="text-[11px] text-gray-500 mt-1.5">
                   La vas a usar para entrar desde otro celular. Anotala en un lugar seguro.
                 </p>
+                <ConsentimientoRegistro
+                  id="login"
+                  acepta={aceptaTerminos}
+                  setAcepta={setAceptaTerminos}
+                  novedades={aceptaNovedades}
+                  setNovedades={setAceptaNovedades}
+                />
               </>
             )}
 

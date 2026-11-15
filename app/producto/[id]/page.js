@@ -111,12 +111,10 @@ export default function ProductoDetallePage() {
         <div className="text-center text-gray-500 py-16 px-4">
           <p className="text-lg font-semibold text-gray-800">No encontramos este producto.</p>
           
-          {/* CAJA DE DEBUG: Te mostrará qué está fallando realmente */}
-          <div className="mt-6 p-4 bg-red-50 rounded-lg border border-red-200 text-left">
-            <p className="text-xs text-red-600 font-bold mb-1">Info técnica para Martín:</p>
-            <p className="text-xs text-red-600">ID buscado: {id}</p>
-            <p className="text-xs text-red-600">Error devuelto: {debugError || "Ninguno"}</p>
-          </div>
+          <p className="text-sm text-gray-700 mt-2">Puede que ya no esté a la venta.</p>
+          <a href="/catalogo" className="inline-block mt-4 btn-primary">
+            Ver el catálogo
+          </a>
         </div>
       </main>
     );
@@ -199,7 +197,7 @@ export default function ProductoDetallePage() {
                   imagenPrincipal === img ? "border-brand-blue ring-2 ring-blue-100" : "border-gray-200"
                 }`}
               >
-                <img src={img} className="w-full h-full object-cover" alt="miniatura" />
+                <img src={img} className="w-full h-full object-cover" alt={`Ver foto ${index + 1} de ${producto.nombre}`} />
               </button>
             ))}
           </div>

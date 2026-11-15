@@ -298,7 +298,7 @@ function CatalogoCompartirContent() {
                             i === fotoActiva ? "border-brand-blue" : "border-gray-200"
                           }`}
                         >
-                          <img src={img} alt="" className="w-full h-full object-cover" />
+                          <img src={img} alt={`Ver foto ${i + 1}`} className="w-full h-full object-cover" />
                         </button>
                       ))}
                     </div>
