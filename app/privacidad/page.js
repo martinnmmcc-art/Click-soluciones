@@ -36,8 +36,17 @@ export default function Privacidad() {
             opiniones y reseñas, y la suscripción a notificaciones del celular.
           </li>
           <li>
-            <b>Solo si lo aceptás en el aviso de cookies:</b> un identificador anónimo del dispositivo, de qué red
-            social llegaste y qué productos agregás o sacás del carrito.
+            <b>Qué agregás o sacás del carrito</b> (para agregar hace falta tener cuenta): lo ve el negocio para
+            poder ayudarte a completar la compra.
+          </li>
+          <li>
+            <b>Si entrás sin cuenta:</b> tu dirección IP y una huella técnica del navegador (modelo, idioma y tamaño
+            de pantalla) para contar tus visitas. Las dos primeras son libres; desde la tercera te pedimos crear la
+            cuenta para seguir. Se borran solos a los 30 días.
+          </li>
+          <li>
+            <b>Solo si lo aceptás en el aviso de cookies:</b> un identificador anónimo del dispositivo y de qué red
+            social llegaste.
           </li>
         </ul>
         <p>

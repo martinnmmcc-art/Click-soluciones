@@ -16,16 +16,19 @@ import ConsentimientoRegistro, {
 // todo junto: cada paso es fácil, se ve cuánto falta y nadie se traba.
 // Sin contraseña: cada campo extra hace que se vaya más gente.
 //
-// Se abre de dos formas:
-//  - Sola, una vez, a los 20 segundos de mirar la tienda sin cuenta.
+// Cuándo aparece:
+//  - Primeras 2 visitas sin cuenta: se puede mirar libre. A los 20 segundos
+//    se lo invitamos, y esa invitación se puede cerrar.
+//  - Desde la 3ª visita: OBLIGATORIO, aparece enseguida y no se cierra.
+//    El servidor cuenta las visitas por IP + huella del dispositivo, así que
+//    entrar en incógnito o borrar los datos no lo reinicia.
+//  - Al tocar "Agregar al carrito" sin cuenta: hay que registrarse para
+//    agregar (así sabés quién agrega qué). El producto se agrega solo
+//    apenas termina el registro.
 //  - Cuando el cliente toca "Crear mi cuenta" (evento "bolsonclick:registrarse").
 //
-// SIEMPRE se puede cerrar ("Ahora no"): la tienda se mira sin registrarse.
-// Obligar a dar los datos para seguir mirando es un patrón oscuro. Si la
-// cierra, no vuelve a aparecer sola por una semana.
-//
-// No aparece en los catálogos compartidos: esos links se mandan a personas
-// que todavía no son clientes y ahí sí hay que dejarlas mirar libremente.
+// No aparece solo en los catálogos compartidos: esos links se mandan a
+// personas que todavía no son clientes y ahí se las deja mirar libremente.
 const SEGUNDOS_ANTES_DE_PEDIR = 20;
 const DIAS_SIN_INSISTIR = 7;
 const CLAVE_CERRADO = "bolsonclick_registro_cerrado";
@@ -39,6 +42,29 @@ function lacerroHacePoco() {
     return !!f && Date.now() - new Date(f).getTime() < DIAS_SIN_INSISTIR * 86400000;
   } catch (e) {
     return false;
+  }
+}
+
+// Huella básica del dispositivo. No identifica a la persona, solo ayuda a
+// distinguir dos celulares distintos detrás de la misma conexión, algo
+// habitual en las redes móviles de la zona. Está informado en la política
+// de privacidad y se borra a los 30 días.
+function huellaDispositivo() {
+  try {
+    const partes = [
+      navigator.userAgent || "",
+      navigator.language || "",
+      screen.width + "x" + screen.height,
+      new Date().getTimezoneOffset()
+    ].join("|");
+    let h = 0;
+    for (let i = 0; i < partes.length; i++) {
+      h = (h << 5) - h + partes.charCodeAt(i);
+      h |= 0;
+    }
+    return "d" + Math.abs(h).toString(36);
+  } catch (e) {
+    return null;
   }
 }
 
@@ -57,7 +83,10 @@ function tieneSesionCliente() {
 
 export default function MuroRegistro() {
   const [mostrar, setMostrar] = useState(false);
-  const [voluntario, setVoluntario] = useState(false);
+  // "invitacion": se puede cerrar · "obligatorio": desde la 3ª visita
+  // "carrito": quiso agregar algo sin cuenta · "voluntario": tocó "Crear cuenta"
+  const [modo, setModo] = useState("invitacion");
+  const [productoPendiente, setProductoPendiente] = useState("");
   const [paso, setPaso] = useState(1);
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -84,23 +113,52 @@ export default function MuroRegistro() {
       return !!correoGuardado();
     }
 
+    // Contamos la visita apenas entra (solo si no tiene cuenta). El muro
+    // obligatorio solo aparece si se CONFIRMÓ que hay conexión: sin señal
+    // nadie tiene que toparse con un formulario que no podría enviar.
+    let obligatorio = false;
+    async function contarVisita() {
+      if (!navigator.onLine || estaLibre() || tieneSesionCliente()) return;
+      if (await esAdminLogueado()) return;
+      try {
+        const res = await Promise.race([
+          fetch("/api/visita", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ huella: huellaDispositivo() })
+          }),
+          new Promise((_, no) => setTimeout(() => no(new Error("sin respuesta")), 8000))
+        ]);
+        if (!res.ok) return;
+        const visita = await res.json();
+        if (visita?.exigir_registro && !estaLibre() && !tieneSesionCliente()) {
+          obligatorio = true;
+          setModo("obligatorio");
+          setPaso(1);
+          setMostrar(true);
+        }
+      } catch (e) {}
+    }
+    contarVisita();
+
+    // Primeras visitas: invitación a los 20 segundos, que se puede cerrar
     async function decidir() {
-      // Sin señal no tiene sentido ofrecer un formulario que no se puede enviar
+      if (obligatorio) return;
       if (!navigator.onLine) return;
       if (estaLibre() || tieneSesionCliente() || lacerroHacePoco()) return;
       if (await esAdminLogueado()) return;
-      // Volvemos a revisar recién al momento de mostrar: en esos 20 segundos
-      // el usuario pudo haberse registrado o iniciado sesión.
       if (estaLibre() || tieneSesionCliente()) return;
-      setVoluntario(false);
+      setModo("invitacion");
       setPaso(1);
       setMostrar(true);
     }
 
-    // El cliente pidió registrarse (tarjeta del inicio, botones de la app)
-    function alPedirRegistro() {
+    // Pidió registrarse: tocó "Crear mi cuenta" o quiso agregar al carrito
+    function alPedirRegistro(e) {
       if (tieneSesionCliente()) return;
-      setVoluntario(true);
+      const motivo = e?.detail?.motivo;
+      if (!obligatorio) setModo(motivo === "carrito" ? "carrito" : "voluntario");
+      setProductoPendiente(e?.detail?.producto || "");
       setPaso(1);
       setError("");
       setMostrar(true);
@@ -146,19 +204,28 @@ export default function MuroRegistro() {
     if (mostrar) setTimeout(() => campo.current?.focus(), 80);
   }, [paso, mostrar, otraLocalidad]);
 
+  const sePuedeCerrar = modo !== "obligatorio";
+
   function cerrar() {
+    if (!sePuedeCerrar) return;
     setMostrar(false);
-    // Si se abrió sola y la cerró, no volvemos a insistir por una semana
-    if (!voluntario) {
+    // Si cerró sin registrarse lo que quiso agregar, no queda pendiente
+    if (modo === "carrito") {
+      try {
+        sessionStorage.removeItem("bolsonclick_carrito_pendiente");
+      } catch (e) {}
+    }
+    // Si la invitación se abrió sola y la cerró, no insistimos por una semana
+    if (modo === "invitacion") {
       try {
         localStorage.setItem(CLAVE_CERRADO, new Date().toISOString());
       } catch (e) {}
     }
   }
 
-  // Escape cierra, como cualquier ventana
+  // Escape cierra, como cualquier ventana (salvo el obligatorio)
   useEffect(() => {
-    if (!mostrar || listo) return;
+    if (!mostrar || listo || !sePuedeCerrar) return;
     const alTeclear = (e) => {
       if (e.key === "Escape") cerrar();
     };
@@ -267,7 +334,7 @@ export default function MuroRegistro() {
     >
       <div className="min-h-full flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl relative">
-          {!listo && (
+          {!listo && sePuedeCerrar && (
             <button
               type="button"
               onClick={cerrar}
@@ -303,7 +370,11 @@ export default function MuroRegistro() {
                 <div className="flex items-center gap-3 mb-4">
                   <img src="/icons/icon-192.png" alt="" className="w-12 h-12 rounded-2xl flex-shrink-0" />
                   <p className="text-xs text-gray-600 leading-snug">
-                    Creá tu cuenta gratis en 3 pasos y seguí tus pedidos. Es opcional: podés seguir mirando sin cuenta.
+                    {modo === "obligatorio"
+                      ? "Ya miraste varias veces 🙂 Creá tu cuenta gratis en 3 pasos para seguir mirando."
+                      : modo === "carrito"
+                      ? `Para agregar ${productoPendiente ? `“${productoPendiente}”` : "productos"} al carrito creá tu cuenta gratis en 3 pasos. Se agrega solo al terminar.`
+                      : "Creá tu cuenta gratis en 3 pasos y seguí tus pedidos. No necesitás contraseña."}
                   </p>
                 </div>
               )}
@@ -428,13 +499,15 @@ export default function MuroRegistro() {
                 </div>
               </form>
 
-              <button
-                type="button"
-                onClick={cerrar}
-                className="w-full mt-3 py-2.5 text-sm font-semibold text-gray-700 underline underline-offset-2"
-              >
-                Ahora no, seguir mirando
-              </button>
+              {sePuedeCerrar && (
+                <button
+                  type="button"
+                  onClick={cerrar}
+                  className="w-full mt-3 py-2.5 text-sm font-semibold text-gray-700 underline underline-offset-2"
+                >
+                  Ahora no, seguir mirando
+                </button>
+              )}
 
               <p className="text-[11px] text-gray-600 text-center mt-2">
                 ¿Ya tenés cuenta?{" "}

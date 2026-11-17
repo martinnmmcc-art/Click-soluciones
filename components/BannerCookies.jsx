@@ -40,7 +40,7 @@ export default function BannerCookies() {
       <p className="text-sm font-bold text-gray-900">🍪 Tu privacidad</p>
       <p className="text-[13px] text-gray-700 mt-1 leading-snug">
         Guardamos en tu celular lo necesario para que la tienda funcione (sesión, carrito). Con tu permiso, también
-        medimos de dónde llegás y qué agregás al carrito para mejorar la tienda. No usamos publicidad de terceros.{" "}
+        medimos de dónde llegás para mejorar la tienda. No usamos publicidad de terceros.{" "}
         <Link href="/cookies" className="text-brand-blue underline underline-offset-2">
           Más info
         </Link>

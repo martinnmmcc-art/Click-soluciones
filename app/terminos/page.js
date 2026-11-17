@@ -112,6 +112,10 @@ export default function Terminos() {
 
       <Seccion titulo="9. Tu cuenta">
         <p>
+          Para agregar productos al carrito y comprar necesitás una cuenta: es gratis y se crea en 3 pasos (nombre,
+          celular y localidad). Sin cuenta podés mirar la tienda en tus dos primeras visitas.
+        </p>
+        <p>
           Sos responsable de no compartir tu acceso. Podemos suspender una cuenta si se usa para fraudes o para
           molestar a otras personas. Podés borrar tu cuenta cuando quieras desde{" "}
           <Link href="/cuenta" className={enlace}>

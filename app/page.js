@@ -140,7 +140,8 @@ export default function HomePage() {
   }, []);
 
   function agregarAlCarrito(producto) {
-    addItem(producto, 1);
+    // Sin cuenta se abre el registro y se agrega solo al terminar
+    if (!addItem(producto, 1)) return;
     setMensajeCarrito(`¡${producto.nombre || "Producto"} agregado!`);
     setTimeout(() => setMensajeCarrito(""), 2500);
   }

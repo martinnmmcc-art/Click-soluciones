@@ -12,13 +12,16 @@ const NECESARIOS = [
   ["Favoritos y modo claro / oscuro", "Para recordar tus preferencias."],
   ["Catálogo guardado", "Para que la tienda funcione sin señal."],
   ["Avisos ya vistos", "Para no mostrarte el mismo cartel dos veces."],
-  ["Tu elección sobre cookies", "Para no volver a preguntarte."]
+  ["Tu elección sobre cookies", "Para no volver a preguntarte."],
+  [
+    "Contador de visitas sin cuenta (IP y huella técnica del navegador, en nuestro servidor)",
+    "Las dos primeras visitas son libres; desde la tercera pedimos crear la cuenta. Se borra a los 30 días."
+  ]
 ];
 
 const MEDICION = [
   ["Identificador anónimo del dispositivo", "Saber que varias visitas vienen del mismo celular."],
-  ["De dónde llegaste (WhatsApp, Facebook, Instagram)", "Saber qué publicaciones funcionan. Se borra a los 7 días."],
-  ["Productos que agregás o sacás del carrito", "Avisarle al negocio para poder ayudarte si te quedó alguna duda."]
+  ["De dónde llegaste (WhatsApp, Facebook, Instagram)", "Saber qué publicaciones funcionan. Se borra a los 7 días."]
 ];
 
 function Tabla({ filas }) {

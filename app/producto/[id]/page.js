@@ -141,13 +141,14 @@ export default function ProductoDetallePage() {
     .filter(Boolean);
 
   function handleAgregar() {
-    addItem(producto, cantidad);
+    // Sin cuenta se abre el registro y se agrega solo al terminar
+    if (!addItem(producto, cantidad)) return;
     setAgregado(true);
     setTimeout(() => setAgregado(false), 1500);
   }
 
   function handleComprarAhora() {
-    addItem(producto, cantidad);
+    if (!addItem(producto, cantidad)) return;
     router.push("/carrito");
   }
 

@@ -4,9 +4,21 @@ import { supabase } from "@/lib/supabaseClient";
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { avisarAdmin, clienteActual } from "@/lib/avisarAdmin";
+import { correoGuardado } from "@/lib/sesionGuardada";
 
 const CartContext = createContext(null);
 const STORAGE_KEY = "clic_soluciones_cart";
+
+// Para agregar al carrito hay que tener cuenta: así el negocio sabe quién
+// agrega qué. Si no tiene, se guarda lo que quiso agregar, se abre el
+// registro y se agrega solo cuando termina (la página se recarga).
+const CLAVE_PENDIENTE = "bolsonclick_carrito_pendiente";
+const EVENTO_REGISTRO = "bolsonclick:registrarse"; // el mismo de MuroRegistro
+
+function puedeAgregar() {
+  // Cliente con cuenta, o el admin (que entra con correo)
+  return !!clienteActual() || !!correoGuardado();
+}
 
 export function CartProvider({ children }) {
   const [items, setItems] = useState([]);
@@ -61,8 +73,45 @@ export function CartProvider({ children }) {
     } catch (e) {}
   }, [items, nota, loaded]);
 
+  // Lo que quiso agregar antes de registrarse entra apenas tiene cuenta
+  useEffect(() => {
+    if (!loaded) return;
+    try {
+      const crudo = sessionStorage.getItem(CLAVE_PENDIENTE);
+      if (!crudo || !puedeAgregar()) return;
+      sessionStorage.removeItem(CLAVE_PENDIENTE);
+      const { producto, cantidad } = JSON.parse(crudo);
+      if (producto?.id) addItem(producto, cantidad || 1);
+    } catch (e) {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
+
+  // Devuelve true si lo agregó, false si primero tiene que crear la cuenta
   function addItem(producto, cantidad = 1) {
-    // Avisamos al negocio quién está agregando qué (no bloquea nada)
+    if (!puedeAgregar()) {
+      try {
+        sessionStorage.setItem(
+          CLAVE_PENDIENTE,
+          JSON.stringify({
+            producto: {
+              id: producto.id,
+              nombre: producto.nombre,
+              precio: producto.precio,
+              precio_oferta: producto.precio_oferta,
+              imagen_url: producto.imagen_url,
+              stock: producto.stock
+            },
+            cantidad
+          })
+        );
+      } catch (e) {}
+      window.dispatchEvent(
+        new CustomEvent(EVENTO_REGISTRO, { detail: { motivo: "carrito", producto: producto.nombre } })
+      );
+      return false;
+    }
+
+    // Avisamos al negocio quién está agregando qué
     const cliente = clienteActual();
     avisarAdmin({
       tipo: "carrito",
@@ -98,6 +147,7 @@ export function CartProvider({ children }) {
         }
       ];
     });
+    return true;
   }
 
   function updateQuantity(id, cantidad) {
