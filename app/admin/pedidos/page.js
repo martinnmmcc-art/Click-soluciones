@@ -10,10 +10,9 @@ import ComprobantePedido from "@/components/ComprobantePedido";
 import {
   leerCatalogoOffline,
   leerClientesOffline,
-  leerPedidosOffline,
-  fechaPedidosOffline,
   descargarDatosAdmin
 } from "@/lib/catalogoOffline";
+import { sincronizarPedidos, pedidosGuardados } from "@/lib/pedidosSync";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
 import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
 import { saldoAFavorDe } from "@/lib/saldoFavor";
@@ -130,6 +129,7 @@ function PanelVentas() {
   const [sinConexion, setSinConexion] = useState(false);
   // Si los pedidos que se ven son una copia guardada, de cuándo es
   const [copiaDe, setCopiaDe] = useState(null);
+  const [verViejos, setVerViejos] = useState(false);
   const [pendientes, setPendientes] = useState(0);
   const [busquedaProductoNuevo, setBusquedaProductoNuevo] = useState("");
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
@@ -140,40 +140,17 @@ function PanelVentas() {
   const [usarSaldoNuevo, setUsarSaldoNuevo] = useState(true);
   const [aplicandoSaldoId, setAplicandoSaldoId] = useState(null);
 
-  async function cargarPedidos() {
+  // Baja solo lo que cambió desde la última vez (pedidos nuevos, cambios
+  // de estado o pago, productos agregados, borrados). Sin señal, muestra lo
+  // guardado con su fecha.
+  async function cargarPedidos({ completo = false } = {}) {
     try {
-      const res = await fetch("/api/admin/pedidos", { cache: "no-store" });
-      const result = await res.json();
-      if (res.ok && result.pedidos?.length > 0) {
-        // ¿Vino de la red o de la copia del celular (señal débil)? La copia
-        // trae su fecha. Si la otra copia guardada (la de pedidos) es más
-        // nueva, se usa esa: nunca mostrar lo más viejo habiendo algo mejor.
-        const fechaCopia = res.headers.get("x-bc-guardado");
-        if (fechaCopia) {
-          const fLocal = fechaPedidosOffline();
-          const locales = leerPedidosOffline();
-          if (fLocal && fLocal > new Date(fechaCopia) && locales.length > 0) {
-            setPedidos(locales);
-            setCopiaDe(fLocal);
-          } else {
-            setPedidos(result.pedidos);
-            setCopiaDe(new Date(fechaCopia));
-          }
-        } else {
-          setPedidos(result.pedidos);
-          setCopiaDe(null);
-        }
-      } else {
-        throw new Error("sin datos");
-      }
+      const { pedidos: lista, copiaDe: fecha } = await sincronizarPedidos({ completo });
+      if (lista.length > 0) setPedidos(lista);
+      setCopiaDe(fecha);
     } catch (e) {
-      // Sin señal: mostramos los pedidos tal como quedaron guardados la
-      // última vez que hubo conexión, para poder seguir trabajando.
-      const guardados = leerPedidosOffline();
-      if (guardados.length > 0) {
-        setPedidos(guardados);
-        setCopiaDe(fechaPedidosOffline());
-      }
+      const guardados = pedidosGuardados();
+      if (guardados.length > 0) setPedidos(guardados);
     }
     setLoading(false);
   }
@@ -908,9 +885,7 @@ function PanelVentas() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Error al crear el pedido");
 
-      const resPedidos = await fetch("/api/admin/pedidos");
-      const resultPedidos = await resPedidos.json();
-      if (resPedidos.ok) setPedidos(resultPedidos.pedidos || []);
+      await cargarPedidos();
 
       setComprobantePedido({
         ...result.pedido,
@@ -954,6 +929,21 @@ function PanelVentas() {
 
   // La lista de abajo muestra solo lo que falta atender...
   const pedidosFiltrados = filtrarPorFecha(pedidosAbiertos);
+
+  // Lo de todos los días son los pedidos recientes: a un pedido de hace
+  // meses no se le agrega nada (se carga uno nuevo). Los viejos que siguen
+  // sin cerrar (por ejemplo, una seña con saldo pendiente) no se pierden:
+  // quedan abajo, plegados, con su cantidad a la vista.
+  const DIAS_RECIENTE = 30;
+  const limiteReciente = Date.now() - DIAS_RECIENTE * 86400000;
+  const hayFiltro = !!(clienteSeleccionado || fechaDesde || fechaHasta);
+  const pedidosViejos = hayFiltro
+    ? []
+    : pedidosFiltrados.filter((p) => new Date(p.created_at).getTime() < limiteReciente);
+  const pedidosEnLista =
+    hayFiltro || verViejos
+      ? pedidosFiltrados
+      : pedidosFiltrados.filter((p) => new Date(p.created_at).getTime() >= limiteReciente);
 
   // ...pero el balance del período tiene que contar TODAS las ventas
   // (abiertas y cerradas), si no los números del negocio quedan incompletos.
@@ -1604,7 +1594,7 @@ function PanelVentas() {
           </div>
         ) : (
           <div className="space-y-4">
-            {pedidosFiltrados.map((pedido) => {
+            {pedidosEnLista.map((pedido) => {
               const tieneSubtotal =
                 pedido.subtotal !== null && pedido.subtotal !== undefined;
               const subtotalPedido = tieneSubtotal ? Number(pedido.subtotal) : Number(pedido.total);
@@ -1977,6 +1967,23 @@ function PanelVentas() {
               </div>
               );
             })}
+
+            {pedidosViejos.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setVerViejos((v) => !v)}
+                className="w-full bg-white border-2 border-dashed border-gray-300 rounded-2xl p-4 text-left"
+              >
+                <p className="font-bold text-sm text-gray-800">
+                  📁 {pedidosViejos.length} pedido{pedidosViejos.length === 1 ? "" : "s"} de hace más de {DIAS_RECIENTE} días sin cerrar
+                </p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  {verViejos
+                    ? "Se muestran arriba, mezclados por fecha. Tocá para ocultarlos."
+                    : "Señas con saldo pendiente o entregas que quedaron sin marcar. Tocá para verlos."}
+                </p>
+              </button>
+            )}
           </div>
         )}
       </div>

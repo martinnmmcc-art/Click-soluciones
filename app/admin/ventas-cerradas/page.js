@@ -1,5 +1,6 @@
 "use client";
 
+import { sincronizarPedidos, pedidosGuardados } from "@/lib/pedidosSync";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
@@ -130,11 +131,16 @@ function VentasCerradas() {
   const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
+    // Misma copia que Pedidos: baja solo lo que cambió
     async function cargar() {
+      const guardados = pedidosGuardados();
+      if (guardados.length > 0) {
+        setPedidos(guardados);
+        setLoading(false);
+      }
       try {
-        const res = await fetch("/api/admin/pedidos", { cache: "no-store" });
-        const data = await res.json();
-        if (res.ok) setPedidos(data.pedidos || []);
+        const { pedidos: lista } = await sincronizarPedidos();
+        setPedidos(lista);
       } catch (e) {
         console.error(e);
       }

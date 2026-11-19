@@ -9,17 +9,57 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function GET() {
-  const { data, error } = await supabaseAdmin
+// GET            → todos los pedidos (la primera vez, y una revisión por día)
+// GET ?desde=ISO  → SOLO los pedidos que cambiaron desde esa fecha (estado,
+//                   pago, productos...) y los que se borraron. Es lo que pide
+//                   el celular cada vez: una respuesta chiquita que llega
+//                   aunque la señal sea mala.
+// En los dos casos devuelve "hasta": la fecha que el celular tiene que mandar
+// la próxima vez. Va un minuto para atrás a propósito: si algo cambió justo
+// mientras se armaba la respuesta, la próxima vez vuelve a venir (repetir un
+// pedido no hace daño, perderlo sí).
+export async function GET(request) {
+  const desde = new URL(request.url).searchParams.get("desde");
+  const hasta = new Date(Date.now() - 60 * 1000).toISOString();
+
+  let consulta = supabaseAdmin
     .from("pedidos")
     .select(`*, items_pedido (*)`)
     .order("created_at", { ascending: false });
 
+  let fechaDesde = null;
+  if (desde) {
+    fechaDesde = new Date(desde);
+    if (isNaN(fechaDesde.getTime())) {
+      return Response.json({ error: "Fecha inválida" }, { status: 400 });
+    }
+    consulta = consulta.gt("cambiado_en", fechaDesde.toISOString());
+  }
+
+  const { data, error } = await consulta;
   if (error) {
     return Response.json({ error: error.message }, { status: 400 });
   }
 
-  return Response.json({ pedidos: data });
+  if (!fechaDesde) {
+    return Response.json({ pedidos: data, completo: true, hasta });
+  }
+
+  const { data: borrados, error: errBorrados } = await supabaseAdmin
+    .from("registros_borrados")
+    .select("registro_id")
+    .eq("tabla", "pedidos")
+    .gt("borrado_en", fechaDesde.toISOString());
+  if (errBorrados) {
+    return Response.json({ error: errBorrados.message }, { status: 400 });
+  }
+
+  return Response.json({
+    pedidos: data,
+    borrados: (borrados || []).map((b) => b.registro_id),
+    completo: false,
+    hasta
+  });
 }
 
 export async function PATCH(req) {
