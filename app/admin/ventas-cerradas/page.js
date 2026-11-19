@@ -133,7 +133,7 @@ function VentasCerradas() {
   useEffect(() => {
     // Misma copia que Pedidos: baja solo lo que cambió
     async function cargar() {
-      const guardados = pedidosGuardados();
+      const guardados = await pedidosGuardados();
       if (guardados.length > 0) {
         setPedidos(guardados);
         setLoading(false);

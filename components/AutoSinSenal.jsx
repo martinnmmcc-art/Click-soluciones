@@ -1,5 +1,6 @@
 "use client";
 
+import { vaciarBaseLocal } from "@/lib/baseLocal";
 import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -93,6 +94,7 @@ export default function AutoSinSenal() {
     const { data: sub } = supabase.auth.onAuthStateChange((evento) => {
       if (evento === "SIGNED_OUT") {
         navigator.serviceWorker?.controller?.postMessage({ tipo: "limpiar-datos" });
+        vaciarBaseLocal();
       }
     });
 

@@ -13,6 +13,7 @@ import {
   descargarDatosAdmin
 } from "@/lib/catalogoOffline";
 import { sincronizarPedidos, pedidosGuardados } from "@/lib/pedidosSync";
+import { sincronizarClientes, clientesGuardados } from "@/lib/clientesSync";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
 import { useActualizarSolo, pedirActualizacion } from "@/lib/datosFrescos";
 import { saldoAFavorDe } from "@/lib/saldoFavor";
@@ -144,12 +145,20 @@ function PanelVentas() {
   // de estado o pago, productos agregados, borrados). Sin señal, muestra lo
   // guardado con su fecha.
   async function cargarPedidos({ completo = false } = {}) {
+    // Al abrir: lo guardado en el celular al instante (sin esperar la red)
+    if (pedidos.length === 0) {
+      const guardados = await pedidosGuardados();
+      if (guardados.length > 0) {
+        setPedidos(guardados);
+        setLoading(false);
+      }
+    }
     try {
       const { pedidos: lista, copiaDe: fecha } = await sincronizarPedidos({ completo });
       if (lista.length > 0) setPedidos(lista);
       setCopiaDe(fecha);
     } catch (e) {
-      const guardados = pedidosGuardados();
+      const guardados = await pedidosGuardados();
       if (guardados.length > 0) setPedidos(guardados);
     }
     setLoading(false);
@@ -200,20 +209,21 @@ function PanelVentas() {
   // Clientes ya registrados o que compraron antes, para autocompletar
   // sus datos y no tener que escribirlos de nuevo en cada venta.
   async function cargarClientes() {
-    const { data, error } = await supabase
-      .from("clientes")
-      .select("id, nombre, telefono, localidad, direccion, email")
-      .order("nombre", { ascending: true });
-
-    if (data && data.length > 0) {
-      setClientes(data);
-    } else if (error || !data) {
-      // Sin señal, o la consulta falló: usamos la copia guardada, así el
-      // pedido se puede armar igual con el cliente ya cargado.
-      const guardados = leerClientesOffline();
-      if (guardados.length > 0) setClientes(guardados);
+    // Lo guardado en el celular al instante, y después solo los cambios
+    const guardados = await clientesGuardados();
+    if (guardados.length > 0) setClientes(guardados);
+    try {
+      const { clientes: lista } = await sincronizarClientes();
+      if (lista.length > 0) setClientes(lista);
+    } catch (e) {
+      // Sin base local (navegador muy viejo): la copia de la caja
+      if (guardados.length === 0) {
+        const viejos = leerClientesOffline();
+        if (viejos.length > 0) setClientes(viejos);
+      }
     }
   }
+
 
   // Pedidos, stock y clientes se actualizan solos: al volver la señal, al
   // volver a la app, cuando cambia algo en la base y cada un minuto.

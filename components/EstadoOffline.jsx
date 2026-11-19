@@ -28,8 +28,8 @@ export default function EstadoOffline() {
     setProductos(catalogoLocal().length);
     setFecha(fechaCatalogo());
     setPendientes(ventasPendientes().length);
-    setPedidosGuardados(leerPedidosOffline().length);
-    setFechaPedidos(fechaPedidosOffline());
+    setPedidosGuardados((await leerPedidosOffline()).length);
+    setFechaPedidos(await fechaPedidosOffline());
     setLocalUsado(espacioLocalUsado());
 
     // Cuánto lugar ocupa la app en el celular y cuánto le da el navegador.
