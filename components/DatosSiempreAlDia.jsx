@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { sincronizarCambios } from "@/lib/descargaOffline";
 import { EVENTO_ESTADO, pedirActualizacion } from "@/lib/datosFrescos";
+import { enviarCola, cantidadPendiente } from "@/lib/colaOffline";
 
 // Va dentro del panel admin (AdminGuard). Hace dos cosas:
 //
@@ -60,6 +61,14 @@ export default function DatosSiempreAlDia() {
   async function actualizarTodo(motivo) {
     if (typeof navigator !== "undefined" && !navigator.onLine) return;
     setActualizando(true);
+    // Primero se manda lo que quedó hecho sin señal (ventas, pedidos,
+    // cambios), desde cualquier pantalla del panel: así lo que se recarga
+    // después ya lo incluye.
+    if (cantidadPendiente() > 0) {
+      try {
+        await enviarCola();
+      } catch (e) {}
+    }
     // Las pantallas abiertas recargan sus datos
     pedirActualizacion(motivo);
     // Y la copia del celular (sirve para trabajar sin señal). Si responde

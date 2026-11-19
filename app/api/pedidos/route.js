@@ -9,6 +9,25 @@ const supabaseAdmin = createClient(
 export async function POST(req) {
   const body = await req.json();
 
+  // Pedido armado sin señal: trae una clave única. Si ya se había guardado
+  // (la conexión se cortó justo después), se devuelve ese y no se duplica.
+  const claveOffline = typeof body.clave_offline === "string" && body.clave_offline.length >= 6 ? body.clave_offline : null;
+  if (claveOffline) {
+    const { data: previo } = await supabaseAdmin
+      .from("acciones_offline")
+      .select("resultado")
+      .eq("clave", claveOffline)
+      .maybeSingle();
+    if (previo?.resultado?.pedido_id) {
+      const { data: yaGuardado } = await supabaseAdmin
+        .from("pedidos")
+        .select("*")
+        .eq("id", previo.resultado.pedido_id)
+        .maybeSingle();
+      return Response.json({ pedido: yaGuardado || { id: previo.resultado.pedido_id }, saldo_aplicado: 0, repetido: true });
+    }
+  }
+
   // Quitamos campos que no maneja el cliente (el saldo lo calcula la base)
   const { saldo_aplicado, saldo_cedido, ...pedidoLimpio } = body.pedido || {};
 
@@ -75,6 +94,12 @@ export async function POST(req) {
   // El cupón es de un solo uso: queda marcado con este pedido
   if (cuponUsado) {
     await supabaseAdmin.rpc("usar_cupon", { p_codigo: cuponUsado.codigo, p_pedido_id: pedido.id });
+  }
+
+  if (claveOffline) {
+    await supabaseAdmin
+      .from("acciones_offline")
+      .insert({ clave: claveOffline, tipo: "pedido_nuevo", resultado: { pedido_id: pedido.id } });
   }
 
   // Saldo a favor: si el cliente pagó de más en pedidos anteriores y se

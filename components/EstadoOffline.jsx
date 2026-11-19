@@ -1,7 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { catalogoLocal, fechaCatalogo, ventasPendientes } from "@/lib/cajaOffline";
+import { catalogoLocal, fechaCatalogo } from "@/lib/cajaOffline";
+import {
+  cantidadPendiente,
+  conProblemas,
+  reintentar,
+  descartar,
+  enviarCola,
+  EVENTO_COLA
+} from "@/lib/colaOffline";
+
+const NOMBRE_TIPO = {
+  venta_caja: "Venta de caja",
+  pedido_nuevo: "Pedido nuevo",
+  cambio_estado: "Cambio de estado o pago",
+  agregar_items: "Productos agregados a un pedido"
+};
+
+function resumenAccion(r) {
+  const d = r.datos || {};
+  if (r.tipo === "venta_caja") return `$${Number(d.total || 0).toLocaleString("es-AR")}${d.nombre_cliente ? " · " + d.nombre_cliente : ""}`;
+  if (r.tipo === "pedido_nuevo") return `${d.pedido?.nombre_cliente || "Cliente"} · $${Number(d.pedido?.total || 0).toLocaleString("es-AR")}`;
+  if (d.pedido_id) return `Pedido id ${d.pedido_id}`;
+  return "";
+}
 import { leerPedidosOffline, fechaPedidosOffline } from "@/lib/catalogoOffline";
 import { espacioLocalUsado } from "@/lib/almacenLocal";
 
@@ -17,6 +40,7 @@ export default function EstadoOffline() {
   const [fecha, setFecha] = useState(null);
   const [paginas, setPaginas] = useState(0);
   const [pendientes, setPendientes] = useState(0);
+  const [problemas, setProblemas] = useState([]);
   const [descargando, setDescargando] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [pedidosGuardados, setPedidosGuardados] = useState(0);
@@ -27,7 +51,8 @@ export default function EstadoOffline() {
   async function revisar() {
     setProductos(catalogoLocal().length);
     setFecha(fechaCatalogo());
-    setPendientes(ventasPendientes().length);
+    setPendientes(cantidadPendiente());
+    setProblemas(conProblemas());
     setPedidosGuardados((await leerPedidosOffline()).length);
     setFechaPedidos(await fechaPedidosOffline());
     setLocalUsado(espacioLocalUsado());
@@ -65,6 +90,9 @@ export default function EstadoOffline() {
 
   useEffect(() => {
     revisar();
+    window.addEventListener(EVENTO_COLA, revisar);
+    return () => window.removeEventListener(EVENTO_COLA, revisar);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // La app se prepara sola (AutoSinSenal). Este botón le pide al mismo
@@ -128,10 +156,53 @@ export default function EstadoOffline() {
         </p>
         {pendientes > 0 && (
           <p className="text-amber-800 font-bold">
-            📤 {pendientes} venta(s) esperando enviarse
+            📤 {pendientes} cosa(s) hecha(s) sin señal esperando enviarse (se mandan solas)
           </p>
         )}
       </div>
+
+      {/* Lo que el servidor no aceptó: no se borra solo, decidís vos */}
+      {problemas.length > 0 && (
+        <div className="mt-2 bg-white border-2 border-red-300 rounded-xl p-2.5 space-y-2" role="alert">
+          <p className="text-xs font-bold text-red-800">
+            ⚠️ {problemas.length} cosa(s) hecha(s) sin señal que el servidor no aceptó
+          </p>
+          {problemas.map((r) => (
+            <div key={r.clave} className="border-t border-red-100 pt-2">
+              <p className="text-[11px] font-semibold text-gray-800">
+                {NOMBRE_TIPO[r.tipo] || r.tipo} · {resumenAccion(r)} ·{" "}
+                {new Date(r.creada_en).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </p>
+              <p className="text-[11px] text-red-700">{r.problema}</p>
+              <div className="flex gap-2 mt-1.5">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    reintentar(r.clave);
+                    await enviarCola();
+                    revisar();
+                  }}
+                  className="flex-1 text-[11px] font-bold border border-gray-300 rounded-lg py-1.5"
+                >
+                  Reintentar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm("¿Descartar esto? No se va a enviar nunca.")) {
+                      descartar(r.clave);
+                      revisar();
+                    }
+                  }}
+                  className="flex-1 text-[11px] font-bold border border-red-300 text-red-700 rounded-lg py-1.5"
+                >
+                  Descartar
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {mensaje && (
         <p className="text-[11px] font-semibold text-gray-700 bg-white rounded-lg p-2 mt-2">

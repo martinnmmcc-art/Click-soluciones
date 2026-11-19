@@ -16,6 +16,9 @@ import {
   guardarPedidos, pedidosLocales, encolarCambio,
   cambiosPendientes, sincronizarCambios, totalPendiente
 } from "@/lib/cajaOffline";
+import { sincronizarClientes } from "@/lib/clientesSync";
+import { sincronizarPedidos, pedidosGuardados } from "@/lib/pedidosSync";
+import { ventaCerrada } from "@/lib/estadosPedido";
 
 // Caja: para cobrar en el mostrador.
 //
@@ -93,29 +96,37 @@ function Caja() {
     setSugerenciasCliente(locales);
     if (!hayConexion()) return;
 
-    // Con señal consultamos también la base: puede haber clientes que se
-    // registraron después de la última descarga al celular. (Antes esto
-    // buscaba "teléfono que contenga vacío", que coincide con todos.)
-    const { data } = await supabase
-      .from("clientes")
-      .select("id, nombre, telefono, localidad");
-
-    if (data) {
-      guardarClientes(data);
+    // Con señal se traen solo los clientes nuevos o cambiados desde la
+    // última vez (antes bajaba TODOS los clientes en cada letra que escribías)
+    try {
+      const { clientes } = await sincronizarClientes();
       if (ultimaBusqueda.current === texto) {
-        setSugerenciasCliente(buscarClientes(data, texto, 10));
+        setSugerenciasCliente(buscarClientes(clientes, texto, 10));
       }
-    }
+    } catch (e) {}
+  }
+
+  // Pedidos sin cerrar, de la base del celular (sirve con y sin señal)
+  async function pedidosAbiertosGuardados() {
+    const todos = await pedidosGuardados();
+    return todos
+      .filter((p) => p.estado !== "cancelado" && !ventaCerrada(p))
+      .map((p) => ({ ...p, cuantos_items: (p.items_pedido || []).length }));
   }
 
   async function cargarPedidosAbiertos() {
     if (!hayConexion()) {
-      setPedidosAbiertos(pedidosLocales());
+      const guardados = await pedidosAbiertosGuardados();
+      setPedidosAbiertos(guardados.length ? guardados : pedidosLocales());
       return;
     }
 
-    const { data } = await supabase.rpc("pedidos_abiertos");
-    setPedidosAbiertos(data || []);
+    const { data, error } = await supabase.rpc("pedidos_abiertos");
+    if (error || !data) {
+      setPedidosAbiertos(await pedidosAbiertosGuardados());
+      return;
+    }
+    setPedidosAbiertos(data);
   }
 
   // Guardamos el catálogo propio para poder cobrar sin señal
@@ -130,20 +141,9 @@ function Caja() {
 
       if (data) setProductosGuardados(guardarCatalogo(data));
 
-      // Clientes: sin esto, al armar un pedido sin señal no aparece ninguno
-      const { data: clientes } = await supabase
-        .from("clientes")
-        .select("id, nombre, telefono, localidad, direccion");
-      if (clientes) guardarClientes(clientes);
-
-      // Pedidos abiertos, para poder modificarlos sin señal
-      const { data: pedidos } = await supabase
-        .from("pedidos")
-        .select("id, numero_pedido, nombre_cliente, telefono_cliente, total, monto_pagado, estado, estado_pago, created_at, items_pedido(producto_id, nombre_producto, cantidad, precio_unitario)")
-        .neq("estado", "cancelado")
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (pedidos) guardarPedidos(pedidos);
+      // Clientes y pedidos: a la base del celular, bajando solo lo que
+      // cambió (antes se bajaban todos cada minuto)
+      await Promise.allSettled([sincronizarClientes(), sincronizarPedidos()]);
     } catch (e) {}
   }
 
@@ -158,8 +158,9 @@ function Caja() {
 
     setSincronizando(true);
     try {
-      const r = await sincronizarVentas(supabase);
-      const c = await sincronizarCambios(supabase);
+      // Una sola cola, en orden: ventas, pedidos y cambios juntos
+      const r = await sincronizarVentas();
+      const c = { aplicados: r.aplicados, fallaron: 0 };
 
       setPendientes(totalPendiente());
 
