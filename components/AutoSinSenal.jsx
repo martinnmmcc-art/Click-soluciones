@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
   actualizarDatos,
-  precargarPantallas,
+  guardarPantallas,
   minutosDesde,
   CLAVES
 } from "@/lib/prepararSinSenal";
@@ -14,9 +14,10 @@ import {
 // Va montado en el panel (solo para administradores).
 //
 //  - Datos (caja, clientes, pedidos): al abrir, cada 15 minutos y apenas
-//    vuelve la señal.
-//  - Recorrida por todas las pantallas: cada 6 horas y con cada versión
-//    nueva de la app. Solo con buena conexión (cuida los datos móviles).
+//    vuelve la señal. Baja solo lo que cambió.
+//  - Pantallas del panel: se fija cada 6 horas si se subió una versión
+//    nueva de la app (una sola consulta chica). Solo si hay versión nueva
+//    las vuelve a guardar, y solo con buena conexión.
 
 const CADA_DATOS_MIN = 15;
 const CADA_PANTALLAS_MIN = 6 * 60;
@@ -49,7 +50,10 @@ async function ciclo({ forzarPantallas = false, forzarTodo = false } = {}) {
     const tocaRecorrer =
       forzarTodo || forzarPantallas || minutosDesde(CLAVES.pantallas) >= CADA_PANTALLAS_MIN;
     if (tocaRecorrer && conexionBuena()) {
-      await precargarPantallas((p) => estado(true, p), { cancelado: () => cancelarRecorrida });
+      await guardarPantallas((p) => estado(true, p), {
+        forzar: forzarTodo,
+        cancelado: () => cancelarRecorrida
+      });
     }
   } catch (e) {
   } finally {
@@ -60,8 +64,7 @@ async function ciclo({ forzarPantallas = false, forzarTodo = false } = {}) {
 
 export default function AutoSinSenal() {
   useEffect(() => {
-    // Dentro de la ventana invisible de la recorrida no hace nada (si no,
-    // cada pantalla visitada empezaría otra recorrida).
+    // Dentro de otra ventana (un iframe) no hace nada
     if (window.self !== window.top) return;
 
     // Al abrir: esperamos a que cargue lo que estás mirando

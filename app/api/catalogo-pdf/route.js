@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { createClient } from "@supabase/supabase-js";
 import { taparMarcaProveedor } from "@/lib/taparMarca";
 import { agregarMarcaDeAgua, yaTieneMarcaDeAgua } from "@/lib/marcaDeAgua";
+import { CAMPOS_PUBLICOS } from "@/lib/camposPublicos";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -96,7 +97,7 @@ export async function GET(request) {
 
   const { data: productosData, error } = await supabase
     .from("Productos")
-    .select("*")
+    .select(CAMPOS_PUBLICOS)
     .in("id", ids);
 
   if (error || !productosData) {

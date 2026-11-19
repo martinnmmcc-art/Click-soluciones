@@ -10,6 +10,7 @@ import { useRecordarPosicion, useRestaurarAlDibujar } from "@/lib/useRecordarPos
 import { formatPrice } from "@/lib/whatsapp";
 import { obtenerTelefonoCliente, listarFavoritos } from "@/lib/favoritos";
 import { urlImagen } from "@/lib/imagenProducto";
+import { CAMPOS_PUBLICOS } from "@/lib/camposPublicos";
 
 export default function FavoritosPage() {
   const [productos, setProductos] = useState([]);
@@ -37,7 +38,7 @@ export default function FavoritosPage() {
         return;
       }
 
-      const { data } = await supabase.from("Productos").select("*").in("id", ids);
+      const { data } = await supabase.from("Productos").select(CAMPOS_PUBLICOS).in("id", ids);
       setProductos(data || []);
       setLoading(false);
     }

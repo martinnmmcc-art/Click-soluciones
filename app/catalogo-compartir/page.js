@@ -7,6 +7,7 @@ import Image from "next/image";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice, buildWhatsAppLink } from "@/lib/whatsapp";
 import { urlImagen } from "@/lib/imagenProducto";
+import { CAMPOS_PUBLICOS } from "@/lib/camposPublicos";
 
 function CatalogoCompartirContent() {
   const searchParams = useSearchParams();
@@ -40,7 +41,7 @@ function CatalogoCompartirContent() {
 
       const { data, error } = await supabase
         .from("Productos")
-        .select("*")
+        .select(CAMPOS_PUBLICOS)
         .in("id", ids);
 
       if (!error && data) {

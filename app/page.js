@@ -19,6 +19,7 @@ import ElegidosParaVos from "@/components/ElegidosParaVos";
 import InvitacionAPedido from "@/components/InvitacionAPedido";
 import GuiaRegistro from "@/components/GuiaRegistro";
 import { coincideBusqueda } from "@/lib/buscar";
+import { CAMPOS_PUBLICOS } from "@/lib/camposPublicos";
 
 export default function HomePage() {
   const { addItem } = useCart();
@@ -97,7 +98,7 @@ export default function HomePage() {
         let { data: prodData, error: prodError } = await conLimite(
           supabase
             .from("Productos")
-            .select("*")
+            .select(CAMPOS_PUBLICOS)
             .or("bajo_pedido.is.null,bajo_pedido.eq.false")
             .order("id", { ascending: false }),
           navigator.onLine ? 8000 : 1500

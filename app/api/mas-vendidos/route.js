@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { CAMPOS_PUBLICOS } from "@/lib/camposPublicos";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -35,7 +36,7 @@ export async function GET() {
 
     const { data: productos, error: prodError } = await supabase
       .from("Productos")
-      .select("*")
+      .select(CAMPOS_PUBLICOS)
       .in("id", idsOrdenados)
       .eq("activo", true)
       .or("bajo_pedido.is.null,bajo_pedido.eq.false");

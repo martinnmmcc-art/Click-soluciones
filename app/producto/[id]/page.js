@@ -19,6 +19,7 @@ import { pedirAvisoDeStock } from "@/lib/push";
 import ResenasProducto from "@/components/ResenasProducto";
 import CompradosJuntos from "@/components/CompradosJuntos";
 import { urlImagen } from "@/lib/imagenProducto";
+import { CAMPOS_PUBLICOS } from "@/lib/camposPublicos";
 
 export default function ProductoDetallePage() {
   const params = useParams();
@@ -49,7 +50,7 @@ export default function ProductoDetallePage() {
         // CAMBIO CLAVE: "Productos" con P mayúscula tal cual está en tu BD
         const { data, error } = await supabase
           .from("Productos")
-          .select("*")
+          .select(CAMPOS_PUBLICOS)
           .eq("id", id)
           .maybeSingle();
 
@@ -76,7 +77,7 @@ export default function ProductoDetallePage() {
       if (!producto?.categoria) return;
       const { data } = await supabase
         .from("Productos")
-        .select("*")
+        .select(CAMPOS_PUBLICOS)
         .eq("categoria", producto.categoria)
         .eq("activo", true)
         .or("bajo_pedido.is.null,bajo_pedido.eq.false")

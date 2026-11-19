@@ -10,6 +10,7 @@ import VideoProducto from "@/components/VideoProducto";
 import { supabase } from "@/lib/supabaseClient";
 import { formatPrice, buildWhatsAppLink, whatsappAPedidoMessage } from "@/lib/whatsapp";
 import { urlImagen } from "@/lib/imagenProducto";
+import { CAMPOS_PUBLICOS } from "@/lib/camposPublicos";
 
 export default function APedidoDetallePage() {
   const params = useParams();
@@ -27,7 +28,7 @@ export default function APedidoDetallePage() {
       setLoading(true);
       const { data } = await supabase
         .from("Productos")
-        .select("*")
+        .select(CAMPOS_PUBLICOS)
         .eq("id", id)
         .eq("bajo_pedido", true)
         .maybeSingle();
