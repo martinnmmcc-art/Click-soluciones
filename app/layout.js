@@ -22,6 +22,7 @@ import BottomNav from "@/components/BottomNav";
 import ProtegerContenido from "@/components/ProtegerContenido";
 import BannerCookies from "@/components/BannerCookies";
 import PieLegal from "@/components/PieLegal";
+import CargarBaseLocal from "@/components/CargarBaseLocal";
 import { DatosTienda } from "@/components/DatosEstructurados";
 
 export const metadata = {
@@ -67,6 +68,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="bg-brand-bg min-h-screen font-sans">
         {/* Para navegar con teclado: el primer Tab salta directo al contenido */}
+        <CargarBaseLocal />
         <a href="#contenido-principal" className="saltar-al-contenido">
           Saltar al contenido
         </a>

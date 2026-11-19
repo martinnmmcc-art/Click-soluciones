@@ -6,6 +6,7 @@ import BottomNav from "@/components/BottomNav";
 import ProductCard from "@/components/ProductCard";
 import { supabase } from "@/lib/supabaseClient";
 import { conLimite } from "@/lib/copiaTienda";
+import { cargarProductosGuardados } from "@/lib/productosSync";
 import { formatPrice } from "@/lib/whatsapp";
 import {
   guardarCatalogoCliente,
@@ -248,8 +249,10 @@ export default function CatalogoPage() {
       setLoading(true);
       const hasta = POR_TANDA * tandasCargadas - 1;
 
-      // Sin señal usamos la copia guardada en el celular
+      // Sin señal usamos la copia guardada en el celular (se espera a que
+      // termine de leerse la base del celular, tarda un instante)
       if (estaSinConexion()) {
+        await cargarProductosGuardados();
         const guardados = filtrarCatalogoOffline(leerCatalogoCliente(), {
           disponibilidad,
           categoria: categoriaSeleccionada,
@@ -278,6 +281,7 @@ export default function CatalogoPage() {
 
       // Si la consulta falla (señal intermitente), caemos a lo guardado
       if (!data) {
+        await cargarProductosGuardados();
         const guardados = filtrarCatalogoOffline(leerCatalogoCliente(), {
           disponibilidad,
           categoria: categoriaSeleccionada,

@@ -20,6 +20,7 @@ import { sincronizarClientes } from "@/lib/clientesSync";
 import { sincronizarPedidos, pedidosGuardados } from "@/lib/pedidosSync";
 import { ventaCerrada } from "@/lib/estadosPedido";
 
+import { sincronizarProductos } from "@/lib/productosSync";
 // Caja: para cobrar en el mostrador.
 //
 // Escanea el código con la cámara del celular, arma la venta, calcula el
@@ -133,13 +134,10 @@ function Caja() {
   async function actualizarCatalogo() {
     if (!hayConexion()) return;
     try {
-      const { data } = await supabase
-        .from("Productos")
-        .select("id, nombre, precio, precio_oferta, stock, codigo_barras, bajo_pedido")
-        .or("bajo_pedido.is.null,bajo_pedido.eq.false")
-        .eq("activo", true);
-
-      if (data) setProductosGuardados(guardarCatalogo(data));
+      // Productos: base del celular, bajando solo lo que cambió (antes se
+      // bajaba todo el catálogo cada minuto)
+      await sincronizarProductos();
+      setProductosGuardados(catalogoLocal().length);
 
       // Clientes y pedidos: a la base del celular, bajando solo lo que
       // cambió (antes se bajaban todos cada minuto)

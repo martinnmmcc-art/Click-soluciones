@@ -407,7 +407,13 @@ self.addEventListener("fetch", (event) => {
   // "¿Qué cambió desde...?" va siempre directo a la red y nunca se guarda:
   // una respuesta vieja de cambios aplicada otra vez pisaría datos nuevos.
   if (url.origin === self.location.origin && url.pathname.startsWith("/api/") && url.searchParams.has("desde")) return;
-  if (url.hostname.endsWith("supabase.co") && (url.search.includes("cambiado_en=gt.") || url.pathname.endsWith("/registros_borrados"))) return;
+  if (
+    url.hostname.endsWith("supabase.co") &&
+    (url.search.includes("cambiado_en=gt.") ||
+      url.search.includes("actualizado_en=gt.") ||
+      url.pathname.endsWith("/registros_borrados"))
+  )
+    return;
 
   // --- Código del programa: guardado primero (no cambia nunca: cada versión
   //     tiene nombres nuevos). Se anota el uso para no descartarlo. ---
