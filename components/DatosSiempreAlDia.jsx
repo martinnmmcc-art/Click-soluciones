@@ -38,10 +38,21 @@ function hace(fecha) {
   return new Date(fecha).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
+// "de hace 5 min", "de hace 3 h", "del 12/10"
+function haceMinutos(min) {
+  if (min < 1) return "de recién";
+  if (min < 60) return `de hace ${Math.round(min)} min`;
+  if (min < 24 * 60) return `de hace ${Math.round(min / 60)} h`;
+  const f = new Date(Date.now() - min * 60000);
+  return `del ${f.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}`;
+}
+
 export default function DatosSiempreAlDia() {
   const [online, setOnline] = useState(true);
   const [ultima, setUltima] = useState(Date.now());
   const [desdeCopia, setDesdeCopia] = useState(false);
+  // Antigüedad (en minutos) de la copia que se está mostrando
+  const [edadCopia, setEdadCopia] = useState(null);
   const [actualizando, setActualizando] = useState(false);
   const [, forzarRender] = useState(0);
   const demora = useRef(null);
@@ -163,7 +174,18 @@ export default function DatosSiempreAlDia() {
       }
     }
     function alMensajeSW(e) {
-      if (e.data?.tipo === "datos-desde-copia") setDesdeCopia(true);
+      if (e.data?.tipo === "datos-desde-copia") {
+        setDesdeCopia(true);
+        setEdadCopia(typeof e.data.edadMin === "number" ? e.data.edadMin : null);
+      }
+      // La red tardó, se mostró la copia, y después llegaron los datos
+      // nuevos: las pantallas recargan solas.
+      if (e.data?.tipo === "datos-llegaron") {
+        setDesdeCopia(false);
+        setEdadCopia(null);
+        setUltima(Date.now());
+        pedirActualizacion("llegaron-datos-nuevos");
+      }
     }
     window.addEventListener(EVENTO_ESTADO, alEstado);
     navigator.serviceWorker?.addEventListener?.("message", alMensajeSW);
@@ -188,9 +210,9 @@ export default function DatosSiempreAlDia() {
         }`}
       >
         {!online ? (
-          <>🟠 Sin señal · datos guardados</>
+          <>🟠 Sin señal · datos guardados{edadCopia !== null ? ` ${haceMinutos(edadCopia)}` : ""}</>
         ) : desdeCopia ? (
-          <>🟠 Señal débil · tocá para actualizar</>
+          <>🟠 Señal débil · datos {edadCopia !== null ? haceMinutos(edadCopia) : "guardados"} · tocá para actualizar</>
         ) : (
           <>
             {actualizando ? "🔄 Actualizando..." : `🟢 Al día · ${hace(ultima)}`}

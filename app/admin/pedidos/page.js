@@ -11,6 +11,7 @@ import {
   leerCatalogoOffline,
   leerClientesOffline,
   leerPedidosOffline,
+  fechaPedidosOffline,
   descargarDatosAdmin
 } from "@/lib/catalogoOffline";
 import { encolarPedido, sincronizarCola, cantidadPendientes } from "@/lib/colaPedidos";
@@ -127,6 +128,8 @@ function PanelVentas() {
   const [clienteElegido, setClienteElegido] = useState(null);
   const [filtroStock, setFiltroStock] = useState("stock"); // "stock" | "pedido" | "todos"
   const [sinConexion, setSinConexion] = useState(false);
+  // Si los pedidos que se ven son una copia guardada, de cuándo es
+  const [copiaDe, setCopiaDe] = useState(null);
   const [pendientes, setPendientes] = useState(0);
   const [busquedaProductoNuevo, setBusquedaProductoNuevo] = useState("");
   const [guardandoNuevo, setGuardandoNuevo] = useState(false);
@@ -142,7 +145,24 @@ function PanelVentas() {
       const res = await fetch("/api/admin/pedidos", { cache: "no-store" });
       const result = await res.json();
       if (res.ok && result.pedidos?.length > 0) {
-        setPedidos(result.pedidos);
+        // ¿Vino de la red o de la copia del celular (señal débil)? La copia
+        // trae su fecha. Si la otra copia guardada (la de pedidos) es más
+        // nueva, se usa esa: nunca mostrar lo más viejo habiendo algo mejor.
+        const fechaCopia = res.headers.get("x-bc-guardado");
+        if (fechaCopia) {
+          const fLocal = fechaPedidosOffline();
+          const locales = leerPedidosOffline();
+          if (fLocal && fLocal > new Date(fechaCopia) && locales.length > 0) {
+            setPedidos(locales);
+            setCopiaDe(fLocal);
+          } else {
+            setPedidos(result.pedidos);
+            setCopiaDe(new Date(fechaCopia));
+          }
+        } else {
+          setPedidos(result.pedidos);
+          setCopiaDe(null);
+        }
       } else {
         throw new Error("sin datos");
       }
@@ -150,7 +170,10 @@ function PanelVentas() {
       // Sin señal: mostramos los pedidos tal como quedaron guardados la
       // última vez que hubo conexión, para poder seguir trabajando.
       const guardados = leerPedidosOffline();
-      if (guardados.length > 0) setPedidos(guardados);
+      if (guardados.length > 0) {
+        setPedidos(guardados);
+        setCopiaDe(fechaPedidosOffline());
+      }
     }
     setLoading(false);
   }
@@ -1505,6 +1528,19 @@ function PanelVentas() {
             </div>
           </div>
         </div>
+
+        {/* Copia guardada: que se vea de cuándo es, para no confundirla */}
+        {copiaDe && (
+          <button
+            type="button"
+            onClick={() => cargarPedidos()}
+            className="w-full text-left bg-orange-50 border border-orange-300 text-orange-900 text-xs font-semibold rounded-xl p-3 mb-3"
+          >
+            🟠 Estás viendo los pedidos guardados el{" "}
+            {copiaDe.toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+            . Los nuevos aparecen cuando vuelva la señal. Tocá para reintentar.
+          </button>
+        )}
 
         {/* ACCESOS A LAS OTRAS VISTAS */}
         <Link

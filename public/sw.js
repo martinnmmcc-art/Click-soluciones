@@ -11,7 +11,12 @@
 // v10: al activarse borra TODO lo de versiones anteriores, incluido un
 // almacenamiento de fotos ("img-v5") que nunca se limpiaba y llegó a ocupar
 // más de 3 GB en el celular.
-const VERSION = "v10";
+// v11: borra las copias de v10. Con el almacenamiento lleno, el navegador
+// no dejaba guardar las copias nuevas y quedaba la vieja: sin señal se veían
+// los pedidos de principios de octubre. Ahora cada copia lleva su fecha, si
+// no entra se libera lugar, y nunca queda una copia vieja haciéndose pasar
+// por la actual.
+const VERSION = "v11";
 const CACHE_APP = `bolsonclick-app-${VERSION}`;
 const CACHE_DATOS = `bolsonclick-datos-${VERSION}`;
 const CACHE_IMAGENES = `bolsonclick-img-${VERSION}`;
@@ -221,10 +226,60 @@ function respuestaSinSenal() {
 // El almacenamiento del navegador no acepta guardar una respuesta 206
 // (parcial): la guardamos como 200 con las mismas cabeceras. Se conserva
 // "Content-Range", que es de donde la app saca el total ("149 productos").
+// Cada copia lleva la fecha en que se guardó (cabecera "x-bc-guardado"):
+// así la app puede avisar "datos de hace 3 h" y nunca se confunde una copia
+// vieja con la actual.
 async function copiaGuardable(res) {
-  if (res.status === 200) return res.clone();
   const cuerpo = await res.clone().blob();
-  return new Response(cuerpo, { status: 200, statusText: "OK", headers: res.headers });
+  const cabeceras = new Headers(res.headers);
+  cabeceras.set("x-bc-guardado", new Date().toISOString());
+  return new Response(cuerpo, { status: 200, statusText: "OK", headers: cabeceras });
+}
+
+function edadMinutos(res) {
+  try {
+    const f = res && res.headers.get("x-bc-guardado");
+    return f ? (Date.now() - new Date(f).getTime()) / 60000 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Cuando el almacenamiento se llena: fotos y páginas viejas afuera primero
+// (se vuelven a bajar solas), después los datos más viejos.
+async function liberarEspacio() {
+  const recortarA = async (nombre, fraccion) => {
+    try {
+      const c = await caches.open(nombre);
+      const claves = await c.keys();
+      const borrar = Math.ceil(claves.length * fraccion);
+      for (let i = 0; i < borrar; i++) await c.delete(claves[i]);
+    } catch (e) {}
+  };
+  await recortarA(CACHE_IMAGENES, 0.6);
+  await recortarA(CACHE_PAGINAS, 0.4);
+  await recortarA(CACHE_DATOS, 0.3);
+}
+
+// Guarda la copia. Si no entra: primero se BORRA la copia anterior de eso
+// mismo (una copia vieja es peor que ninguna), se libera lugar y se reintenta.
+async function guardarCopia(nombre, request, res) {
+  const c = await caches.open(nombre);
+  try {
+    await c.put(request, res.clone());
+    return true;
+  } catch (e) {
+    try {
+      for (const k of await caches.keys()) await (await caches.open(k)).delete(request);
+    } catch (e2) {}
+    await liberarEspacio();
+    try {
+      await c.put(request, res);
+      return true;
+    } catch (e3) {
+      return false;
+    }
+  }
 }
 
 function esLecturaDatos(url) {
@@ -253,24 +308,31 @@ function sinConexion() {
 function redConLimite(event, request, op) {
   const { cache, espera, buscarCopia, siFalla, esperaSinCopia, guardable, aviso } = op;
 
+  const { maxEdadMin } = op;
   return (async () => {
-    const copia = await buscarCopia();
+    let copia = await buscarCopia();
     if (copia && sinConexion()) {
-      if (aviso) avisarDatosDesdeCopia();
+      if (aviso) avisarDatosDesdeCopia(edadMinutos(copia));
       return copia;
     }
     if (!copia && sinConexion()) return siFalla();
 
+    // Datos guardados hace más de 3 días: con conexión no se usan como
+    // "señal débil" (se espera a la red); sin conexión sí, con su fecha.
+    if (copia && maxEdadMin && edadMinutos(copia) !== null && edadMinutos(copia) > maxEdadMin) copia = null;
+
+    let seUsoLaCopia = false;
     const red = fetch(request);
-    // Guardar lo que llegue de la red, aunque llegue tarde
+    // Guardar lo que llegue de la red, aunque llegue tarde. Si mientras
+    // tanto se mostró la copia, se avisa a la app para que recargue.
     event.waitUntil(
       red
         .then(async (res) => {
           if (res && guardable(res)) {
             const paraGuardar = await copiaGuardable(res);
-            const c = await caches.open(cache);
-            await c.put(request, paraGuardar);
+            await guardarCopia(cache, request, paraGuardar);
             recortar(cache);
+            if (seUsoLaCopia && aviso) avisarDatosLlegaron();
           }
         })
         .catch(() => {})
@@ -285,12 +347,18 @@ function redConLimite(event, request, op) {
         }
       };
       red.then(terminar).catch(async () => {
-        if (copia && aviso) avisarDatosDesdeCopia();
+        if (!listo && copia) {
+          seUsoLaCopia = true;
+          if (aviso) avisarDatosDesdeCopia(edadMinutos(copia));
+        }
         terminar(copia || (await siFalla()));
       });
       if (copia) {
         setTimeout(() => {
-          if (!listo && aviso) avisarDatosDesdeCopia();
+          if (!listo) {
+            seUsoLaCopia = true;
+            if (aviso) avisarDatosDesdeCopia(edadMinutos(copia));
+          }
           terminar(copia);
         }, espera);
       } else if (esperaSinCopia) {
@@ -424,6 +492,7 @@ self.addEventListener("fetch", (event) => {
         cache: CACHE_DATOS,
         espera: 4000,
         esperaSinCopia: 12000,
+        maxEdadMin: 3 * 24 * 60,
         aviso: true,
         // 200 y 206: las listas que se piden de a tandas vuelven con 206
         guardable: (res) => res && (res.status === 200 || res.status === 206),
@@ -468,10 +537,22 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
-async function avisarDatosDesdeCopia() {
+async function avisarDatosDesdeCopia(edadMin) {
   try {
     const ventanas = await self.clients.matchAll({ type: "window" });
-    ventanas.forEach((v) => v.postMessage({ tipo: "datos-desde-copia" }));
+    ventanas.forEach((v) => v.postMessage({ tipo: "datos-desde-copia", edadMin: edadMin ?? null }));
+  } catch (e) {}
+}
+
+// Se mostró la copia porque la red tardaba, y después la red contestó:
+// la app vuelve a pedir y muestra lo nuevo sin que toques nada.
+let ultimoAvisoLlegaron = 0;
+async function avisarDatosLlegaron() {
+  if (Date.now() - ultimoAvisoLlegaron < 3000) return;
+  ultimoAvisoLlegaron = Date.now();
+  try {
+    const ventanas = await self.clients.matchAll({ type: "window" });
+    ventanas.forEach((v) => v.postMessage({ tipo: "datos-llegaron" }));
   } catch (e) {}
 }
 

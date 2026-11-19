@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { catalogoLocal, fechaCatalogo, ventasPendientes } from "@/lib/cajaOffline";
+import { leerPedidosOffline, fechaPedidosOffline } from "@/lib/catalogoOffline";
+import { espacioLocalUsado } from "@/lib/almacenLocal";
+
+function mb(bytes) {
+  return (bytes / 1048576).toLocaleString("es-AR", { maximumFractionDigits: 1 });
+}
 
 // Muestra si la app está lista para trabajar sin señal, y deja forzar la
 // descarga. En la Comarca la señal se corta seguido: conviene poder
@@ -13,11 +19,29 @@ export default function EstadoOffline() {
   const [pendientes, setPendientes] = useState(0);
   const [descargando, setDescargando] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [pedidosGuardados, setPedidosGuardados] = useState(0);
+  const [fechaPedidos, setFechaPedidos] = useState(null);
+  const [espacio, setEspacio] = useState(null);
+  const [localUsado, setLocalUsado] = useState(0);
 
   async function revisar() {
     setProductos(catalogoLocal().length);
     setFecha(fechaCatalogo());
     setPendientes(ventasPendientes().length);
+    setPedidosGuardados(leerPedidosOffline().length);
+    setFechaPedidos(fechaPedidosOffline());
+    setLocalUsado(espacioLocalUsado());
+
+    // Cuánto lugar ocupa la app en el celular y cuánto le da el navegador.
+    // Si se llena, el navegador deja de guardar las copias nuevas.
+    try {
+      if (navigator.storage?.estimate) {
+        const e = await navigator.storage.estimate();
+        setEspacio({ usado: e.usage || 0, cuota: e.quota || 0 });
+      }
+      // Pedimos que no borre lo guardado por su cuenta cuando le falta lugar
+      if (navigator.storage?.persist) navigator.storage.persist().catch(() => {});
+    } catch (e) {}
 
     // Cuántas pantallas quedaron guardadas
     try {
@@ -87,6 +111,20 @@ export default function EstadoOffline() {
         </p>
         <p>
           {paginas > 5 ? "✓" : "✗"} {paginas} pantallas guardadas
+        </p>
+        <p>
+          {pedidosGuardados > 0 ? "✓" : "✗"} {pedidosGuardados} pedidos guardados
+          {fechaPedidos &&
+            ` · ${fechaPedidos.toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`}
+        </p>
+        {espacio && espacio.cuota > 0 && (
+          <p className={espacio.usado / espacio.cuota > 0.85 ? "text-red-700 font-bold" : ""}>
+            💾 Espacio usado: {mb(espacio.usado)} MB de {mb(espacio.cuota)} MB
+            {espacio.usado / espacio.cuota > 0.85 ? " · casi lleno" : ""}
+          </p>
+        )}
+        <p className={localUsado > 4500000 ? "text-red-700 font-bold" : ""}>
+          🗂️ Datos de trabajo: {Math.min(100, Math.round((localUsado / 5000000) * 100))}% del lugar disponible
         </p>
         {pendientes > 0 && (
           <p className="text-amber-800 font-bold">
