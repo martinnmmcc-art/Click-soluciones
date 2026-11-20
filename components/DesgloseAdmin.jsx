@@ -4,12 +4,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAdmin } from "@/context/AdminContext";
 import { formatPrice } from "@/lib/whatsapp";
+import { supabase } from "@/lib/supabaseClient";
+import { productosEnMemoria } from "@/lib/productosSync";
 
 // Panel que SOLO ve el administrador en la ficha de un producto.
 // Muestra cuánto le cuesta de verdad el producto (costo del proveedor +
 // transferencia + dólar + transporte), cuánto gana, y deja probar un
 // descuento para ver si todavía conviene. Se puede mostrar u ocultar, y
 // recuerda la elección para los próximos productos.
+//
+// La ficha del producto solo trae los datos públicos (el costo no viaja a
+// los visitantes). Por eso este panel pide aparte, con la sesión de admin,
+// el costo y los porcentajes de ESE producto.
+
+const CAMPOS_PRIVADOS = "costo, pct_transferencia, pct_dolar, pct_transporte, pct_ganancia";
 
 const CLAVE = "bolson-desglose-admin-visible";
 
@@ -17,10 +25,33 @@ function redondear(n) {
   return Math.round(Number(n) || 0);
 }
 
-export default function DesgloseAdmin({ producto }) {
+export default function DesgloseAdmin({ producto: publico }) {
   const { isAdmin } = useAdmin();
   const [visible, setVisible] = useState(true);
   const [descuento, setDescuento] = useState("");
+  // null = todavía no llegó; "error" = no se pudo leer
+  const [privado, setPrivado] = useState(null);
+
+  const id = publico?.id;
+  useEffect(() => {
+    if (!isAdmin || !id) return;
+    let vivo = true;
+    setPrivado(null);
+    (async () => {
+      try {
+        const { data, error } = await supabase.from("Productos").select(CAMPOS_PRIVADOS).eq("id", id).maybeSingle();
+        if (error || !data) throw error || new Error("sin datos");
+        if (vivo) setPrivado(data);
+      } catch (e) {
+        // Sin señal: el costo guardado en el celular (porcentajes de siempre)
+        const guardado = (productosEnMemoria() || []).find((p) => String(p.id) === String(id));
+        if (vivo) setPrivado(guardado && guardado.costo != null ? { costo: guardado.costo } : "error");
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [isAdmin, id]);
 
   useEffect(() => {
     try {
@@ -37,7 +68,11 @@ export default function DesgloseAdmin({ producto }) {
     } catch {}
   }
 
-  if (!isAdmin || !producto) return null;
+  if (!isAdmin || !publico) return null;
+
+  const cargando = privado === null;
+  const fallo = privado === "error";
+  const producto = { ...publico, ...(privado && privado !== "error" ? privado : {}) };
 
   const costo = Number(producto.costo) || 0;
   const pct = {
@@ -84,7 +119,14 @@ export default function DesgloseAdmin({ producto }) {
 
       {visible && (
         <div className="px-4 pb-4">
-          {costo <= 0 ? (
+          {cargando ? (
+            <p className="text-sm text-amber-800">Leyendo tu costo...</p>
+          ) : fallo ? (
+            <p className="text-sm text-amber-800">
+              No se pudo leer el costo. Revisá que tengas la sesión de admin iniciada y señal, y volvé a abrir el
+              producto.
+            </p>
+          ) : costo <= 0 ? (
             <p className="text-sm text-amber-800">
               Este producto no tiene costo cargado.{" "}
               <Link href={`/admin/productos/${producto.id}`} className="underline font-semibold">
