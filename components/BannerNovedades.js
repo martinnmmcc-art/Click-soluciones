@@ -111,7 +111,7 @@ export default function BannerNovedades() {
   const descripcionCorta = (p.descripcion || "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 95);
+    .slice(0, 220);
 
   return (
     <div className="px-4 mt-4 py-4 bg-gradient-to-b from-blue-50 to-transparent">
@@ -146,7 +146,8 @@ export default function BannerNovedades() {
       >
         <div className="flex">
           {/* FOTO */}
-          <div className="relative w-2/5 flex-shrink-0 bg-white flex items-center justify-center aspect-square p-2">
+          {/* En PC la foto tiene tamaño fijo: al 40% del ancho quedaba gigante y el texto chiquito */}
+          <div className="relative w-2/5 md:w-56 lg:w-64 flex-shrink-0 bg-white flex items-center justify-center aspect-square p-2 md:p-4">
             <img
               src={urlImagen(p.imagen_url)}
               alt={p.nombre}
@@ -163,7 +164,7 @@ export default function BannerNovedades() {
           </div>
 
           {/* TEXTO */}
-          <div className="flex-1 p-3 min-w-0 flex flex-col justify-between">
+          <div className="flex-1 p-3 md:p-6 min-w-0 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-1 mb-1 flex-wrap">
                 <span className="bg-brand-blue/10 text-brand-blue text-[10px] font-extrabold px-2 py-0.5 rounded-full">
@@ -181,12 +182,12 @@ export default function BannerNovedades() {
                 )}
               </div>
 
-              <h3 className="font-bold text-sm text-gray-800 leading-tight line-clamp-2">
+              <h3 className="font-bold text-sm md:text-2xl text-gray-800 leading-tight line-clamp-2 md:mt-1">
                 {p.nombre}
               </h3>
 
               {descripcionCorta && (
-                <p className="text-[11px] text-gray-500 mt-1 line-clamp-2">
+                <p className="text-[11px] md:text-sm text-gray-500 mt-1 md:mt-2 line-clamp-2 md:line-clamp-3 md:max-w-2xl">
                   {descripcionCorta}
                 </p>
               )}
@@ -199,11 +200,11 @@ export default function BannerNovedades() {
                 </p>
               )}
               <div className="flex items-end justify-between gap-2">
-                <p className="text-lg font-extrabold text-gray-900 leading-tight">
+                <p className="text-lg md:text-3xl font-extrabold text-gray-900 leading-tight">
                   ${formatPrice(precioFinal)}
                 </p>
-                <span className="text-[11px] font-bold text-white bg-brand-blue px-2.5 py-1 rounded-lg whitespace-nowrap">
-                  Ver
+                <span className="text-[11px] md:text-sm font-bold text-white bg-brand-blue px-2.5 py-1 md:px-5 md:py-2 rounded-lg whitespace-nowrap">
+                  Ver<span className="hidden md:inline"> producto</span>
                 </span>
               </div>
               {enOferta && (
@@ -211,7 +212,7 @@ export default function BannerNovedades() {
                   Ahorrás ${formatPrice(ahorro)}
                 </p>
               )}
-              <p className="text-[10px] text-gray-400 mt-0.5">🚚 Entrega en El Bolsón</p>
+              <p className="text-[10px] md:text-xs text-gray-400 mt-0.5">🚚 Entrega en El Bolsón</p>
             </div>
           </div>
         </div>

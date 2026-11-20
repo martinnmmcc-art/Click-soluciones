@@ -288,7 +288,7 @@ export default function APedidoPage() {
                       fotos={fotosDe(prod)}
                       video={prod.video_url}
                       alt={prod.nombre}
-                      className={`w-full h-32 object-cover rounded-xl mb-2 bg-gray-50 ${prod.sin_stock_proveedor ? "opacity-50 grayscale" : ""}`}
+                      className={`w-full h-40 md:h-52 object-contain rounded-xl mb-2 bg-white ${prod.sin_stock_proveedor ? "opacity-50 grayscale" : ""}`}
                     />
                     {prod.sin_stock_proveedor ? (
                       <span className="absolute top-1.5 left-1.5 bg-gray-700 text-white text-[9px] font-bold px-2 py-0.5 rounded-full">

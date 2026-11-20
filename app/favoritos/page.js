@@ -74,7 +74,7 @@ export default function FavoritosPage() {
                   <BotonFavorito productoId={prod.id} className="absolute top-4 right-4 w-8 h-8 z-10" />
                   <Link href={`/producto/${prod.id}`} onClick={alSalir}>
                     {prod.imagen_url ? (
-                      <img src={urlImagen(prod.imagen_url)} alt={prod.nombre} className="w-full h-32 object-cover rounded-xl mb-2 bg-gray-50" />
+                      <img src={urlImagen(prod.imagen_url)} alt={prod.nombre} className="w-full h-40 md:h-52 object-contain rounded-xl mb-2 bg-white" />
                     ) : (
                       <div className="w-full h-32 bg-gray-100 rounded-xl mb-2 flex items-center justify-center text-2xl">📦</div>
                     )}
