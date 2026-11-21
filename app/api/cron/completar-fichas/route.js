@@ -22,8 +22,12 @@ import { completarConIA, lineasSeguras } from "@/lib/completarIA";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const LIMITE_MS = 40000;
+// Si un producto falla por tiempo o por un error pasajero de Google, se
+// reintenta en las próximas vueltas (sin búsqueda, que es lo más lento).
+// Recién al tercer intento se da por perdido.
+const MAX_INTENTOS = 3;
 const CAMPOS =
-  "id, nombre, descripcion, categoria, nombre_proveedor, descripcion_proveedor, caracteristicas, accesorios, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, imagen_url_5, imagen_url_6";
+  "id, nombre, descripcion, categoria, nombre_proveedor, descripcion_proveedor, caracteristicas, accesorios, imagen_url, imagen_url_2, imagen_url_3, imagen_url_4, imagen_url_5, imagen_url_6, ficha_ia";
 
 async function autorizado(request) {
   const clave = request.headers.get("x-cron");
@@ -51,9 +55,14 @@ async function siguiente() {
 }
 
 async function procesar(p) {
+  const intentos = Number(p.ficha_ia?.intentos) || 0;
   const borrador = await completarConIA(p, {
     clave: process.env.GEMINI_API_KEY,
-    modelo: process.env.GEMINI_MODEL
+    modelo: process.env.GEMINI_MODEL,
+    // Un solo pedido a Gemini por vuelta para no pasarse del minuto:
+    // la primera vez prueba con búsqueda, si falló, sin búsqueda
+    buscar: intentos === 0,
+    espera: 42000
   });
 
   const cambios = { ficha_ia: borrador, ficha_ia_en: new Date().toISOString() };
@@ -75,7 +84,8 @@ async function procesar(p) {
 async function correr() {
   const inicio = Date.now();
   const hechos = [];
-  while (Date.now() - inicio < LIMITE_MS - 20000) {
+  // Un producto por vuelta: cada vuelta tiene un minuto como máximo
+  while (hechos.length === 0 && Date.now() - inicio < LIMITE_MS) {
     const p = await siguiente();
     if (!p) return { listo: true, hechos };
     try {
@@ -83,12 +93,13 @@ async function correr() {
     } catch (e) {
       if (e.codigo === "LIMITE") return { listo: false, frenado: "limite", hechos };
       if (e.codigo === "SIN_CLAVE") return { listo: false, frenado: "sin_clave", hechos };
-      // Otro error con este producto: se anota y se pasa al siguiente
-      await supabase
-        .from("Productos")
-        .update({ ficha_ia: { error: String(e.message).slice(0, 300) }, ficha_ia_en: new Date().toISOString() })
-        .eq("id", p.id);
-      hechos.push({ id: p.id, error: String(e.message).slice(0, 120) });
+      // Error con este producto: se anota el intento. Hasta el tercero
+      // vuelve a la cola; después se da por perdido y se pasa al siguiente.
+      const intentos = (Number(p.ficha_ia?.intentos) || 0) + 1;
+      const cambios = { ficha_ia: { error: String(e.message).slice(0, 300), intentos } };
+      if (intentos >= MAX_INTENTOS) cambios.ficha_ia_en = new Date().toISOString();
+      await supabase.from("Productos").update(cambios).eq("id", p.id);
+      hechos.push({ id: p.id, error: String(e.message).slice(0, 120), intentos });
     }
   }
   return { listo: false, hechos };
