@@ -7,6 +7,7 @@ import CodigoBarras from "@/components/CodigoBarras";
 import CalculadoraPrecio from "@/components/CalculadoraPrecio";
 import VideoProducto from "@/components/VideoProducto";
 import { normalizarVideoUrl, esLinkCorto, infoVideo } from "@/lib/video";
+import CompletarConIA from "@/components/CompletarConIA";
 
 export { normalizarVideoUrl };
 
@@ -38,6 +39,8 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
   const [form, setForm] = useState({
     nombre: initialData?.nombre || "",
     descripcion: initialData?.descripcion || "",
+    caracteristicas: initialData?.caracteristicas || "",
+    accesorios: initialData?.accesorios || "",
     precio: initialData?.precio ?? "",
     precio_oferta: initialData?.precio_oferta ?? "",
     imagen_url: initialData?.imagen_url || "",
@@ -190,6 +193,8 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         margen_porcentaje: form.margen_porcentaje !== "" ? Number(form.margen_porcentaje) : null,
         // El flete ya va dentro del % de Transporte: nunca un monto aparte
         costo_envio: 0,
+        caracteristicas: form.caracteristicas.trim() || null,
+        accesorios: form.accesorios.trim() || null,
         video_url: await prepararVideo(form.video_url),
       });
     } catch (err) {
@@ -236,6 +241,12 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
         />
       </div>
 
+      <CompletarConIA
+        productoId={initialData?.id}
+        form={form}
+        onUsar={(campo, valor) => setForm((prev) => ({ ...prev, [campo]: valor }))}
+      />
+
       <div>
         <label htmlFor="descripcion" className="text-sm font-medium text-gray-700 block mb-1">
           Descripción (la que ve el cliente y lee Google)
@@ -276,6 +287,39 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
             )}
           </details>
         )}
+      </div>
+
+      <div>
+        <label htmlFor="caracteristicas" className="text-sm font-medium text-gray-700 block mb-1">
+          Características principales
+        </label>
+        <textarea
+          id="caracteristicas"
+          name="caracteristicas"
+          value={form.caracteristicas}
+          onChange={handleChange}
+          rows={5}
+          className="input-field"
+          placeholder={"• Potencia: 30 W\n• Batería: 1200 mAh\n• Medidas: 12 x 8 cm"}
+        />
+        <p className="text-[11px] text-gray-500 mt-1">
+          Una por línea con "•". Se muestra en la ficha como "Características principales". Si queda vacío, no aparece.
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="accesorios" className="text-sm font-medium text-gray-700 block mb-1">
+          ¿Qué incluye la caja?
+        </label>
+        <textarea
+          id="accesorios"
+          name="accesorios"
+          value={form.accesorios}
+          onChange={handleChange}
+          rows={3}
+          className="input-field"
+          placeholder={"• Cable USB tipo C\n• Manual"}
+        />
       </div>
 
       {/* ===== CALCULADORA DE PRECIO ===== */}
