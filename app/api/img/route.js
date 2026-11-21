@@ -40,7 +40,7 @@ const MARCADOR = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="40
 <text x="200" y="250" font-size="20" fill="#9CA3AF" text-anchor="middle" font-family="sans-serif">Foto en camino</text>
 </svg>`;
 
-function marcador() {
+function marcadorSvg() {
   return new Response(MARCADOR, {
     status: 200,
     headers: {
@@ -52,9 +52,25 @@ function marcador() {
   });
 }
 
+// Con ?f=jpg la foto sale en JPG. Es para el catálogo de Meta (Facebook,
+// Instagram, WhatsApp), que no acepta WebP ni SVG. En ese modo, si la foto
+// no se puede traer, se responde un error y no el marcador "Foto en camino":
+// así Meta reintenta más tarde en vez de publicar el marcador como foto.
+function sinFoto(enJpg) {
+  if (!enJpg) return marcadorSvg();
+  return new Response("Foto no disponible", { status: 503, headers: { "Retry-After": "3600" } });
+}
+
+async function aJpg(bytes) {
+  const sharp = (await import("sharp")).default;
+  return sharp(bytes).flatten({ background: "#ffffff" }).jpeg({ quality: 85, mozjpeg: true }).toBuffer();
+}
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const url = searchParams.get("u") || searchParams.get("url");
+  const enJpg = searchParams.get("f") === "jpg";
+  const marcador = () => sinFoto(enJpg);
 
   if (!url) return marcador();
 
@@ -91,6 +107,10 @@ export async function GET(request) {
     // Nuestra marca de agua, salvo que la foto ya la tenga
     if (!yaTieneMarcaDeAgua(destino.pathname)) {
       ({ bytes, tipo: tipoFinal } = await agregarMarcaDeAgua(bytes, tipoFinal || tipo));
+    }
+    if (enJpg) {
+      bytes = await aJpg(bytes);
+      tipoFinal = "image/jpeg";
     }
 
     return new Response(bytes, {

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { createClient } from "@supabase/supabase-js";
+import { rutaProducto } from "@/lib/seo";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -16,7 +17,12 @@ const SITIO = "https://www.bolsonclick.com.ar";
 // la lee todos los días: los precios y el stock se actualizan solos, sin
 // tener que cargar producto por producto en el celular.
 //
-// Formato: XML de Google Shopping, que es el que Meta acepta.
+// Formato: XML de Google Shopping. Meta lo acepta igual que un CSV y tiene
+// una ventaja: las descripciones con comas, comillas o saltos de línea no
+// rompen nada.
+//
+// Las fotos salen en JPG (?f=jpg): Meta no acepta WebP, que es como están
+// guardadas.
 
 function escapar(texto) {
   if (!texto) return "";
@@ -92,13 +98,13 @@ export async function GET(request) {
           `${p.nombre}. Disponible en Bolson Click, El Bolsón y la Comarca Andina.`;
 
         // Las fotos pasan por nuestro dominio para no exponer al proveedor
-        const foto = `${SITIO}/api/img?u=${encodeURIComponent(p.imagen_url)}&m=2`;
+        const foto = `${SITIO}/api/img?u=${encodeURIComponent(p.imagen_url)}&m=2&f=jpg`;
         const extras = [p.imagen_url_2, p.imagen_url_3]
           .filter(Boolean)
           .map(
             (u) =>
               `    <g:additional_image_link>${escapar(
-                `${SITIO}/api/img?u=${encodeURIComponent(u)}&m=2`
+                `${SITIO}/api/img?u=${encodeURIComponent(u)}&m=2&f=jpg`
               )}</g:additional_image_link>`
           )
           .join("\n");
@@ -107,7 +113,7 @@ export async function GET(request) {
     <g:id>BC${p.id}</g:id>
     <g:title>${escapar(limpiarTexto(p.nombre, 150))}</g:title>
     <g:description>${escapar(descripcion)}</g:description>
-    <g:link>${SITIO}/producto/${p.id}</g:link>
+    <g:link>${escapar(SITIO + rutaProducto(p))}</g:link>
     <g:image_link>${escapar(foto)}</g:image_link>
 ${extras}
     <g:availability>${disponible}</g:availability>
@@ -119,7 +125,6 @@ ${extras}
         }
     <g:brand>Bolson Click</g:brand>
     <g:product_type>${escapar(p.categoria || "Hogar")}</g:product_type>
-    <g:google_product_category>Home &amp; Garden</g:google_product_category>
   </item>`;
       })
       .join("\n");
