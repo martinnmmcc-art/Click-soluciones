@@ -114,4 +114,48 @@ export async function POST(request) {
   }
 }
 
-export const GET = POST;
+// Diagnóstico (?diag=1): qué modelos de Gemini responde la clave y cuánto
+// tardan, con un pedido mínimo de texto. No muestra la clave.
+async function diagnostico() {
+  const clave = process.env.GEMINI_API_KEY;
+  if (!clave) return { error: "sin clave" };
+  const base = "https://generativelanguage.googleapis.com/v1beta/models";
+  const salida = { modeloConfigurado: process.env.GEMINI_MODEL || null, pruebas: [] };
+  try {
+    const t = Date.now();
+    const r = await fetch(`${base}?pageSize=200`, { headers: { "x-goog-api-key": clave }, signal: AbortSignal.timeout(10000) });
+    const d = await r.json().catch(() => ({}));
+    salida.lista = {
+      estado: r.status,
+      ms: Date.now() - t,
+      flash: (d.models || []).map((m) => m.name.replace("models/", "")).filter((n) => /flash/.test(n)).slice(0, 30),
+      error: d.error?.message?.slice(0, 200) || null
+    };
+  } catch (e) {
+    salida.lista = { error: e.message };
+  }
+  for (const m of ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-flash-lite-latest"]) {
+    const t = Date.now();
+    try {
+      const r = await fetch(`${base}/${m}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": clave },
+        body: JSON.stringify({ contents: [{ parts: [{ text: "Respondé solo: ok" }] }] }),
+        signal: AbortSignal.timeout(12000)
+      });
+      const d = await r.json().catch(() => ({}));
+      salida.pruebas.push({ modelo: m, estado: r.status, ms: Date.now() - t, error: d.error?.message?.slice(0, 160) || null });
+    } catch (e) {
+      salida.pruebas.push({ modelo: m, ms: Date.now() - t, error: e.message });
+    }
+  }
+  return salida;
+}
+
+export async function GET(request) {
+  if (new URL(request.url).searchParams.get("diag") === "1") {
+    if (!(await autorizado(request))) return Response.json({ error: "No autorizado" }, { status: 401 });
+    return Response.json(await diagnostico());
+  }
+  return POST(request);
+}
