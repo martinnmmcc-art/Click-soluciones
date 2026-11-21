@@ -169,6 +169,7 @@ export default function CompletarConIA({ productoId, form, onUsar }) {
               "No se leyó un modelo · "
             )}
             Fotos leídas: {borrador.fotosLeidas}
+            {!borrador.conBusqueda && " · Sin búsqueda en Google (solo fotos y proveedor)"}
           </p>
 
           {borrador.advertencias.length > 0 && (

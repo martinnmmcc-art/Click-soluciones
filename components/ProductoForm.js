@@ -300,7 +300,7 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
           onChange={handleChange}
           rows={5}
           className="input-field"
-          placeholder={"• Potencia: 30 W\n• Batería: 1200 mAh\n• Medidas: 12 x 8 cm"}
+          placeholder={"Ej:\n• Medidas: 35 x 44 cm\n• Potencia: 30 W"}
         />
         <p className="text-[11px] text-gray-500 mt-1">
           Una por línea con "•". Se muestra en la ficha como "Características principales". Si queda vacío, no aparece.
@@ -318,7 +318,7 @@ export default function ProductoForm({ initialData, onSubmit, submitLabel }) {
           onChange={handleChange}
           rows={3}
           className="input-field"
-          placeholder={"• Cable USB tipo C\n• Manual"}
+          placeholder={"Ej:\n• Cable USB tipo C"}
         />
       </div>
 
