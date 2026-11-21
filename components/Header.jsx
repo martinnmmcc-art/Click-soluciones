@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import DatosSiempreAlDia from "@/components/DatosSiempreAlDia";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useCart } from "@/context/CartContext";
 import { useAdmin } from "@/context/AdminContext";
 import SelectorTema from "@/components/SelectorTema";
@@ -15,8 +15,9 @@ import { LogoInstagram, LogoFacebook, LogoWhatsApp, telefonoLegible, ENLACES } f
 //  - Dónde entregamos (la duda número uno de quien no nos conoce).
 //  - El WhatsApp con el número a la vista: se distingue y se puede anotar.
 //  - Instagram y Facebook: abajo de todo nadie los encontraba.
-// El buscador se esconde al bajar y vuelve al subir, para dejar más lugar a
-// los productos sin perderlo.
+// El buscador queda SIEMPRE a la vista. Antes se escondía al bajar, pero al
+// esconderse el encabezado se achicaba, la página se corría y eso lo hacía
+// aparecer y desaparecer sin parar (parpadeaba).
 //
 // En el celular el carrito está en el menú de abajo (BottomNav); en PC, acá.
 const MENU_PC = [
@@ -45,23 +46,6 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
   // Catálogo, productos...). En el panel ya lo pone app/admin/layout.js.
   const mostrarEstadoDatos = isAdmin && !pathname.startsWith("/admin");
 
-  // Buscador: se oculta al bajar, vuelve al subir o al llegar arriba
-  const [buscadorVisible, setBuscadorVisible] = useState(true);
-  const ultimoY = useRef(0);
-  const enFoco = useRef(false);
-  useEffect(() => {
-    if (!showSearch) return;
-    function alDesplazar() {
-      const y = window.scrollY;
-      const dif = y - ultimoY.current;
-      if (y < 120 || enFoco.current) setBuscadorVisible(true);
-      else if (dif > 8) setBuscadorVisible(false);
-      else if (dif < -8) setBuscadorVisible(true);
-      ultimoY.current = y;
-    }
-    window.addEventListener("scroll", alDesplazar, { passive: true });
-    return () => window.removeEventListener("scroll", alDesplazar);
-  }, [showSearch]);
 
   function handleSearch(e) {
     e.preventDefault();
@@ -179,17 +163,11 @@ export default function Header({ showSearch = true, initialQuery = "", busqueda,
         </div>
 
         {showSearch && (
-          <div
-            className={`px-3 max-w-6xl mx-auto overflow-hidden transition-all duration-200 ${
-              buscadorVisible ? "max-h-40 pb-2.5 opacity-100" : "max-h-0 pb-0 opacity-0"
-            }`}
-          >
+          <div className="px-3 max-w-6xl mx-auto pb-2.5">
             <form onSubmit={handleSearch} className="flex gap-2">
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => (enFoco.current = true)}
-                onBlur={() => (enFoco.current = false)}
                 type="search"
                 enterKeyHint="search"
                 placeholder="¿Qué estás buscando?"
