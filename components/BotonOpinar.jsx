@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useAdmin } from "@/context/AdminContext";
 import { sesionCliente, yaOpinoEnEsteCelular } from "@/lib/opiniones";
+import { tokenSesion, urlMisPedidos, urlSaldoAFavor } from "@/lib/sesionCliente";
 
 // Botón flotante para opinar, arriba del de WhatsApp.
 //
@@ -64,7 +65,7 @@ export default function BotonOpinar() {
         setVisible(true);
 
         // ¿Ya recibió algún pedido? Entonces tiene algo para contar
-        const res = await fetch(`/api/mis-pedidos?telefono=${encodeURIComponent(sesion.telefono)}`);
+        const res = await fetch(urlMisPedidos(sesion.telefono));
         const data = await res.json();
         const entregado = (data.pedidos || []).find((p) => p.estado === "entregado");
         if (!cancelado && entregado) setPedidoId(entregado.id);

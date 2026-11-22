@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatPrice } from "@/lib/whatsapp";
+import { tokenSesion, urlMisPedidos, urlSaldoAFavor } from "@/lib/sesionCliente";
 
 // Le recuerda al cliente lo que debe, una vez por día.
 //
@@ -40,7 +41,7 @@ export default function AvisoDeuda() {
         if (!sesion?.telefono) return;
 
         const res = await fetch(
-          `/api/mis-pedidos?telefono=${encodeURIComponent(sesion.telefono)}`
+          urlMisPedidos(sesion.telefono)
         );
         const data = await res.json();
         if (!res.ok) return;

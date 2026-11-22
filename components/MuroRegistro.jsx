@@ -5,16 +5,23 @@ import { supabase } from "@/lib/supabaseClient";
 import { correoGuardado } from "@/lib/sesionGuardada";
 import { validarTelefonoArgentino, normalizarTelefono } from "@/lib/telefono";
 import { avisarAdmin } from "@/lib/avisarAdmin";
+import { guardarSesion } from "@/lib/sesionCliente";
 import ConsentimientoRegistro, {
   guardarConsentimientoCliente,
   MENSAJE_FALTA_ACEPTAR
 } from "@/components/ConsentimientoRegistro";
 
-// Registro guiado, de a un paso por pantalla: nombre → celular → localidad.
+// Registro en 2 pasos: celular → nombre y localidad.
 //
-// Una sola pregunta por vez se completa mucho más que un formulario con
-// todo junto: cada paso es fácil, se ve cuánto falta y nadie se traba.
+// Arranca por el celular a propósito: si ese número ya tiene cuenta (por
+// ejemplo, un cliente que cambió de celular), entra directo y listo, sin
+// contestar nada más. Solo los nuevos completan el paso 2.
 // Sin contraseña: cada campo extra hace que se vaya más gente.
+//
+// Seguridad: a quien entra con un número que YA existía no se le da acceso a
+// los pedidos ni a los datos de esa cuenta (cualquiera puede escribir un
+// número). Puede mirar y comprar; para ver sus pedidos confirma desde
+// "Mi cuenta" (ver lib/sesionCliente.js).
 //
 // Cuándo aparece:
 //  - Primeras 2 visitas sin cuenta: se puede mirar libre. A los 20 segundos
@@ -94,6 +101,8 @@ export default function MuroRegistro() {
   const [otraLocalidad, setOtraLocalidad] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState(false);
+  // "nuevo" (creó la cuenta) o "volvio" (el número ya tenía cuenta)
+  const [tipoListo, setTipoListo] = useState("nuevo");
   const [error, setError] = useState("");
   const [acepta, setAcepta] = useState(false);
   const [novedades, setNovedades] = useState(false);
@@ -233,24 +242,45 @@ export default function MuroRegistro() {
     return () => window.removeEventListener("keydown", alTeclear);
   });
 
-  function siguiente(e) {
+  async function siguiente(e) {
     e?.preventDefault();
     setError("");
     if (paso === 1) {
-      if (nombre.trim().length < 2) {
-        setError("Escribí tu nombre para seguir.");
-        return;
-      }
-      setPaso(2);
-      return;
-    }
-    if (paso === 2) {
       const chequeo = validarTelefonoArgentino(telefono);
       if (!chequeo.valido) {
         setError(chequeo.motivo);
         return;
       }
-      setPaso(3);
+      const tel = normalizarTelefono(telefono);
+      setEnviando(true);
+      try {
+        const [{ data: bloqueado }, { data: existe }] = await Promise.all([
+          supabase.rpc("telefono_esta_bloqueado", { p_telefono: tel }),
+          supabase.rpc("telefono_ya_registrado", { p_telefono: tel })
+        ]);
+        if (bloqueado) {
+          setError("Este número no puede acceder. Escribinos por WhatsApp.");
+          return;
+        }
+        if (existe) {
+          // Ya es cliente: entra a mirar y comprar sin más preguntas
+          guardarSesion({ telefono: tel, nombre: "", localidad: "", direccion: "", email: "" });
+          setTipoListo("volvio");
+          setListo(true);
+          setTimeout(() => window.location.reload(), 1400);
+          return;
+        }
+        setPaso(2);
+      } catch (err) {
+        // Sin poder chequear, sigue como cuenta nueva (el servidor decide)
+        setPaso(2);
+      } finally {
+        setEnviando(false);
+      }
+      return;
+    }
+    if (nombre.trim().length < 2) {
+      setError("Escribí tu nombre para seguir.");
       return;
     }
     if (!acepta) {
@@ -282,7 +312,7 @@ export default function MuroRegistro() {
           setError("Este número no puede acceder. Escribinos por WhatsApp.");
         } else if (msg.includes("TELEFONO_INVALIDO")) {
           setError("Revisá el número de celular.");
-          setPaso(2);
+          setPaso(1);
         } else {
           setError("No pudimos crear la cuenta. Probá de nuevo en un momento.");
         }
@@ -290,21 +320,23 @@ export default function MuroRegistro() {
       }
 
       const cuenta = data[0];
-      await guardarConsentimientoCliente(cuenta.cliente_id, tel, novedades);
-      localStorage.setItem(
-        "cliente_sesion",
-        JSON.stringify({
+      if (cuenta.ya_existia) {
+        // Se registró desde otro lado mientras tanto: entra como cliente que vuelve
+        guardarSesion({ telefono: tel, nombre: "", localidad: "", direccion: "", email: "" });
+        setTipoListo("volvio");
+      } else {
+        await guardarConsentimientoCliente(cuenta.cliente_id, tel, novedades);
+        guardarSesion({
           id: cuenta.cliente_id,
           telefono: tel,
           nombre: nombre.trim(),
           localidad: loc,
           direccion: "",
-          email: ""
-        })
-      );
-
-      if (!cuenta.ya_existia) {
+          email: "",
+          sesion: cuenta.sesion
+        });
         avisarAdmin({ tipo: "registro", telefono: tel, nombre: nombre.trim(), detalle: loc || null });
+        setTipoListo("nuevo");
       }
 
       setListo(true);
@@ -320,9 +352,8 @@ export default function MuroRegistro() {
 
   const primerNombre = nombre.trim().split(/\s+/)[0] || "";
   const titulos = {
-    1: "¿Cómo te llamás?",
-    2: `${primerNombre ? primerNombre + ", ¿" : "¿"}cuál es tu celular?`,
-    3: "¿Dónde te lo entregamos?"
+    1: "¿Cuál es tu celular?",
+    2: "¿Cómo te llamás y dónde estás?"
   };
 
   return (
@@ -349,21 +380,25 @@ export default function MuroRegistro() {
             <div className="text-center py-6">
               <p className="text-5xl mb-3" aria-hidden="true">🎉</p>
               <h2 id="titulo-registro" className="font-extrabold text-xl text-gray-800">
-                ¡Listo{primerNombre ? `, ${primerNombre}` : ""}!
+                {tipoListo === "volvio" ? "¡Hola de nuevo!" : `¡Listo${primerNombre ? `, ${primerNombre}` : ""}!`}
               </h2>
-              <p className="text-sm text-gray-500 mt-1">Ya tenés tu cuenta. Te llevamos a la tienda…</p>
+              <p className="text-sm text-gray-500 mt-1">
+                {tipoListo === "volvio"
+                  ? "Ese número ya tiene cuenta. Seguí mirando y comprando…"
+                  : "Ya tenés tu cuenta. Te llevamos a la tienda…"}
+              </p>
             </div>
           ) : (
             <>
               {/* Progreso: se ve cuánto falta */}
               <div className="flex items-center gap-1.5 mb-4 pr-8">
-                {[1, 2, 3].map((n) => (
+                {[1, 2].map((n) => (
                   <span
                     key={n}
                     className={`h-1.5 flex-1 rounded-full transition-colors ${n <= paso ? "bg-brand-blue" : "bg-gray-200"}`}
                   />
                 ))}
-                <span className="text-[11px] font-bold text-gray-400 ml-1 whitespace-nowrap">Paso {paso} de 3</span>
+                <span className="text-[11px] font-bold text-gray-400 ml-1 whitespace-nowrap">Paso {paso} de 2</span>
               </div>
 
               {paso === 1 && (
@@ -371,10 +406,10 @@ export default function MuroRegistro() {
                   <img src="/icons/icon-192.png" alt="" className="w-12 h-12 rounded-2xl flex-shrink-0" />
                   <p className="text-xs text-gray-600 leading-snug">
                     {modo === "obligatorio"
-                      ? "Ya miraste varias veces 🙂 Creá tu cuenta gratis en 3 pasos para seguir mirando."
+                      ? "Ya miraste varias veces 🙂 Dejanos tu celular para seguir mirando. Si ya sos cliente, entrás directo."
                       : modo === "carrito"
-                      ? `Para agregar ${productoPendiente ? `“${productoPendiente}”` : "productos"} al carrito creá tu cuenta gratis en 3 pasos. Se agrega solo al terminar.`
-                      : "Creá tu cuenta gratis en 3 pasos y seguí tus pedidos. No necesitás contraseña."}
+                      ? `Para agregar ${productoPendiente ? `“${productoPendiente}”` : "productos"} al carrito dejanos tu celular. Se agrega solo al terminar.`
+                      : "Dejanos tu celular y seguí tus pedidos. Sin contraseñas. Si ya sos cliente, entrás directo."}
                   </p>
                 </div>
               )}
@@ -385,19 +420,6 @@ export default function MuroRegistro() {
 
               <form onSubmit={siguiente} noValidate>
                 {paso === 1 && (
-                  <input
-                    ref={campo}
-                    value={nombre}
-                    onChange={(e) => setNombre(e.target.value)}
-                    className="input-field text-base"
-                    placeholder="Tu nombre y apellido"
-                    aria-label="Nombre y apellido"
-                    autoComplete="name"
-                    enterKeyHint="next"
-                  />
-                )}
-
-                {paso === 2 && (
                   <>
                     <input
                       ref={campo}
@@ -416,8 +438,18 @@ export default function MuroRegistro() {
                   </>
                 )}
 
-                {paso === 3 && (
+                {paso === 2 && (
                   <>
+                    <input
+                      ref={campo}
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      className="input-field text-base mb-3"
+                      placeholder="Tu nombre y apellido"
+                      aria-label="Nombre y apellido"
+                      autoComplete="name"
+                      enterKeyHint="done"
+                    />
                     <div className="flex flex-wrap gap-2">
                       {LOCALIDADES.map((l) => (
                         <button
@@ -453,7 +485,6 @@ export default function MuroRegistro() {
                     </div>
                     {otraLocalidad && (
                       <input
-                        ref={campo}
                         value={localidad}
                         onChange={(e) => setLocalidad(e.target.value)}
                         className="input-field text-base mt-3"
@@ -494,7 +525,7 @@ export default function MuroRegistro() {
                     </button>
                   )}
                   <button disabled={enviando} className="btn-primary flex-1 disabled:opacity-50">
-                    {enviando ? "Creando tu cuenta..." : paso < 3 ? "Siguiente" : "Crear mi cuenta"}
+                    {enviando ? (paso === 1 ? "Revisando..." : "Creando tu cuenta...") : paso === 1 ? "Seguir" : "Crear mi cuenta"}
                   </button>
                 </div>
               </form>
@@ -510,11 +541,7 @@ export default function MuroRegistro() {
               )}
 
               <p className="text-[11px] text-gray-600 text-center mt-2">
-                ¿Ya tenés cuenta?{" "}
-                <a href="/login?entrar=1" className="text-brand-blue font-semibold underline">
-                  Entrá acá
-                </a>
-                . Tu celular no se comparte con nadie.
+                Tu celular no se comparte con nadie. Solo lo usamos para coordinar tus pedidos.
               </p>
             </>
           )}

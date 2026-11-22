@@ -32,6 +32,18 @@ export async function GET(req) {
     return Response.json({ pedidos: [] });
   }
 
+  // Solo con la sesión verificada de ESE celular (ver lib/sesionCliente.js).
+  // Antes alcanzaba con saber el número para ver pedidos, direcciones y
+  // comprobantes de cualquier persona.
+  const sesion = searchParams.get("sesion");
+  const { data: valida } = await supabaseAdmin.rpc("sesion_cliente_valida", {
+    p_token: /^[0-9a-f-]{36}$/i.test(sesion || "") ? sesion : null,
+    p_telefono: telefonoNormalizado
+  });
+  if (!valida) {
+    return Response.json({ error: "SIN_SESION", pedidos: [] }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  }
+
   // Traemos los pedidos cuyo teléfono TERMINE con el número núcleo, para que
   // coincida sin importar cómo se haya guardado el prefijo en cada caso.
   const { data, error } = await supabaseAdmin

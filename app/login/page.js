@@ -20,6 +20,8 @@ import { avisarAdmin } from "@/lib/avisarAdmin";
 import { estadoEntrega, estadoPago, textoPago, PASOS_SEGUIMIENTO, pasoActual } from "@/lib/estadosPedido";
 import { aplicarBusqueda } from "@/lib/buscar";
 import { urlImagen } from "@/lib/imagenProducto";
+import { tokenSesion, urlMisPedidos, sesionVerificada, guardarSesion } from "@/lib/sesionCliente";
+import ConfirmarIdentidad from "@/components/ConfirmarIdentidad";
 
 
 export default function LoginPage() {
@@ -39,6 +41,8 @@ export default function LoginPage() {
   const [verPass, setVerPass] = useState(false);
   const [aviso, setAviso] = useState("");
   const [chequeando, setChequeando] = useState(false);
+  // El celular que puso en "Soy nuevo" ya tenía cuenta
+  const [yaCliente, setYaCliente] = useState(false);
 
   const [emailPerfil, setEmailPerfil] = useState("");
   const [direccionPerfil, setDireccionPerfil] = useState("");
@@ -205,10 +209,11 @@ export default function LoginPage() {
     setGuardandoPass(true);
     try {
       const tel = user?.telefono || sesionActiva?.telefono;
-      const { data, error } = await supabase.rpc("cambiar_password_cliente", {
+      const { data, error } = await supabase.rpc("cambiar_password_cliente_sesion", {
         p_telefono: tel,
         p_password_actual: passActual,
-        p_password_nueva: passNueva
+        p_password_nueva: passNueva,
+        p_sesion: tokenSesion()
       });
 
       const r = data?.[0];
@@ -220,6 +225,8 @@ export default function LoginPage() {
             ? "❌ La contraseña actual no es correcta."
             : motivo === "CORTA"
             ? "❌ La contraseña nueva es muy corta."
+            : motivo === "SIN_SESION"
+            ? "❌ Primero confirmá que sos vos (arriba, en Mis pedidos)."
             : "❌ No se pudo cambiar. Probá de nuevo."
         );
         return;
@@ -244,11 +251,16 @@ export default function LoginPage() {
   useEffect(() => {
     const tel = user?.telefono || sesionActiva?.telefono;
     if (!tel) return;
+    // Sin sesión verificada el servidor no los da: se muestra "Confirmá que sos vos"
+    if (!sesionVerificada(sesionActiva)) {
+      setMisPedidos([]);
+      return;
+    }
 
     async function cargarPedidos() {
       setPedidosLoading(true);
       try {
-        const res = await fetch(`/api/mis-pedidos?telefono=${encodeURIComponent(tel)}`);
+        const res = await fetch(urlMisPedidos(tel));
         const result = await res.json();
         if (res.ok) setMisPedidos(result.pedidos || []);
       } catch (e) {
@@ -422,7 +434,7 @@ export default function LoginPage() {
       const res = await fetch("/api/mis-pedidos/cancelar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedido_id: pedidoId, telefono: tel })
+        body: JSON.stringify({ pedido_id: pedidoId, telefono: tel, sesion: tokenSesion() })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -475,7 +487,8 @@ export default function LoginPage() {
         body: JSON.stringify({
           pedido_id: pedidoId,
           telefono: tel,
-          productos: [{ producto_id: producto.id, cantidad: 1 }]
+          productos: [{ producto_id: producto.id, cantidad: 1 }],
+          sesion: tokenSesion()
         })
       });
       const data = await res.json();
@@ -485,7 +498,7 @@ export default function LoginPage() {
       }
 
       // Refrescamos los pedidos para ver el cambio
-      const resPedidos = await fetch(`/api/mis-pedidos?telefono=${encodeURIComponent(tel)}`);
+      const resPedidos = await fetch(urlMisPedidos(tel));
       const result = await resPedidos.json();
       if (resPedidos.ok) setMisPedidos(result.pedidos || []);
 
@@ -528,7 +541,7 @@ export default function LoginPage() {
       const res = await fetch("/api/mis-pedidos/modificar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedido_id: pedidoId, telefono: tel, items })
+        body: JSON.stringify({ pedido_id: pedidoId, telefono: tel, items, sesion: tokenSesion() })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -578,10 +591,10 @@ export default function LoginPage() {
     };
 
     const { data: actualizado, error: updateError } = await supabase.rpc(
-      "actualizar_perfil_cliente",
+      "actualizar_perfil_cliente_sesion",
       {
-        p_id: sesionActiva.id,
         p_telefono: sesionActiva.telefono,
+        p_sesion: tokenSesion(),
         p_email: emailPerfil.trim(),
         p_direccion: direccionPerfil.trim(),
         p_localidad: localidad.trim()
@@ -589,7 +602,11 @@ export default function LoginPage() {
     );
 
     if (updateError || !actualizado) {
-      setMensajePerfil("❌ Error al actualizar el perfil.");
+      setMensajePerfil(
+        sesionVerificada()
+          ? "❌ Error al actualizar el perfil."
+          : "❌ Para cambiar tus datos, primero confirmá que sos vos (en Mis pedidos)."
+      );
       setLoading(false);
       return;
     }
@@ -980,11 +997,22 @@ export default function LoginPage() {
           <div className="mb-4">
             <h2 className="font-bold text-sm text-gray-800 mb-3">📦 Mis Pedidos</h2>
 
-            {pedidosLoading && (
+            {/* Entró con un número que ya existía, sin confirmar: puede comprar,
+                pero sus pedidos y datos se ven solo después de confirmar */}
+            {sesionActiva && !user && !sesionVerificada(sesionActiva) && (
+              <div className="mb-3">
+                <ConfirmarIdentidad
+                  telefono={sesionActiva.telefono}
+                  onListo={(cliente) => setSesionActiva(cliente)}
+                />
+              </div>
+            )}
+
+            {sesionVerificada(sesionActiva) && pedidosLoading && (
               <p className="text-xs text-gray-400 text-center py-4">Cargando tus pedidos...</p>
             )}
 
-            {!pedidosLoading && misPedidos.length === 0 && (
+            {sesionVerificada(sesionActiva) && !pedidosLoading && misPedidos.length === 0 && (
               <div className="card p-5 text-center text-gray-400 text-sm">
                 Todavía no hiciste ningún pedido.
               </div>
@@ -1291,7 +1319,7 @@ export default function LoginPage() {
 
   // ---------- Registro guiado ----------
   const LOCALIDADES = ["El Bolsón", "Lago Puelo", "El Hoyo", "Epuyén", "Mallín Ahogado"];
-  const TOTAL_PASOS = 4;
+  const TOTAL_PASOS = 2;
 
   function celularLimpio() {
     let limpio = identificador.trim().replace(/\D/g, "");
@@ -1302,6 +1330,7 @@ export default function LoginPage() {
 
   function cambiarModo(registro) {
     setEsRegistro(registro);
+    setYaCliente(false);
     setPasoRegistro(1);
     setError("");
     setAviso("");
@@ -1329,9 +1358,8 @@ export default function LoginPage() {
           return;
         }
         if (existe) {
-          // Ya es cliente: lo mandamos directo a entrar, con el celular puesto
-          setEsRegistro(false);
-          setAviso("¡Ese celular ya tiene cuenta! Poné tu contraseña para entrar.");
+          // Ya es cliente: puede confirmar (contraseña o link) o seguir comprando
+          setYaCliente(true);
           return;
         }
         setPasoRegistro(2);
@@ -1342,35 +1370,62 @@ export default function LoginPage() {
       }
       return;
     }
-    if (pasoRegistro === 2) {
-      if (nombre.trim().length < 2) {
-        setError("Escribí tu nombre y apellido.");
-        return;
-      }
-      setPasoRegistro(3);
-      return;
-    }
-    if (pasoRegistro === 3) {
-      setPasoRegistro(4);
-      return;
-    }
-    if (password.trim().length < 4) {
-      setError("La contraseña tiene que tener al menos 4 caracteres.");
+    if (nombre.trim().length < 2) {
+      setError("Escribí tu nombre y apellido.");
       return;
     }
     if (!aceptaTerminos) {
       setError(MENSAJE_FALTA_ACEPTAR);
       return;
     }
-    await handleSubmit(e);
+    await registrarSimple();
+  }
+
+  // Cuenta nueva sin contraseña: celular + nombre + localidad. La contraseña
+  // es opcional y se elige después en "Mi cuenta" (sirve para entrar desde
+  // otro celular).
+  async function registrarSimple() {
+    const tel = celularLimpio();
+    setLoading(true);
+    try {
+      await supabase.auth.signOut();
+      const { data, error: err } = await supabase.rpc("registrar_cliente_simple", {
+        p_telefono: tel,
+        p_nombre: nombre.trim(),
+        p_localidad: localidad.trim(),
+        p_referido_por: refCode || null
+      });
+      if (err || !data?.length) {
+        const msg = err?.message || "";
+        if (msg.includes("TELEFONO_YA_REGISTRADO")) {
+          setYaCliente(true);
+        } else if (msg.includes("TELEFONO_BLOQUEADO")) {
+          setError("Este número no puede acceder. Contactate con Bolson Click por WhatsApp.");
+        } else if (msg.includes("TELEFONO_INVALIDO")) {
+          setError("El celular debe tener 10 números (ej: 2944123456).");
+          setPasoRegistro(1);
+        } else {
+          setError("No se pudo crear la cuenta. Probá de nuevo.");
+        }
+        return;
+      }
+      const cliente = data[0];
+      await guardarConsentimientoCliente(cliente.id, cliente.telefono || tel, aceptaNovedades);
+      guardarSesion(cliente);
+      setSesionActiva(cliente);
+      avisarAdmin({ tipo: "registro", telefono: tel, nombre: cliente.nombre, detalle: cliente.localidad || null });
+      suscribirPush(tel).catch(() => {});
+    } catch (e2) {
+      setError("No se pudo crear la cuenta. Revisá la señal y probá de nuevo.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const primerNombre = nombre.trim().split(/\s+/)[0] || "";
   const titulosRegistro = {
     1: "¿Cuál es tu celular?",
-    2: "¿Cómo te llamás?",
-    3: `${primerNombre ? primerNombre + ", ¿" : "¿"}dónde te lo entregamos?`,
-    4: "Elegí una contraseña"
+    2: "¿Cómo te llamás y dónde estás?"
   };
 
   return (
@@ -1444,7 +1499,32 @@ export default function LoginPage() {
           </div>
         )}
 
-        {esRegistro ? (
+        {esRegistro && yaCliente ? (
+          <div className="mt-4">
+            <p className="text-sm text-gray-700 mb-2">
+              ¡Ese celular ya es cliente de Bolson Click! 👋
+            </p>
+            <ConfirmarIdentidad
+              telefono={celularLimpio()}
+              titulo="¿Sos vos? Entrá a tu cuenta"
+              soloComprar
+              onListo={(cliente) => {
+                setYaCliente(false);
+                setSesionActiva(cliente);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setYaCliente(false);
+                setPasoRegistro(1);
+              }}
+              className="mt-3 w-full text-xs text-gray-500 underline"
+            >
+              Me equivoqué de número
+            </button>
+          </div>
+        ) : esRegistro ? (
           <form onSubmit={avanzarRegistro} noValidate className="mt-4 bg-white rounded-3xl border border-gray-100 shadow-sm p-4">
             <div className="flex items-center gap-1.5 mb-3">
               {Array.from({ length: TOTAL_PASOS }).map((_, i) => (
@@ -1479,19 +1559,17 @@ export default function LoginPage() {
             )}
 
             {pasoRegistro === 2 && (
-              <input
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                className="input-field text-base"
-                placeholder="Nombre y apellido"
-                aria-label="Nombre y apellido"
-                autoComplete="name"
-                autoFocus
-              />
-            )}
-
-            {pasoRegistro === 3 && (
               <>
+                <input
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  className="input-field text-base"
+                  placeholder="Nombre y apellido"
+                  aria-label="Nombre y apellido"
+                  autoComplete="name"
+                  autoFocus
+                />
+                <p className="text-sm font-semibold text-gray-700 mt-3 mb-2">¿Dónde te lo entregamos?</p>
                 <div className="flex flex-wrap gap-2">
                   {LOCALIDADES.map((l) => (
                     <button
@@ -1511,37 +1589,9 @@ export default function LoginPage() {
                   value={LOCALIDADES.includes(localidad) ? "" : localidad}
                   onChange={(e) => setLocalidad(e.target.value)}
                   className="input-field text-sm mt-3"
-                  placeholder="¿Otra? Escribila acá"
+                  placeholder="¿Otra? Escribila acá (opcional)"
                   aria-label="Otra localidad"
                 />
-                <p className="text-[11px] text-gray-500 mt-1.5">Si no sabés, tocá Siguiente igual.</p>
-              </>
-            )}
-
-            {pasoRegistro === 4 && (
-              <>
-                <div className="relative">
-                  <input
-                    type={verPass ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="input-field text-base pr-20"
-                    placeholder="Mínimo 4 caracteres"
-                    aria-label="Contraseña"
-                    autoComplete="new-password"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setVerPass(!verPass)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-brand-blue"
-                  >
-                    {verPass ? "Ocultar" : "Ver"}
-                  </button>
-                </div>
-                <p className="text-[11px] text-gray-500 mt-1.5">
-                  La vas a usar para entrar desde otro celular. Anotala en un lugar seguro.
-                </p>
                 <ConsentimientoRegistro
                   id="login"
                   acepta={aceptaTerminos}
@@ -1549,6 +1599,9 @@ export default function LoginPage() {
                   novedades={aceptaNovedades}
                   setNovedades={setAceptaNovedades}
                 />
+                <p className="text-[11px] text-gray-500 mt-2">
+                  Sin contraseña. Si querés entrar desde otro celular, la elegís después en Mi cuenta.
+                </p>
               </>
             )}
 

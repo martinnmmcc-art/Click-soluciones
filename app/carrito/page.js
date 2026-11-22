@@ -8,6 +8,7 @@ import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/whatsapp";
 import { obtenerTelefonoCliente } from "@/lib/favoritos";
 import { urlImagen } from "@/lib/imagenProducto";
+import { tokenSesion, urlMisPedidos, urlSaldoAFavor } from "@/lib/sesionCliente";
 
 const OPCIONES_ENTREGA_LABEL = {
   pendiente: "Pendiente",
@@ -68,7 +69,7 @@ export default function CarritoPage() {
   async function cargarPedidos(tel) {
     setPedidosLoading(true);
     try {
-      const res = await fetch(`/api/mis-pedidos?telefono=${encodeURIComponent(tel)}`);
+      const res = await fetch(urlMisPedidos(tel));
       const result = await res.json();
       if (res.ok) setMisPedidos(result.pedidos || []);
     } catch (e) {
@@ -84,7 +85,7 @@ export default function CarritoPage() {
       const res = await fetch("/api/mis-pedidos/cancelar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedido_id: pedidoId, telefono })
+        body: JSON.stringify({ pedido_id: pedidoId, telefono, sesion: tokenSesion() })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -128,7 +129,7 @@ export default function CarritoPage() {
       const res = await fetch("/api/mis-pedidos/modificar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pedido_id: pedidoId, telefono, items })
+        body: JSON.stringify({ pedido_id: pedidoId, telefono, items, sesion: tokenSesion() })
       });
       const data = await res.json();
       if (!res.ok) {

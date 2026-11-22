@@ -14,6 +14,14 @@ export async function GET(req) {
   if (telefono.replace(/\D/g, "").length < 8) {
     return Response.json({ saldo: 0 });
   }
+  // Solo con la sesión verificada de ese celular (ver lib/sesionCliente.js)
+  const sesion = new URL(req.url).searchParams.get("sesion");
+  const { data: valida } = await supabaseAdmin.rpc("sesion_cliente_valida", {
+    p_token: /^[0-9a-f-]{36}$/i.test(sesion || "") ? sesion : null,
+    p_telefono: telefono
+  });
+  if (!valida) return Response.json({ saldo: 0, verificar: true });
+
   const { data, error } = await supabaseAdmin.rpc("saldo_a_favor", { p_telefono: telefono });
   if (error) return Response.json({ saldo: 0 });
   return Response.json({ saldo: Math.max(0, Number(data || 0)) });

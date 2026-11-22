@@ -1,4 +1,5 @@
 "use client";
+import { tokenSesion, urlMisPedidos, urlSaldoAFavor } from "@/lib/sesionCliente";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -71,7 +72,7 @@ export default function CheckoutPage() {
     }
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/saldo-a-favor?telefono=${encodeURIComponent(tel)}`);
+        const res = await fetch(urlSaldoAFavor(tel));
         const data = await res.json();
         setSaldoFavor(Number(data.saldo || 0));
       } catch (e) {
@@ -342,7 +343,10 @@ export default function CheckoutPage() {
                 nombre: form.nombre_cliente,
                 localidad: form.localidad || "",
                 direccion: form.direccion_envio || "",
-                email: ""
+                email: "",
+                // Solo si la cuenta se creó recién en este celular: con esto
+                // ve sus pedidos. Si el número ya tenía cuenta, no viene.
+                ...(cuenta[0].sesion ? { sesion: cuenta[0].sesion } : {})
               })
             );
           }

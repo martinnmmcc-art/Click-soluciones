@@ -16,6 +16,7 @@ import {
 } from "@/lib/catalogoCliente";
 import { guardarEstado, leerEstado, limpiarEstado, vieneDeUnProducto, marcarSalidaAProducto, restaurarScroll, limpiarBanderaRestauracion } from "@/lib/estadoNavegacion";
 import { aplicarBusqueda } from "@/lib/buscar";
+import { tokenSesion } from "@/lib/sesionCliente";
 
 // Cuántos productos traemos por tanda. Con más de 2000 productos no podemos
 // cargarlos todos juntos: el celular del cliente se traba y consume datos de más.
@@ -363,7 +364,8 @@ export default function CatalogoPage() {
         body: JSON.stringify({
           pedido_id: Number(agregarAPedido),
           telefono: telefonoCliente,
-          productos: [{ producto_id: prod.id, cantidad: 1 }]
+          productos: [{ producto_id: prod.id, cantidad: 1 }],
+          sesion: tokenSesion()
         })
       });
       const data = await res.json();

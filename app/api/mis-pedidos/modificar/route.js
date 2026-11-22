@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sesionClienteValida } from "@/lib/sesionClienteServidor";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ function normalizarTelefono(tel) {
 
 export async function POST(request) {
   try {
-    const { pedido_id, telefono, items } = await request.json();
+    const { pedido_id, telefono, items, sesion } = await request.json();
 
     if (!pedido_id || !telefono || !Array.isArray(items)) {
       return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
@@ -37,6 +38,11 @@ export async function POST(request) {
     }
     if (normalizarTelefono(pedido.telefono_cliente) !== normalizarTelefono(telefono)) {
       return NextResponse.json({ error: "Este pedido no te pertenece" }, { status: 403 });
+    }
+    // Además del teléfono, la sesión verificada de ese celular: el teléfono
+    // solo no alcanza (cualquiera lo puede escribir)
+    if (!(await sesionClienteValida(supabase, sesion, telefono))) {
+      return NextResponse.json({ error: "Para cambiar tu pedido, entrá a tu cuenta desde Mi cuenta." }, { status: 401 });
     }
     if (pedido.estado && pedido.estado !== "pendiente") {
       return NextResponse.json(
