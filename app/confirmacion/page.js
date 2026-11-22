@@ -112,10 +112,14 @@ function ConfirmacionContent() {
             </p>
           </div>
         ) : (
-          <p className="text-gray-500 mt-2 max-w-xs">
-            Gracias por tu compra en Bolson Click. Nos pondremos en contacto
-            para coordinar {pedido?.metodo_entrega === "envio" ? "el envío" : "el retiro"}.
-          </p>
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 mt-3 w-full max-w-xs text-left">
+            <p className="text-sm font-bold text-green-900">¿Qué sigue?</p>
+            <ol className="text-[12.5px] text-green-900 mt-1.5 space-y-1 list-none">
+              <li>✅ Recibimos tu pedido.</li>
+              <li>💬 Te escribimos por WhatsApp para confirmar stock, precio y {pedido?.metodo_entrega === "envio" ? "el envío" : "el retiro"}.</li>
+              <li>💳 Recién ahí pagás. Ahora no tenés que hacer nada.</li>
+            </ol>
+          </div>
         )}
 
         {cuentaCreada && (
@@ -161,9 +165,10 @@ function ConfirmacionContent() {
 
         {pedido?.metodo_pago === "transferencia" && (
           <div className="card p-4 mt-4 w-full max-w-xs">
-            <p className="text-sm font-bold text-gray-800 mb-1">📎 Subí tu comprobante</p>
+            <p className="text-sm font-bold text-gray-800 mb-1">📎 ¿Ya transferiste?</p>
             <p className="text-xs text-gray-500 mb-3">
-              Así confirmamos tu pago más rápido, sin esperar el WhatsApp.
+              Cuando te confirmemos el pedido y pagues, podés subir el comprobante acá
+              (o desde Mi cuenta). No hace falta hacerlo ahora.
             </p>
 
             {comprobanteUrl ? (

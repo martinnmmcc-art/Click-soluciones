@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import AvisoCarritos from "@/components/AvisoCarritos";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import ControlNotificaciones from "@/components/ControlNotificaciones";
@@ -70,6 +71,8 @@ function Dashboard() {
             </button>
           </div>
         </div>
+
+        <AvisoCarritos />
 
         {/* Control de notificaciones: va arriba de todo porque sin esto
             no te enterás de las ventas hasta que entrás a mirar. */}

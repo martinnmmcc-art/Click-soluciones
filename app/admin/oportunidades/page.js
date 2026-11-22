@@ -136,6 +136,13 @@ function Oportunidades() {
   }, []);
 
   // El mensaje reconoce lo que dejó, no es un "volvé a comprar" genérico
+  // Queda anotado que ya le escribiste (para no escribirle dos veces)
+  async function marcarAvisado(c) {
+    const ahora = new Date().toISOString();
+    setCarritos((prev) => prev.map((x) => (x.id === c.id ? { ...x, avisado_en: ahora } : x)));
+    await supabase.from("carritos_abandonados").update({ avisado_en: ahora }).eq("id", c.id);
+  }
+
   function mensajeCarrito(c) {
     const nombre = (c.nombre || "").split(" ")[0];
     const prods = (c.productos || [])
@@ -147,7 +154,7 @@ function Oportunidades() {
       `¡Hola ${nombre}! 👋 Soy de Bolson Click.\n\n` +
       `Vi que dejaste esto en tu carrito:\n\n${prods}\n\n` +
       `¿Querés que te lo aparte? Tengo stock 🙂\n\n` +
-      `Si preferís, completá el pedido acá:\n${SITIO}/carrito`
+      `Si preferís, mandá el pedido desde acá (no pagás nada hasta que te confirmemos):\n${SITIO}/carrito`
     );
   }
 
@@ -325,6 +332,12 @@ function Oportunidades() {
                           <p className="text-xs font-extrabold text-brand-blue mt-1">
                             ${formatPrice(c.total)}
                           </p>
+                          {c.avisado_en && (
+                            <p className="text-[10px] font-bold text-emerald-700 mt-0.5">
+                              ✓ Ya le escribiste el{" "}
+                              {new Date(c.avisado_en).toLocaleDateString("es-AR", { day: "numeric", month: "numeric" })}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex flex-col gap-1.5 flex-shrink-0">
@@ -334,9 +347,10 @@ function Oportunidades() {
                             )}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="bg-emerald-600 text-white text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap text-center"
+                            onClick={() => marcarAvisado(c)}
+                            className={`${c.avisado_en ? "bg-emerald-100 text-emerald-800" : "bg-emerald-600 text-white"} text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap text-center`}
                           >
-                            💬 Recordar
+                            💬 {c.avisado_en ? "Escribir de nuevo" : "Recordar"}
                           </a>
 
                           {/* El descuento recién a la semana: antes alcanza

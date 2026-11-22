@@ -270,8 +270,13 @@ export default function CarritoPage() {
               </div>
 
               <Link href="/checkout" className="btn-primary block text-center mt-4">
-                Continuar con la compra
+                Hacer el pedido · no pagás ahora
               </Link>
+              <p className="text-[11.5px] text-gray-600 text-center mt-2 leading-snug">
+                🤝 Te escribimos por WhatsApp para confirmar stock y entrega.
+                <br />
+                Recién ahí, si te sirve, pagás.
+              </p>
             </>
           )
         )}

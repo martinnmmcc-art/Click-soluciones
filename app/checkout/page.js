@@ -397,7 +397,20 @@ export default function CheckoutPage() {
     <main className="pb-6">
       <Header showSearch={false} />
       <div className="px-4 mt-4">
-        <h1 className="font-bold text-xl text-gray-800 mb-4">Checkout</h1>
+        <h1 className="font-bold text-xl text-gray-800 mb-3">Enviá tu pedido</h1>
+
+        {/* Mucha gente abandonaba acá pensando que tenía que pagar en el
+            momento. No: el pedido es un aviso, lo confirmamos por WhatsApp
+            y recién después se paga. */}
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-3.5 mb-4">
+          <p className="text-sm font-bold text-green-900">🤝 No pagás nada ahora</p>
+          <ol className="text-[12.5px] text-green-900 mt-1.5 space-y-1 list-none">
+            <li>1️⃣ Nos mandás el pedido con este formulario.</li>
+            <li>2️⃣ Te escribimos por WhatsApp para confirmar stock, precio y entrega.</li>
+            <li>3️⃣ Recién ahí, si está todo bien, pagás como prefieras.</li>
+          </ol>
+          <p className="text-[11px] text-green-800 mt-1.5">Si cambiás de idea antes, no pasa nada.</p>
+        </div>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl p-3 mb-4 break-words">
@@ -541,7 +554,10 @@ export default function CheckoutPage() {
           </div>
 
           <div className="card p-4">
-            <h2 className="font-semibold text-gray-800 mb-3">¿Cómo querés pagar?</h2>
+            <h2 className="font-semibold text-gray-800">¿Cómo vas a pagar?</h2>
+            <p className="text-[11.5px] text-gray-500 mb-3">
+              Solo para saberlo. Pagás después de que te confirmemos el pedido.
+            </p>
 
             <div className="flex flex-col gap-2">
               {metodosPago.map((m) => (
@@ -575,8 +591,10 @@ export default function CheckoutPage() {
               ))}
             </div>
 
-            {/* DATOS DEL MÉTODO ELEGIDO */}
-            {metodosPago
+            {/* Los datos para pagar (alias, link) ya no se muestran acá: verlos
+                antes de confirmar hacía pensar que había que pagar en el momento.
+                Se pasan cuando se confirma el pedido por WhatsApp. */}
+            {false && metodosPago
               .filter((m) => m.clave === form.metodo_pago)
               .map((m) => {
                 const tieneDatosTransferencia = m.alias || m.cvu;
@@ -840,9 +858,14 @@ export default function CheckoutPage() {
             .
           </p>
 
-          <button disabled={enviando} className="btn-primary">
-            {enviando ? "Confirmando pedido..." : "Confirmar pedido"}
-          </button>
+          <div>
+            <button disabled={enviando} className="btn-primary w-full">
+              {enviando ? "Enviando tu pedido..." : "Enviar pedido · no pagás ahora"}
+            </button>
+            <p className="text-[11.5px] text-gray-600 text-center mt-1.5">
+              Te escribimos por WhatsApp para confirmarlo.
+            </p>
+          </div>
 
           {/* Una línea de confianza antes del último paso (se prende desde el panel) */}
           <OpinionesTienda variante="checkout" />
