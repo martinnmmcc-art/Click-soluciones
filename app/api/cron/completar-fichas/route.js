@@ -66,8 +66,12 @@ async function procesar(p) {
   });
 
   const cambios = { ficha_ia: borrador, ficha_ia_en: new Date().toISOString() };
-  const car = lineasSeguras(borrador.caracteristicas);
-  const inc = lineasSeguras(borrador.incluye);
+  // Si la IA marcó alguna duda (por ejemplo, la foto no coincide con el
+  // nombre), no se publica nada de este producto: queda para revisarlo a mano
+  // con el botón "Completar con IA" de la ficha.
+  const conDudas = (borrador.advertencias || []).length > 0 || borrador.mismoProducto === false;
+  const car = conDudas ? "" : lineasSeguras(borrador.caracteristicas);
+  const inc = conDudas ? "" : lineasSeguras(borrador.incluye);
   if (car && !String(p.caracteristicas || "").trim()) cambios.caracteristicas = car;
   if (inc && !String(p.accesorios || "").trim()) cambios.accesorios = inc;
 
@@ -77,7 +81,8 @@ async function procesar(p) {
     id: p.id,
     caracteristicas: !!cambios.caracteristicas,
     incluye: !!cambios.accesorios,
-    dudosos: [...borrador.caracteristicas, ...borrador.incluye].filter((x) => !x.seguro).length
+    dudosos: [...borrador.caracteristicas, ...borrador.incluye].filter((x) => !x.seguro).length,
+    paraRevisar: conDudas
   };
 }
 

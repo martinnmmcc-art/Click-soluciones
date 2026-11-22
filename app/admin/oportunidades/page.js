@@ -22,6 +22,7 @@ function Oportunidades() {
   const [carritos, setCarritos] = useState([]);
   const [favoritos, setFavoritos] = useState([]);
   const [sinComprar, setSinComprar] = useState([]);
+  const [paraOpinar, setParaOpinar] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generando, setGenerando] = useState(null);
 
@@ -107,6 +108,8 @@ function Oportunidades() {
       supabase.rpc("favoritos_en_oferta"),
       supabase.rpc("registrados_sin_comprar")
     ]);
+    // Aparte: si falla, no frena lo demás
+    supabase.rpc("pedidos_para_opinar").then(({ data }) => setParaOpinar(data || []));
 
     setCarritos(c.data || []);
 
@@ -250,8 +253,24 @@ function Oportunidades() {
   const vistas = [
     { id: "carritos", label: `🛒 Carritos (${carritos.length})` },
     { id: "favoritos", label: `⭐ Favoritos (${favoritos.length})` },
-    { id: "nuevos", label: `👋 Sin comprar (${sinComprar.length})` }
+    { id: "nuevos", label: `👋 Sin comprar (${sinComprar.length})` },
+    { id: "opinar", label: `💬 Pedir opinión (${paraOpinar.filter((x) => !x.ya_pedida).length})` }
   ];
+
+  function mensajeOpinion(o) {
+    const nombre = (o.nombre || "").split(" ")[0];
+    return (
+      `¡Hola ${nombre}! 👋 Soy de Bolson Click.\n\n` +
+      `¿Cómo te fue con lo que compraste? ¿Anda todo bien?\n\n` +
+      `Si tenés 1 minuto, me ayudaría muchísimo que dejes tu opinión acá:\n${SITIO}/opinar?pedido=${o.pedido_id}\n\n` +
+      `¡Gracias! 🙏`
+    );
+  }
+
+  async function marcarOpinionPedida(o) {
+    setParaOpinar((prev) => prev.map((x) => (x.pedido_id === o.pedido_id ? { ...x, ya_pedida: true } : x)));
+    await supabase.rpc("marcar_opinion_pedida", { p_pedido_id: o.pedido_id });
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
@@ -284,6 +303,44 @@ function Oportunidades() {
 
         {loading ? (
           <p className="text-center text-gray-400 py-10">Cargando...</p>
+        ) : vista === "opinar" ? (
+          <>
+            <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-3 mb-3">
+              <p className="text-[11px] text-gray-700">
+                Compraron hace unos días y todavía no opinaron. Las opiniones reales son lo que más
+                convence a alguien que no te conoce. Además, a los 3 días les aparece solo un aviso
+                en la app pidiéndoles la opinión.
+              </p>
+            </div>
+            {paraOpinar.length === 0 ? (
+              <div className="bg-white rounded-2xl p-6 text-center border border-gray-100">
+                <p className="text-sm text-gray-600">No hay a quién pedirle opinión ahora.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {paraOpinar.map((o) => (
+                  <div key={o.pedido_id} className="bg-white rounded-2xl border border-gray-100 p-3 flex justify-between items-center gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-800">{o.nombre || o.telefono}</p>
+                      <p className="text-[11px] text-gray-400">
+                        Pedido {o.numero_pedido} · ${formatPrice(o.total)} · {new Date(o.entregado).toLocaleDateString("es-AR", { day: "numeric", month: "numeric" })}
+                      </p>
+                      {o.ya_pedida && <p className="text-[10px] font-bold text-emerald-700">✓ Ya se la pediste</p>}
+                    </div>
+                    <a
+                      href={`https://wa.me/${wa(o.telefono)}?text=${encodeURIComponent(mensajeOpinion(o))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => marcarOpinionPedida(o)}
+                      className={`${o.ya_pedida ? "bg-emerald-100 text-emerald-800" : "bg-emerald-600 text-white"} text-[11px] font-bold px-3 py-2 rounded-xl whitespace-nowrap`}
+                    >
+                      💬 {o.ya_pedida ? "De nuevo" : "Pedir opinión"}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         ) : vista === "carritos" ? (
           <>
             <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-3 mb-3">

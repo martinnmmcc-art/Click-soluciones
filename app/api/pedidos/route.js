@@ -63,6 +63,9 @@ export async function POST(req) {
 
   const pedidoAInsertar = {
     ...pedidoLimpio,
+    // De dónde vino: "panel" lo cargaste vos; si no, lo hizo el cliente en la web.
+    // Sirve para medir cuánto vende la web sola.
+    origen: pedidoLimpio.origen === "panel" ? "panel" : "web",
     subtotal,
     tipo_pedido: "presupuesto",
     stock_descontado: false,

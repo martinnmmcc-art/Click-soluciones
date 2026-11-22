@@ -13,6 +13,65 @@ import {
 import { avisarAdmin, clienteActual } from "@/lib/avisarAdmin";
 import PedirNotificaciones from "@/components/PedirNotificaciones";
 
+// Un toque para que le avisemos de novedades. Es el mejor momento para
+// pedirlo: acaba de comprar y está contento. Sin este permiso no se le
+// pueden mandar ofertas.
+function AceptarNovedades({ numero, telefono }) {
+  const [estado, setEstado] = useState("pregunta"); // pregunta | listo | oculto
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("bolsonclick_novedades_ok") === "1") setEstado("oculto");
+    } catch (e) {}
+  }, []);
+  if (estado === "oculto") return null;
+
+  async function aceptar() {
+    try {
+      const { data } = await supabase.rpc("aceptar_novedades_pedido", {
+        p_numero_pedido: numero,
+        p_telefono: telefono
+      });
+      if (data) {
+        try {
+          localStorage.setItem("bolsonclick_novedades_ok", "1");
+        } catch (e) {}
+      }
+    } catch (e) {}
+    setEstado("listo");
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 mt-4 w-full max-w-xs text-left">
+      {estado === "listo" ? (
+        <p className="text-sm font-semibold text-green-700">✓ ¡Listo! Te avisamos cuando llegue algo nuevo.</p>
+      ) : (
+        <>
+          <p className="text-sm font-bold text-gray-800">📲 ¿Te avisamos cuando llegue mercadería nueva?</p>
+          <p className="text-[11.5px] text-gray-500 mt-0.5">
+            Novedades y ofertas, sin llenarte de mensajes. Te das de baja cuando quieras.
+          </p>
+          <div className="flex gap-2 mt-2.5">
+            <button
+              type="button"
+              onClick={aceptar}
+              className="flex-1 bg-brand-blue text-white text-sm font-bold rounded-xl py-2"
+            >
+              Sí, avisame
+            </button>
+            <button
+              type="button"
+              onClick={() => setEstado("oculto")}
+              className="px-3 text-sm text-gray-500 font-semibold"
+            >
+              No, gracias
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ConfirmacionContent() {
   const searchParams = useSearchParams();
   const numero = searchParams.get("numero");
@@ -136,6 +195,10 @@ function ConfirmacionContent() {
               Ver mi pedido →
             </Link>
           </div>
+        )}
+
+        {!esPendiente && numero && (pedido?.telefono_cliente || clienteActual()?.telefono) && (
+          <AceptarNovedades numero={numero} telefono={pedido?.telefono_cliente || clienteActual()?.telefono} />
         )}
 
         <div className="w-full max-w-xs mt-5">

@@ -858,7 +858,9 @@ function PanelVentas() {
           descuento_tipo: nuevoDescuentoTipo || null,
           descuento_valor: Number(nuevoDescuentoValor) || 0,
           total: totalNuevoPedido,
-          estado: "pendiente"
+          estado: "pendiente",
+          // Cargado por vos desde el panel (WhatsApp, teléfono, en persona)
+          origen: "panel"
         },
         aplicar_saldo: saldoFavorNuevo > 0 && usarSaldoNuevo,
         items: nuevoItems.map((i) => ({

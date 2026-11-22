@@ -41,7 +41,7 @@ export default function ConsentimientoRegistro({ acepta, setAcepta, novedades, s
           className="mt-0.5 w-5 h-5 flex-shrink-0"
         />
         <span className="text-[12.5px] text-gray-800 leading-snug">
-          Quiero recibir novedades y ofertas (opcional). Me puedo dar de baja cuando quiera desde Mi cuenta.
+          📲 Avisame cuando llegue mercadería nueva o haya ofertas (opcional). Me doy de baja cuando quiera desde Mi cuenta.
         </span>
       </label>
     </div>
