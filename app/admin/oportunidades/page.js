@@ -263,6 +263,7 @@ function Oportunidades() {
       `¡Hola ${nombre}! 👋 Soy de Bolson Click.\n\n` +
       `¿Cómo te fue con lo que compraste? ¿Anda todo bien?\n\n` +
       `Si tenés 1 minuto, me ayudaría muchísimo que dejes tu opinión acá:\n${SITIO}/opinar?pedido=${o.pedido_id}\n\n` +
+      `🎁 Como agradecimiento te queda un 5% OFF para tu próxima compra.\n\n` +
       `¡Gracias! 🙏`
     );
   }

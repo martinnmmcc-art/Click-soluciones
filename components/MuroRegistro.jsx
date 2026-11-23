@@ -387,6 +387,9 @@ export default function MuroRegistro() {
                   ? "Ese número ya tiene cuenta. Seguí mirando y comprando…"
                   : "Ya tenés tu cuenta. Te llevamos a la tienda…"}
               </p>
+              {tipoListo !== "volvio" && (
+                <p className="text-sm font-bold text-green-700 mt-2">🎁 Tenés 5% OFF en tu primera compra: se aplica solo.</p>
+              )}
             </div>
           ) : (
             <>
@@ -417,6 +420,11 @@ export default function MuroRegistro() {
               <h2 id="titulo-registro" className="font-extrabold text-xl text-gray-800 leading-tight mb-3">
                 {titulos[paso]}
               </h2>
+              {paso === 1 && (
+                <p className="-mt-1 mb-3 text-xs font-bold text-green-700 bg-green-50 rounded-xl px-3 py-2">
+                  🎁 Si es tu primera vez, te regalamos 5% OFF en tu primera compra.
+                </p>
+              )}
 
               <form onSubmit={siguiente} noValidate>
                 {paso === 1 && (

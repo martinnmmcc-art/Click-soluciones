@@ -85,14 +85,15 @@ export default function CheckoutPage() {
   const totalConCupon = total - (cuponAplicado?.descuento || 0);
   const saldoAUsar = usarSaldo ? Math.min(saldoFavor, totalConCupon) : 0;
 
-  async function aplicarCupon() {
+  async function aplicarCupon(codigoElegido, telefonoElegido) {
+    const codigo = typeof codigoElegido === "string" ? codigoElegido : cupon;
     setErrorCupon("");
     setValidandoCupon(true);
 
     try {
-      const tel = normalizarTelefono(form.telefono_cliente);
+      const tel = normalizarTelefono(telefonoElegido || form.telefono_cliente);
       const { data, error } = await supabase.rpc("validar_cupon", {
-        p_codigo: cupon,
+        p_codigo: codigo,
         p_telefono: tel,
         p_total: total
       });
@@ -119,8 +120,9 @@ export default function CheckoutPage() {
           ? Number(r.porcentaje_segundo)
           : Number(r.porcentaje);
 
+      setCupon(codigo.trim().toUpperCase());
       setCuponAplicado({
-        codigo: cupon.trim().toUpperCase(),
+        codigo: codigo.trim().toUpperCase(),
         porcentaje: pct,
         descuento: Math.round((total * pct) / 100),
         conBonus: pct > Number(r.porcentaje)
@@ -209,6 +211,38 @@ export default function CheckoutPage() {
       console.error(e);
     }
   }, []);
+
+  // Si el cliente tiene un cupón sin usar (bienvenida, por opinar, etc.),
+  // se lo aplicamos solo: que no tenga que acordarse del código.
+  const [cuponAutomatico, setCuponAutomatico] = useState(false);
+  useEffect(() => {
+    if (cuponAutomatico || cuponAplicado || !(total > 0)) return;
+    let cancelado = false;
+    (async () => {
+      try {
+        const sesion = JSON.parse(localStorage.getItem("cliente_sesion") || "null");
+        const tel = sesion?.telefono;
+        if (!tel) return;
+        setCuponAutomatico(true);
+        const { data } = await supabase
+          .from("cupones")
+          .select("codigo")
+          .eq("telefono", tel)
+          .is("usado_en", null)
+          .gt("vence_en", new Date().toISOString())
+          .order("porcentaje", { ascending: false })
+          .limit(1);
+        const c = data?.[0];
+        if (c && !cancelado) await aplicarCupon(c.codigo, tel);
+      } catch (e) {
+        // Sin conexión: el cliente lo puede cargar a mano
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -717,7 +751,7 @@ export default function CheckoutPage() {
                   />
                   <button
                     type="button"
-                    onClick={aplicarCupon}
+                    onClick={() => aplicarCupon()}
                     disabled={validandoCupon || !cupon.trim()}
                     className="bg-brand-blue text-white text-xs font-bold px-4 rounded-xl disabled:opacity-50"
                   >

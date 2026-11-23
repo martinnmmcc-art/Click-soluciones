@@ -29,6 +29,7 @@ function FormularioOpinion() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState("");
   const [listo, setListo] = useState(false);
+  const [cuponGanado, setCuponGanado] = useState("");
 
   useEffect(() => {
     const s = sesionCliente();
@@ -71,6 +72,7 @@ function FormularioOpinion() {
       return;
     }
 
+    if (String(r.motivo || "").startsWith("CUPON:")) setCuponGanado(r.motivo.slice(6));
     marcarQueOpino();
     avisarAdmin({
       tipo: "opinion_tienda",
@@ -90,6 +92,15 @@ function FormularioOpinion() {
           Nos ayuda un montón a mejorar y a que otros vecinos se animen a comprar.
           La vamos a revisar y publicar en la app.
         </p>
+        {cuponGanado && (
+          <div className="mt-5 bg-green-50 border-2 border-dashed border-green-400 rounded-2xl p-4">
+            <p className="text-sm font-bold text-green-800">🎁 Te ganaste 5% OFF en tu próxima compra</p>
+            <p className="text-2xl font-extrabold tracking-widest text-green-700 mt-1">{cuponGanado}</p>
+            <p className="text-[11.5px] text-green-700 mt-1">
+              Vale 30 días. Se aplica solo cuando hacés el pedido con tu cuenta.
+            </p>
+          </div>
+        )}
         <Link href="/" className="btn-primary inline-block mt-6 px-6">
           Volver al inicio
         </Link>
@@ -104,6 +115,9 @@ function FormularioOpinion() {
         {pedidoId
           ? "Contanos qué te pareció tu compra: la atención, la entrega y la app."
           : "Contanos qué te pareció comprar en Bolson Click."}
+      </p>
+      <p className="-mt-3 mb-5 text-xs font-bold text-green-700 bg-green-50 rounded-xl px-3 py-2">
+        🎁 Si ya recibiste una compra, te regalamos 5% OFF para la próxima por opinar.
       </p>
 
       {/* Estrellas */}

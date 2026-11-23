@@ -1440,6 +1440,7 @@ export default function LoginPage() {
             <p className="text-[12.5px] text-gray-600 leading-snug">
               Productos para tu casa, con entrega en El Bolsón y la Comarca.
             </p>
+            <p className="text-[12px] font-bold text-green-700 mt-0.5">🎁 Registrate y tenés 5% OFF en tu primera compra</p>
           </div>
         </div>
 
