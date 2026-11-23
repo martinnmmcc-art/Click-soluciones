@@ -13,6 +13,8 @@ import { numeroFactura, linkWhatsApp } from "@/components/BotonFacturar";
 //  - Factura suelta: para una venta que no está en la app.
 //  - Lista de facturas emitidas con su link, y lo facturado en el mes y el año
 //    (sirve para no pasarte del tope de tu categoría de monotributo).
+//  - "Anular": emite una Nota de Crédito C por el total de la factura (se
+//    descuenta de lo facturado y el pedido se puede volver a facturar).
 
 function Facturas() {
   const [prueba, setPrueba] = useState(null);
@@ -22,12 +24,13 @@ function Facturas() {
   const [suelta, setSuelta] = useState({ descripcion: "", total: "", doc: "", nombre: "" });
   const [emitiendo, setEmitiendo] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [anulando, setAnulando] = useState(null); // { id, motivo, enviando, error }
 
   async function cargar() {
     setCargando(true);
     const { data } = await supabase
       .from("facturas")
-      .select("id, pedido_id, numero, punto_venta, fecha, total, estado, error, produccion, receptor_nombre, codigo, creada_en, detalle")
+      .select("id, pedido_id, tipo, factura_asociada, numero, punto_venta, fecha, total, estado, error, produccion, receptor_nombre, codigo, creada_en, detalle, motivo")
       .order("creada_en", { ascending: false })
       .limit(300);
     const facturas = data || [];
@@ -38,6 +41,11 @@ function Facturas() {
       const tel = Object.fromEntries((peds || []).map((p) => [p.id, p.telefono_cliente]));
       facturas.forEach((f) => (f.telefono = tel[f.pedido_id] || ""));
     }
+    // La nota de crédito usa el teléfono del pedido de la factura que anula
+    const porId = Object.fromEntries(facturas.map((f) => [f.id, f]));
+    facturas.forEach((f) => {
+      if (f.factura_asociada && porId[f.factura_asociada]) f.telefono = porId[f.factura_asociada].telefono || "";
+    });
     setLista(facturas);
     setCargando(false);
   }
@@ -92,14 +100,36 @@ function Facturas() {
     }
   }
 
-  const emitidas = lista.filter((f) => f.estado === "emitida" && f.produccion);
+  async function anular() {
+    if (!anulando) return;
+    setAnulando({ ...anulando, enviando: true, error: "" });
+    try {
+      const res = await fetch("/api/admin/arca/nota-credito", {
+        method: "POST",
+        headers: await cabeceraAdmin(supabase),
+        body: JSON.stringify({ factura_id: anulando.id, motivo: anulando.motivo })
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
+      setAnulando(null);
+      setMensaje(`✅ Nota de Crédito C ${numeroFactura(j.nota)} emitida. CAE ${j.nota.cae}`);
+      cargar();
+    } catch (err) {
+      const msj = /Failed to fetch|NetworkError/i.test(err.message) ? "Sin conexión. Probá de nuevo con señal." : err.message;
+      setAnulando((a) => (a ? { ...a, enviando: false, error: msj } : a));
+    }
+  }
+
+  // Lo facturado neto: facturas (aunque después se anulen) menos notas de crédito
+  const validas = lista.filter((f) => f.produccion && (f.estado === "emitida" || f.estado === "anulada"));
+  const signo = (f) => (Number(f.tipo) === 13 ? -1 : 1);
   const hoy = new Date();
-  const mes = emitidas
-    .filter((f) => f.fecha && new Date(f.fecha).getMonth() === hoy.getMonth() && new Date(f.fecha).getFullYear() === hoy.getFullYear())
-    .reduce((s, f) => s + Number(f.total), 0);
-  const doceMeses = emitidas
-    .filter((f) => f.fecha && new Date(f.fecha) > new Date(hoy.getTime() - 365 * 86400000))
-    .reduce((s, f) => s + Number(f.total), 0);
+  const mes = validas
+    .filter((f) => f.fecha && new Date(f.fecha + "T12:00:00").getMonth() === hoy.getMonth() && new Date(f.fecha + "T12:00:00").getFullYear() === hoy.getFullYear())
+    .reduce((s, f) => s + signo(f) * Number(f.total), 0);
+  const doceMeses = validas
+    .filter((f) => f.fecha && new Date(f.fecha + "T12:00:00") > new Date(hoy.getTime() - 365 * 86400000))
+    .reduce((s, f) => s + signo(f) * Number(f.total), 0);
 
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
@@ -213,7 +243,12 @@ function Facturas() {
               <div key={f.id} className="bg-white rounded-2xl border border-gray-100 p-3 flex justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-gray-800">
-                    {f.estado === "emitida" ? `Factura C ${numeroFactura(f)}` : f.estado === "error" ? "❌ No se emitió" : "⏳ Emitiendo"}
+                    {f.estado === "emitida" || f.estado === "anulada"
+                      ? `${Number(f.tipo) === 13 ? "Nota de Crédito C" : "Factura C"} ${numeroFactura(f)}`
+                      : f.estado === "error"
+                      ? `❌ ${Number(f.tipo) === 13 ? "Nota de crédito no emitida" : "No se emitió"}`
+                      : "⏳ Emitiendo"}
+                    {f.estado === "anulada" && <span className="text-[10px] font-bold text-amber-700 ml-1">ANULADA</span>}
                     {!f.produccion && <span className="text-[10px] font-bold text-red-600 ml-1">PRUEBA</span>}
                   </p>
                   <p className="text-[11px] text-gray-500 truncate">
@@ -221,12 +256,16 @@ function Facturas() {
                     {" · "}
                     {f.receptor_nombre || "Consumidor final"}
                     {f.detalle?.pedido ? ` · Pedido ${f.detalle.pedido}` : ""}
+                    {f.detalle?.anula ? ` · Anula ${f.detalle.anula}` : ""}
                   </p>
+                  {f.motivo && <p className="text-[11px] text-gray-500">Motivo: {f.motivo}</p>}
                   {f.estado === "error" && <p className="text-[11px] text-red-600">{f.error}</p>}
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-extrabold text-gray-800">${formatPrice(f.total)}</p>
-                  {f.estado === "emitida" && (
+                  <p className={`text-sm font-extrabold ${Number(f.tipo) === 13 ? "text-red-600" : "text-gray-800"}`}>
+                    {Number(f.tipo) === 13 ? "-" : ""}${formatPrice(f.total)}
+                  </p>
+                  {(f.estado === "emitida" || f.estado === "anulada") && (
                     <>
                       <a href={`/factura/${f.codigo}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-brand-blue block">
                         Ver / PDF
@@ -239,6 +278,14 @@ function Facturas() {
                       >
                         📲 Mandar por WhatsApp
                       </a>
+                      {f.estado === "emitida" && Number(f.tipo) === 11 && f.produccion && (
+                        <button
+                          onClick={() => setAnulando({ id: f.id, numero: numeroFactura(f), total: f.total, motivo: "" })}
+                          className="text-[11px] font-bold text-red-600 block ml-auto mt-1"
+                        >
+                          ↩️ Anular
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
@@ -247,6 +294,51 @@ function Facturas() {
           </div>
         )}
       </div>
+
+      {anulando && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-3" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-3xl w-full max-w-sm p-5">
+            <h3 className="font-extrabold text-lg text-gray-800">↩️ Anular factura</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Se emite una <b>Nota de Crédito C</b> por <b>${formatPrice(anulando.total)}</b> que anula la Factura C{" "}
+              {anulando.numero}.
+            </p>
+            <input
+              value={anulando.motivo}
+              onChange={(e) => setAnulando({ ...anulando, motivo: e.target.value })}
+              className="input-field text-sm mt-3"
+              placeholder="Motivo (opcional). Ej: devolución, error en el importe"
+              maxLength={200}
+            />
+            {anulando.error && (
+              <p className="text-xs text-red-600 mt-2" role="alert">
+                {anulando.error}
+              </p>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setAnulando(null)}
+                disabled={anulando.enviando}
+                className="flex-1 border border-gray-300 rounded-xl py-2.5 text-sm font-semibold text-gray-600"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={anular}
+                disabled={anulando.enviando}
+                className="flex-1 bg-red-600 text-white rounded-xl py-2.5 text-sm font-bold disabled:opacity-50"
+              >
+                {anulando.enviando ? "Pidiendo CAE..." : "Emitir nota de crédito"}
+              </button>
+            </div>
+            <p className="text-[10.5px] text-gray-400 mt-2 text-center">
+              También se emite en ARCA al instante y no se puede borrar. Después podés volver a facturar el pedido.
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

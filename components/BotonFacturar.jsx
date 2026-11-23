@@ -33,7 +33,7 @@ async function cargarFacturas(forzar = false) {
         for (const f of data || []) {
           // Gana la emitida real; si no, la última
           const actual = mapa[f.pedido_id];
-          const mejor = (x) => (x.estado === "emitida" ? 2 : 0) + (x.produccion ? 1 : 0);
+          const mejor = (x) => (x.estado === "emitida" ? 4 : x.estado === "anulada" ? 2 : 0) + (x.produccion ? 1 : 0);
           if (!actual || mejor(f) > mejor(actual)) mapa[f.pedido_id] = f;
         }
         cache = mapa;
@@ -127,6 +127,11 @@ export default function BotonFacturar({ pedido }) {
         >
           Mandar por WhatsApp
         </a>
+        {factura.produccion && (
+          <a href="/admin/facturas" className="text-[10.5px] text-gray-400 hover:underline block">
+            ¿Error o devolución? Anular en Facturas
+          </a>
+        )}
         {!factura.produccion && (
           <button onClick={() => setAbierto(true)} className="text-[11px] text-gray-500 underline block ml-auto">
             Facturar de verdad
@@ -220,6 +225,7 @@ export default function BotonFacturar({ pedido }) {
       >
         🧾 Facturar
         {factura?.estado === "error" && <span className="text-red-600"> (reintentar)</span>}
+        {factura?.estado === "anulada" && <span className="text-amber-700 font-semibold"> de nuevo (la anterior se anuló)</span>}
       </button>
       {abierto && ventana()}
     </>

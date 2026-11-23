@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { urlQR } from "@/lib/arca";
 import BotonImprimir from "@/components/BotonImprimir";
 
-// Factura C para mostrar, imprimir o guardar en PDF. Se llega por un link con
+// Factura C o Nota de Crédito C para mostrar, imprimir o guardar en PDF. Se llega por un link con
 // un código secreto (el que se le manda al cliente): sin el código no se ve.
 //
 // Datos del emisor (Vercel → Environment Variables):
@@ -37,8 +37,8 @@ function cuitConGuiones(c) {
 async function cargar(codigo) {
   if (!/^[0-9a-f-]{36}$/i.test(codigo)) return null;
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-  const { data } = await supabase.rpc("factura_por_codigo", { p_codigo: codigo });
-  return data?.[0] || null;
+  const { data } = await supabase.rpc("factura_publica", { p_codigo: codigo });
+  return data || null;
 }
 
 export default async function FacturaPage({ params }) {
@@ -61,7 +61,8 @@ export default async function FacturaPage({ params }) {
       total: f.total,
       docTipo: f.doc_tipo,
       docNro: f.doc_nro,
-      cae: f.cae
+      cae: f.cae,
+      tipo: f.tipo
     }),
     { type: "svg", margin: 0, errorCorrectionLevel: "M" }
   );
@@ -69,6 +70,8 @@ export default async function FacturaPage({ params }) {
   const esCF = Number(f.condicion_iva) === 5;
   const pv = String(f.punto_venta).padStart(5, "0");
   const nro = String(f.numero).padStart(8, "0");
+  const esNC = Number(f.tipo) === 13;
+  const numeroDe = (c) => `${String(c.punto_venta).padStart(5, "0")}-${String(c.numero).padStart(8, "0")}`;
 
   return (
     <main className="factura-imprimible min-h-screen bg-gray-100 print:bg-white py-6 print:py-0 px-3">
@@ -76,6 +79,12 @@ export default async function FacturaPage({ params }) {
         {!f.produccion && (
           <div className="bg-red-600 text-white text-center font-bold py-1.5 text-xs">
             COMPROBANTE DE PRUEBA — SIN VALIDEZ FISCAL
+          </div>
+        )}
+        {f.estado === "anulada" && (
+          <div className="bg-amber-100 text-amber-900 text-center font-bold py-1.5 text-xs print:bg-white">
+            ANULADA
+            {f.anulada_por ? ` con la Nota de Crédito C ${numeroDe(f.anulada_por)} del ${fechaAR(f.anulada_por.fecha)}` : ""}
           </div>
         )}
         <div className="text-center font-bold border-b border-gray-300 py-1 text-xs tracking-widest">ORIGINAL</div>
@@ -92,10 +101,10 @@ export default async function FacturaPage({ params }) {
           </div>
           <div className="flex flex-col items-center border-x border-gray-300 px-4 py-2">
             <span className="text-4xl font-extrabold leading-none border border-gray-900 px-3 py-1">C</span>
-            <span className="text-[10px] font-bold mt-1">COD. 011</span>
+            <span className="text-[10px] font-bold mt-1">COD. {esNC ? "013" : "011"}</span>
           </div>
           <div className="p-3">
-            <p className="font-extrabold text-base">FACTURA</p>
+            <p className="font-extrabold text-base">{esNC ? "NOTA DE CRÉDITO" : "FACTURA"}</p>
             <p className="mt-1">
               <b>Punto de venta:</b> {pv} <b className="ml-2">Comp. Nro:</b> {nro}
             </p>
@@ -134,6 +143,16 @@ export default async function FacturaPage({ params }) {
           <p>
             <b>Condición de venta:</b> Contado
           </p>
+          {esNC && f.asociada && (
+            <p className="mt-1">
+              <b>Anula:</b> Factura C {numeroDe(f.asociada)} del {fechaAR(f.asociada.fecha)}
+            </p>
+          )}
+          {esNC && f.motivo && (
+            <p>
+              <b>Motivo:</b> {f.motivo}
+            </p>
+          )}
         </div>
 
         <table className="w-full">
