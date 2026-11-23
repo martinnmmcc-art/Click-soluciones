@@ -474,6 +474,14 @@ function Dashboard() {
             <span className="text-2xl">🎯</span>
           </Link>
 
+          <Link href="/admin/facturas" className="card p-5 flex items-center justify-between hover:shadow-md">
+            <div>
+              <p className="font-semibold text-gray-800">Facturas</p>
+              <p className="text-sm text-gray-500">Factura C por ARCA, conexión y lo facturado en el año</p>
+            </div>
+            <span className="text-2xl">🧾</span>
+          </Link>
+
           <Link href="/admin/balance" className="card p-5 flex items-center justify-between hover:shadow-md">
             <div>
               <p className="font-semibold text-gray-800">Balance del mes</p>

@@ -7,6 +7,7 @@ import AdminGuard from "@/components/AdminGuard";
 import { formatPrice } from "@/lib/whatsapp";
 import { supabase } from "@/lib/supabaseClient";
 import ComprobantePedido from "@/components/ComprobantePedido";
+import BotonFacturar from "@/components/BotonFacturar";
 import {
   leerCatalogoOffline,
   leerClientesOffline,
@@ -1667,6 +1668,7 @@ function PanelVentas() {
                     >
                       🧾 Comprobante
                     </button>
+                    <BotonFacturar pedido={pedido} />
                     <button
                       onClick={() => eliminarPedido(pedido.id)}
                       disabled={guardandoId === pedido.id}

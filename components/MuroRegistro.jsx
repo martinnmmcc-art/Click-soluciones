@@ -76,7 +76,7 @@ function huellaDispositivo() {
 }
 
 // Pantallas donde nunca molestamos
-const RUTAS_LIBRES = ["/login", "/catalogo-compartir", "/offline", "/admin"];
+const RUTAS_LIBRES = ["/login", "/catalogo-compartir", "/offline", "/admin", "/factura"];
 
 function tieneSesionCliente() {
   try {

@@ -306,3 +306,15 @@ html:not(.dark) .text-gray-400 {
     scroll-behavior: auto !important;
   }
 }
+
+/* Factura: al imprimir o guardar en PDF sale solo la factura, sin la barra
+   de la tienda, el menú de abajo ni los avisos */
+@media print {
+  body:has(.factura-imprimible) header,
+  body:has(.factura-imprimible) nav,
+  body:has(.factura-imprimible) footer,
+  body:has(.factura-imprimible) [role="dialog"],
+  body:has(.factura-imprimible) .fixed {
+    display: none !important;
+  }
+}
