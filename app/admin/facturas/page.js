@@ -6,7 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabaseClient";
 import { cabeceraAdmin } from "@/lib/verificarAdmin";
 import { formatPrice } from "@/lib/whatsapp";
-import { numeroFactura } from "@/components/BotonFacturar";
+import { numeroFactura, linkWhatsApp } from "@/components/BotonFacturar";
 
 // Facturas (Factura C por ARCA):
 //  - "Probar conexión": revisa paso a paso que ARCA acepte tu certificado.
@@ -30,7 +30,15 @@ function Facturas() {
       .select("id, pedido_id, numero, punto_venta, fecha, total, estado, error, produccion, receptor_nombre, codigo, creada_en, detalle")
       .order("creada_en", { ascending: false })
       .limit(300);
-    setLista(data || []);
+    const facturas = data || [];
+    // Teléfono del cliente de cada pedido, para mandar la factura por WhatsApp
+    const ids = [...new Set(facturas.map((f) => f.pedido_id).filter(Boolean))];
+    if (ids.length) {
+      const { data: peds } = await supabase.from("pedidos").select("id, telefono_cliente").in("id", ids);
+      const tel = Object.fromEntries((peds || []).map((p) => [p.id, p.telefono_cliente]));
+      facturas.forEach((f) => (f.telefono = tel[f.pedido_id] || ""));
+    }
+    setLista(facturas);
     setCargando(false);
   }
 
@@ -219,9 +227,19 @@ function Facturas() {
                 <div className="text-right flex-shrink-0">
                   <p className="text-sm font-extrabold text-gray-800">${formatPrice(f.total)}</p>
                   {f.estado === "emitida" && (
-                    <a href={`/factura/${f.codigo}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-brand-blue">
-                      Ver / PDF
-                    </a>
+                    <>
+                      <a href={`/factura/${f.codigo}`} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-brand-blue block">
+                        Ver / PDF
+                      </a>
+                      <a
+                        href={linkWhatsApp(f.telefono, f)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-green-600 block"
+                      >
+                        📲 Mandar por WhatsApp
+                      </a>
+                    </>
                   )}
                 </div>
               </div>

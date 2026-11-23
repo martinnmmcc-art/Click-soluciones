@@ -10,6 +10,7 @@ import { ventaCerrada } from "@/lib/estadosPedido";
 import { coincideCliente, normalizarTexto } from "@/lib/buscar";
 import { archivoComprobante, datosComprobante } from "@/lib/comprobanteImagen";
 import AsociarCliente from "@/components/AsociarCliente";
+import BotonFacturar from "@/components/BotonFacturar";
 import { fechaCorta, fechaYHora, ultimaActividad, agregadoDespues } from "@/lib/fechasPedido";
 
 function telefonoParaWhatsapp(tel) {
@@ -319,6 +320,7 @@ function VentasCerradas() {
                               <span className="font-extrabold text-gray-800 text-sm">
                                 ${formatPrice(p.total)}
                               </span>
+                              <BotonFacturar pedido={p} />
                               {p.estado_pago === "a_favor" &&
                                 Number(p.monto_pagado || 0) > Number(p.total || 0) && (
                                   <p className="text-[11px] font-bold text-green-700">

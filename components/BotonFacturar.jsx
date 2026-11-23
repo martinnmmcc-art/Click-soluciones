@@ -52,7 +52,7 @@ export function linkFactura(f) {
   return `${window.location.origin}/factura/${f.codigo}`;
 }
 
-function linkWhatsApp(telefono, f) {
+export function linkWhatsApp(telefono, f) {
   const tel = String(telefono || "").replace(/\D/g, "").replace(/^0/, "");
   const texto = `¡Hola! Te paso la factura de tu compra en Bolson Click 🧾\n${linkFactura(f)}\n\n¡Gracias por elegirnos!`;
   return `https://wa.me/${tel ? "549" + tel.slice(-10) : ""}?text=${encodeURIComponent(texto)}`;
