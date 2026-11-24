@@ -446,9 +446,9 @@ function Dashboard() {
 
           <Link href="/admin/opiniones" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
             <div>
-              <p className="font-semibold text-gray-800">Opiniones sobre la tienda</p>
+              <p className="font-semibold text-gray-800">Opiniones sobre la tienda y la app</p>
               <p className="text-sm text-gray-500">
-                Revisar lo que dicen de la compra y la app, y elegir cuáles se muestran
+                Lo que dicen de la compra, la atención y la app en general
               </p>
             </div>
             <span className="text-2xl">💬</span>
@@ -456,9 +456,9 @@ function Dashboard() {
 
           <Link href="/admin/resenas" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
             <div>
-              <p className="font-semibold text-gray-800">Opiniones de clientes</p>
+              <p className="font-semibold text-gray-800">Opiniones de productos</p>
               <p className="text-sm text-gray-500">
-                Aprobar las que llegan y pedir nuevas por WhatsApp
+                Las que dejan sobre un producto puntual: aprobar y pedir nuevas
               </p>
             </div>
             <span className="text-2xl">⭐</span>

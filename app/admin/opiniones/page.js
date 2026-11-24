@@ -126,10 +126,13 @@ function Opiniones() {
   return (
     <main className="min-h-screen bg-gray-50 pb-16">
       <div className="max-w-2xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-extrabold text-gray-800">Opiniones sobre la tienda</h1>
+        <h1 className="text-2xl font-extrabold text-gray-800">Opiniones sobre la tienda y la app</h1>
         <p className="text-xs text-gray-500 mb-1">
           Lo que dicen los clientes de la compra, la atención y la app. Vos elegís cuáles se ven.
         </p>
+        <Link href="/admin/resenas" className="text-xs font-bold text-brand-blue block mb-1">
+          ¿Buscás las opiniones de un producto puntual? Están acá ›
+        </Link>
         {publicadas.length > 0 && (
           <p className="text-xs text-gray-600 mb-4 flex items-center gap-1">
             En la app: <Estrellas valor={promedio} tamano="text-xs" />

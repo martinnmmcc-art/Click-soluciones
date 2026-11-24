@@ -149,11 +149,14 @@ function Resenas() {
           ← Panel
         </Link>
         <h1 className="text-2xl font-extrabold text-gray-800 mt-1 mb-1">
-          Opiniones de clientes
+          Opiniones de productos
         </h1>
-        <p className="text-xs text-gray-500 mb-4">
-          Lo que más ayuda a que alguien se decida a comprarte.
+        <p className="text-xs text-gray-500 mb-1">
+          Las que dejan sobre un producto puntual. Lo que más ayuda a que alguien se decida a comprarte.
         </p>
+        <Link href="/admin/opiniones" className="text-xs font-bold text-brand-blue block mb-4">
+          ¿Buscás las opiniones sobre la tienda y la app? Están acá ›
+        </Link>
 
         <div className="flex gap-2 mb-4 overflow-x-auto">
           <button
