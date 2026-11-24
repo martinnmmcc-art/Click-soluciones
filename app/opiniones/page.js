@@ -6,8 +6,10 @@ import Header from "@/components/Header";
 import Estrellas from "@/components/Estrellas";
 import { supabase } from "@/lib/supabaseClient";
 import { etiquetaAspecto } from "@/lib/opiniones";
+import { rutaProducto } from "@/lib/seo";
 
-// Todas las opiniones publicadas sobre la tienda
+// Todas las opiniones publicadas, en un solo lugar: las de la tienda y la app,
+// y las de cada producto (con link al producto)
 export default function OpinionesPage() {
   const [opiniones, setOpiniones] = useState([]);
   const [resumen, setResumen] = useState(null);
@@ -15,8 +17,8 @@ export default function OpinionesPage() {
 
   useEffect(() => {
     Promise.all([
-      supabase.rpc("opiniones_publicas", { p_limite: 100 }),
-      supabase.rpc("resumen_opiniones_tienda")
+      supabase.rpc("opiniones_todas", { p_limite: 200 }),
+      supabase.rpc("resumen_opiniones")
     ]).then(([lista, res]) => {
       setOpiniones(lista.data || []);
       setResumen(res.data?.[0] || null);
@@ -60,6 +62,14 @@ export default function OpinionesPage() {
                       {new Date(o.created_at).toLocaleDateString("es-AR")}
                     </span>
                   </div>
+                  {o.producto_id && (
+                    <Link
+                      href={rutaProducto({ id: o.producto_id, nombre: o.producto_nombre })}
+                      className="inline-block mt-2 text-[11px] font-bold text-brand-blue bg-blue-50 rounded-full px-2.5 py-1 max-w-full truncate"
+                    >
+                      📦 {o.producto_nombre || "Ver producto"} ›
+                    </Link>
+                  )}
                   {o.texto && <p className="text-sm text-gray-700 mt-2">“{o.texto}”</p>}
                   {o.aspectos?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">

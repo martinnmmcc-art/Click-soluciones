@@ -91,6 +91,18 @@ export default function HomePage() {
     cargarMasVendidos();
   }, []);
 
+  // Agotados hace más de un mes: no se muestran en el inicio (ensucian la
+  // vidriera), pero siguen apareciendo si el cliente los busca por nombre.
+  const [agotadosViejos, setAgotadosViejos] = useState(() => new Set());
+  useEffect(() => {
+    supabase
+      .rpc("productos_agotados_viejos", { p_dias: 30 })
+      .then(({ data }) => {
+        if (Array.isArray(data)) setAgotadosViejos(new Set(data.map(Number)));
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     async function cargarDatos() {
       setLoadingData(true);
@@ -160,7 +172,9 @@ export default function HomePage() {
     const coincide =
       !busqueda.trim() || coincideBusqueda(prod.nombre, busqueda) || coincideBusqueda(prod.descripcion, busqueda);
 
-    return coincideCategoria && coincide;
+    const escondido = !busqueda.trim() && agotadosViejos.has(Number(prod.id));
+
+    return coincideCategoria && coincide && !escondido;
   })
   // Primero lo que se puede entregar ya: es lo que más rápido se convierte
   // en venta. Los agotados quedan abajo, para consultar.
@@ -205,6 +219,12 @@ export default function HomePage() {
   }, []);
 
   const enStock = productos.filter((p) => Number(p.stock || 0) > 0);
+
+  // Rubros que tienen algo para mostrar (si todo lo del rubro está agotado
+  // hace rato, el botón llevaría a una lista vacía)
+  const categoriasVisibles = categorias.filter((c) =>
+    productos.some((p) => p.categoria === c.id && !agotadosViejos.has(Number(p.id)))
+  );
 
   // Vidriera por categoría: una foto real de cada rubro, como las historias
   // de Instagram. Se entiende al toque qué vendemos y lleva directo a eso.
@@ -389,7 +409,7 @@ export default function HomePage() {
         </h2>
         <p className="text-[11px] text-gray-500 mt-1 mb-3 ml-7">Primero lo que tenemos disponible</p>
 
-        {categorias.length > 0 && (
+        {categoriasVisibles.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-3 scrollbar-none">
             <button
               onClick={() => setCategoriaSeleccionada("todas")}
@@ -399,7 +419,7 @@ export default function HomePage() {
             >
               Todas
             </button>
-            {categorias.map((cat) => (
+            {categoriasVisibles.map((cat) => (
               <button
                 key={cat.id}
                 onClick={() => setCategoriaSeleccionada(cat.id)}

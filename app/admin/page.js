@@ -446,19 +446,9 @@ function Dashboard() {
 
           <Link href="/admin/opiniones" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
             <div>
-              <p className="font-semibold text-gray-800">Opiniones sobre la tienda y la app</p>
+              <p className="font-semibold text-gray-800">Opiniones</p>
               <p className="text-sm text-gray-500">
-                Lo que dicen de la compra, la atención y la app en general
-              </p>
-            </div>
-            <span className="text-2xl">💬</span>
-          </Link>
-
-          <Link href="/admin/resenas" className="card p-5 flex items-center justify-between hover:shadow-md border-2 border-amber-300">
-            <div>
-              <p className="font-semibold text-gray-800">Opiniones de productos</p>
-              <p className="text-sm text-gray-500">
-                Las que dejan sobre un producto puntual: aprobar y pedir nuevas
+                De la tienda, la app y los productos: aprobar, responder y pedir nuevas
               </p>
             </div>
             <span className="text-2xl">⭐</span>

@@ -14,8 +14,9 @@ import { supabase } from "@/lib/supabaseClient";
 //  - "checkout": una sola línea de confianza antes de confirmar el pedido,
 //    para bajar la ansiedad del último paso sin distraer.
 //
-// Se prende y se apaga desde el panel (Opiniones sobre la tienda →
-// "Mostrar en la app"). Mientras esté apagado, no se ve nada.
+// Cuenta juntas las opiniones de la tienda y las de productos.
+// Se prende y se apaga desde Panel → Opiniones ("Mostrar en la app").
+// Mientras esté apagado, no se ve nada.
 
 function useOpiniones(limite) {
   const [datos, setDatos] = useState({ opiniones: [], cantidad: 0, promedio: 0 });
@@ -23,8 +24,8 @@ function useOpiniones(limite) {
   useEffect(() => {
     let vivo = true;
     Promise.all([
-      supabase.rpc("resumen_opiniones_tienda"),
-      limite > 0 ? supabase.rpc("opiniones_publicas", { p_limite: limite }) : Promise.resolve({ data: [] })
+      supabase.rpc("resumen_opiniones"),
+      limite > 0 ? supabase.rpc("opiniones_todas", { p_limite: limite }) : Promise.resolve({ data: [] })
     ]).then(([res, lista]) => {
       if (!vivo) return;
       const r = res.data?.[0];
