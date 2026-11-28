@@ -393,6 +393,29 @@ export default function CheckoutPage() {
       // El cupón lo marca como usado el servidor al guardar el pedido
 
       clearCart();
+
+      // Pago con tarjeta (Ualá Bis): lo mandamos directo a pagar. Si algo
+      // falla, el pedido igual quedó guardado y puede pagar desde la
+      // confirmación con el botón "Pagar con tarjeta".
+      if (form.metodo_pago === "uala_bis") {
+        try {
+          const resPago = await fetch("/api/pagos/uala/crear", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ numero: numero_pedido })
+          });
+          const pago = await resPago.json().catch(() => ({}));
+          if (resPago.ok && pago.link) {
+            window.location.href = pago.link;
+            return;
+          }
+        } catch (e) {
+          console.error("No se pudo abrir el pago con tarjeta:", e);
+        }
+        router.push(`/confirmacion?numero=${numero_pedido}&pago=fallo`);
+        return;
+      }
+
       router.push(
         `/confirmacion?numero=${numero_pedido}${
           crearCuenta && !yaTieneCuenta ? "&cuenta=1" : ""
@@ -894,9 +917,18 @@ export default function CheckoutPage() {
 
           <div>
             <button disabled={enviando} className="btn-primary w-full">
-              {enviando ? "Enviando tu pedido..." : "Enviar pedido · no pagás ahora"}
+              {enviando
+                ? form.metodo_pago === "uala_bis"
+                  ? "Abriendo el pago..."
+                  : "Enviando tu pedido..."
+                : form.metodo_pago === "uala_bis"
+                ? "💳 Ir a pagar con tarjeta"
+                : "Enviar pedido · no pagás ahora"}
             </button>
             <p className="text-[11.5px] text-gray-600 text-center mt-1.5">
+              {form.metodo_pago === "uala_bis"
+                ? "Pagás seguro en Ualá Bis con débito, crédito o en cuotas. "
+                : ""}
               Te escribimos por WhatsApp para confirmarlo.
             </p>
           </div>
