@@ -7,6 +7,7 @@ import { buildWhatsAppLink, whatsappProductMessage, whatsappAPedidoMessage, form
 import BotonFavorito from "@/components/BotonFavorito";
 import FotoRotativa from "@/components/FotoRotativa";
 import { fotosDe } from "@/lib/imagenProducto";
+import DatosCompra from "@/components/DatosCompra";
 
 export default function ProductCard({ producto }) {
   const { addItem } = useCart();
@@ -17,6 +18,7 @@ export default function ProductCard({ producto }) {
   const nombre = producto.nombre || "Producto sin nombre";
   const tieneOferta = producto.precio_oferta && producto.precio_oferta < producto.precio;
   const precio = tieneOferta ? producto.precio_oferta : producto.precio;
+  const pct = tieneOferta ? Math.round((1 - Number(producto.precio_oferta) / Number(producto.precio)) * 100) : 0;
 
   const stock = producto.stock;
   // Los "a pedido" no tienen stock tuyo: se consultan y se encargan. Si el
@@ -46,8 +48,8 @@ export default function ProductCard({ producto }) {
           />
 
           {tieneOferta && (
-            <span className="absolute top-1.5 left-1.5 bg-brand-orange text-white text-[9px] font-bold px-2 py-0.5 rounded-full">
-              OFERTA
+            <span className="absolute top-1.5 left-1.5 bg-red-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+              {pct > 0 ? `−${pct}%` : "OFERTA"}
             </span>
           )}
           {!tieneOferta && esNuevo && (
@@ -91,15 +93,17 @@ export default function ProductCard({ producto }) {
 
       <div className="mt-3 pt-2 border-t border-gray-50 flex flex-col gap-1.5">
         <div className="flex items-center gap-1.5">
-          <span className="font-black text-sm text-brand-blue">
+          <span className="font-black text-[17px] text-brand-blue leading-none">
             ${formatPrice(precio)}
           </span>
           {tieneOferta && (
-            <span className="text-[10px] text-gray-400 line-through">
+            <span className="text-[11px] text-gray-400 line-through">
               ${formatPrice(producto.precio)}
             </span>
           )}
         </div>
+
+        <DatosCompra producto={producto} />
 
         {aPedido ? (
           <>
