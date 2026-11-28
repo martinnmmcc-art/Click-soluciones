@@ -72,11 +72,122 @@ function AceptarNovedades({ numero, telefono }) {
   );
 }
 
+
+// Pago con tarjeta por Ualá Bis: al volver de pagar confirmamos el estado,
+// y si no pagó (o falló) le damos el botón para intentar de nuevo.
+function PagoConTarjeta({ numero, pedido, resultado }) {
+  const [estado, setEstado] = useState(pedido?.estado_pago === "pagado" ? "pagado" : resultado === "ok" ? "verificando" : "pendiente");
+  const [abriendo, setAbriendo] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (pedido?.estado_pago === "pagado") {
+      setEstado("pagado");
+      return;
+    }
+    if (resultado !== "ok") return;
+    // Ualá puede tardar unos segundos en confirmar: preguntamos varias veces
+    let vueltas = 0;
+    let cortar = false;
+    async function preguntar() {
+      try {
+        // "t" distinto cada vez: que la app nunca conteste con un estado guardado
+        const res = await fetch(`/api/pagos/uala/estado?numero=${encodeURIComponent(numero)}&t=${Date.now()}`, {
+          cache: "no-store"
+        });
+        const r = await res.json();
+        if (cortar) return;
+        if (r.estado === "pagado") return setEstado("pagado");
+        if (r.estado === "rechazado") return setEstado("rechazado");
+      } catch (e) {}
+      vueltas++;
+      if (vueltas < 8 && !cortar) setTimeout(preguntar, 3000);
+      else if (!cortar) setEstado("demorado");
+    }
+    preguntar();
+    return () => {
+      cortar = true;
+    };
+  }, [numero, resultado, pedido?.estado_pago]);
+
+  async function pagar() {
+    setAbriendo(true);
+    setError("");
+    try {
+      const res = await fetch("/api/pagos/uala/crear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ numero })
+      });
+      const r = await res.json().catch(() => ({}));
+      if (r.pagado) {
+        setEstado("pagado");
+        setAbriendo(false);
+        return;
+      }
+      if (!res.ok || !r.link) throw new Error(r.error || "No se pudo abrir el pago");
+      window.location.href = r.link;
+    } catch (e) {
+      setError(e.message);
+      setAbriendo(false);
+    }
+  }
+
+  if (estado === "pagado") {
+    return (
+      <div className="bg-green-50 border border-green-300 rounded-2xl p-4 mt-4 w-full max-w-xs">
+        <p className="text-sm font-bold text-green-900">💳 ¡Pago aprobado!</p>
+        <p className="text-xs text-green-800 mt-1">Ya registramos tu pago. Te escribimos para coordinar la entrega.</p>
+      </div>
+    );
+  }
+
+  if (estado === "verificando") {
+    return (
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mt-4 w-full max-w-xs">
+        <p className="text-sm font-bold text-blue-900">⏳ Confirmando tu pago...</p>
+        <p className="text-xs text-blue-800 mt-1">Esperá unos segundos, no cierres esta pantalla.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card p-4 mt-4 w-full max-w-xs">
+      {estado === "demorado" && (
+        <p className="text-xs text-blue-800 bg-blue-50 rounded-lg p-2 mb-3">
+          Ualá todavía no nos confirmó el pago. Si ya pagaste, no lo hagas de nuevo: lo vemos y te avisamos por WhatsApp.
+        </p>
+      )}
+      {(resultado === "fallo" || estado === "rechazado") && (
+        <p className="text-xs text-red-700 bg-red-50 rounded-lg p-2 mb-3">
+          El pago no se completó. Tu pedido quedó guardado: podés intentar de nuevo o pagar de otra forma.
+        </p>
+      )}
+      {estado !== "demorado" && (
+        <>
+          <p className="text-sm font-bold text-gray-800 mb-1">💳 Pagá con tarjeta</p>
+          <p className="text-xs text-gray-500 mb-3">Débito, crédito o en cuotas, de forma segura con Ualá Bis.</p>
+          <button
+            type="button"
+            onClick={pagar}
+            disabled={abriendo}
+            className="btn-primary w-full text-center disabled:opacity-60"
+          >
+            {abriendo ? "Abriendo el pago..." : "Pagar con tarjeta"}
+          </button>
+        </>
+      )}
+      {error && <p className="text-xs text-red-600 font-medium mt-2">{error}</p>}
+    </div>
+  );
+}
+
 function ConfirmacionContent() {
   const searchParams = useSearchParams();
   const numero = searchParams.get("numero");
   const esPendiente = searchParams.get("pendiente") === "1";
   const cuentaCreada = searchParams.get("cuenta") === "1";
+  const resultadoPago = searchParams.get("pago"); // "ok" | "fallo" (vuelve de Ualá)
 
   const [pedido, setPedido] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -176,7 +287,11 @@ function ConfirmacionContent() {
             <ol className="text-[12.5px] text-green-900 mt-1.5 space-y-1 list-none">
               <li>✅ Recibimos tu pedido.</li>
               <li>💬 Te escribimos por WhatsApp para confirmar stock, precio y {pedido?.metodo_entrega === "envio" ? "el envío" : "el retiro"}.</li>
-              <li>💳 Recién ahí pagás. Ahora no tenés que hacer nada.</li>
+              {pedido?.metodo_pago === "uala_bis" || resultadoPago ? (
+                <li>📦 Lo preparamos y coordinamos la entrega con vos.</li>
+              ) : (
+                <li>💳 Recién ahí pagás. Ahora no tenés que hacer nada.</li>
+              )}
             </ol>
           </div>
         )}
@@ -225,6 +340,10 @@ function ConfirmacionContent() {
             )}
           </div>
         ) : null}
+
+        {!loading && numero && !esPendiente && (pedido?.metodo_pago === "uala_bis" || resultadoPago) && (
+          <PagoConTarjeta numero={numero} pedido={pedido} resultado={resultadoPago} />
+        )}
 
         {pedido?.metodo_pago === "transferencia" && (
           <div className="card p-4 mt-4 w-full max-w-xs">
