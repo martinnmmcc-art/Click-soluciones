@@ -20,6 +20,7 @@ import ResenasProducto from "@/components/ResenasProducto";
 import CompradosJuntos from "@/components/CompradosJuntos";
 import { urlImagen } from "@/lib/imagenProducto";
 import { CAMPOS_PUBLICOS } from "@/lib/camposPublicos";
+import DatosCompra from "@/components/DatosCompra";
 
 export default function ProductoDetallePage() {
   const params = useParams();
@@ -238,6 +239,15 @@ export default function ProductoDetallePage() {
               ${formatPrice(producto.precio)}
             </span>
           )}
+          {tieneOferta && Number(producto.precio) > 0 && (
+            <span className="text-sm font-extrabold text-emerald-700">
+              {Math.round((1 - precioFinal / Number(producto.precio)) * 100)}% OFF
+            </span>
+          )}
+        </div>
+
+        <div className="mt-1.5">
+          <DatosCompra producto={producto} tamano="grande" />
         </div>
 
         <DesgloseAdmin producto={producto} />

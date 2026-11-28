@@ -6,6 +6,7 @@ import Image from "next/image";
 import Header from "@/components/Header";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/whatsapp";
+import { VENTA } from "@/lib/config";
 import { obtenerTelefonoCliente } from "@/lib/favoritos";
 import { urlImagen } from "@/lib/imagenProducto";
 import { tokenSesion, urlMisPedidos, urlSaldoAFavor } from "@/lib/sesionCliente";
@@ -262,6 +263,8 @@ export default function CarritoPage() {
                 />
               </div>
 
+              <BarraEnvioGratis total={total} />
+
               <div className="card p-4 mt-5 flex items-center justify-between">
                 <span className="font-semibold text-gray-700">Total</span>
                 <span className="text-xl font-extrabold text-brand-blueDark">
@@ -440,5 +443,36 @@ export default function CarritoPage() {
         )}
       </div>
     </main>
+  );
+}
+
+// Como en MercadoLibre: "te faltan $X para el envío gratis". Empuja a sumar
+// un producto más. Solo aparece si cargaste NEXT_PUBLIC_ENVIO_GRATIS_DESDE.
+function BarraEnvioGratis({ total }) {
+  const meta = VENTA.envioGratisDesde;
+  if (!meta || meta <= 0) return null;
+  const actual = Number(total || 0);
+  const falta = Math.max(0, meta - actual);
+  const avance = Math.min(100, Math.round((actual / meta) * 100));
+  return (
+    <div className="card p-3 mt-5">
+      <p className={`text-[13px] font-semibold ${falta === 0 ? "text-emerald-700" : "text-gray-700"}`}>
+        {falta === 0 ? (
+          <>🎉 ¡Tenés envío gratis en la Comarca!</>
+        ) : (
+          <>
+            🚚 Te faltan <b>${formatPrice(falta)}</b> para el envío gratis en la Comarca
+          </>
+        )}
+      </p>
+      <div className="h-2 bg-gray-100 rounded-full mt-2 overflow-hidden">
+        <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${avance}%` }} />
+      </div>
+      {falta > 0 && (
+        <Link href="/catalogo" className="inline-block text-[12px] font-bold text-brand-blue mt-2">
+          Sumar algo más →
+        </Link>
+      )}
+    </div>
   );
 }
